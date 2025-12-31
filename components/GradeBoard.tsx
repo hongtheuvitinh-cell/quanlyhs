@@ -39,7 +39,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Khi dữ liệu từ Server thay đổi (Prop grades), đồng bộ vào tempGrades cục bộ
   useEffect(() => {
     setTempGrades(grades);
     setHasChanges(false);
@@ -63,7 +62,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         try {
           const data = await parseGradesFromImage(base64, file.type);
           if (data && Array.isArray(data)) {
-            const newGradesFromAi: Grade[] = data.map((item: any) => {
+            const newGradesFromAi: Grade[] = data.map((item: any, idx: number) => {
               const matchedStudent = students.find((s: Student) => 
                 (item.MaHS && s.MaHS.toLowerCase().trim() === item.MaHS.toLowerCase().trim()) ||
                 (s.Hoten.toLowerCase().trim() === item.Hoten.toLowerCase().trim())
@@ -72,7 +71,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               if (!matchedStudent) return null;
 
               return {
-                MaDiem: 0, // Sẽ được DB sinh mới hoàn toàn
+                // Tạo MaDiem tạm thời (số nguyên)
+                MaDiem: Math.floor(Date.now() / 1000) + idx + Math.floor(Math.random() * 1000),
                 MaHS: matchedStudent.MaHS,
                 MaMonHoc: item.MaMonHoc || selectedSubject,
                 MaNienHoc: state.selectedYear,
@@ -127,8 +127,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         g.MaNienHoc === state.selectedYear
       );
 
+      // Nếu đã có dữ liệu, giữ lại MaDiem cũ, nếu chưa có thì gán 0 (App.tsx sẽ tự tạo mã ID)
+      const existingMaDiem = idx > -1 ? updated[idx].MaDiem : 0;
+
       const newGrade: Grade = {
-        MaDiem: 0, // Reset ID cũ để App.tsx thực hiện quy trình Delete-then-Insert
+        MaDiem: existingMaDiem,
         MaHS: studentId,
         MaMonHoc: selectedSubject,
         MaNienHoc: state.selectedYear,
@@ -148,8 +151,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
-      // Vì quy trình là Delete-then-Insert, ta cần gửi toàn bộ điểm hiện tại 
-      // của các học sinh trong lớp (thuộc môn và học kỳ đang xem)
       const studentIds = students.map(s => s.MaHS);
       const gradesToSave = tempGrades.filter(g => 
         studentIds.includes(g.MaHS) &&
@@ -166,8 +167,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
       await onUpdateGrades(gradesToSave);
       setHasChanges(false);
-    } catch (error) {
-      // Lỗi sẽ được App.tsx hiển thị
     } finally {
       setIsSaving(false);
     }
@@ -222,7 +221,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95 animate-pulse"
             >
               {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-              Đồng bộ bảng điểm
+              Lưu thay đổi Cloud
             </button>
           )}
 
@@ -265,14 +264,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       </div>
 
       <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden relative">
-        {hasChanges && !isSaving && (
-          <div className="absolute top-4 right-8 z-20 animate-bounce">
-            <div className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase border border-amber-200">
-              <AlertCircle size={14} /> Có thay đổi chưa đồng bộ
-            </div>
-          </div>
-        )}
-
         <div className="overflow-x-auto custom-scrollbar">
           {viewMode === 'DETAIL' ? (
             <table className="w-full text-left">
@@ -385,13 +376,13 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       {hasChanges && !isSaving && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10">
           <div className="bg-gray-900 text-white px-8 py-4 rounded-3xl shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md">
-            <div className="flex flex-col">
-              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Trạng thái dữ liệu</p>
-              <p className="text-sm font-bold">Bạn có thay đổi chưa được đồng bộ!</p>
+            <div className="flex flex-col text-left">
+              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Dữ liệu thay đổi</p>
+              <p className="text-sm font-bold">Lưu thay đổi lên máy chủ Cloud ngay?</p>
             </div>
             <button 
               onClick={handleSaveChanges} 
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-indigo-500/20"
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs flex items-center gap-2 transition-all active:scale-95 shadow-lg"
             >
               <Save size={16} /> Đồng bộ ngay
             </button>
