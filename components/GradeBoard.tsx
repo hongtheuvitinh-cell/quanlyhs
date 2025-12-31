@@ -79,7 +79,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               );
 
               return {
-                MaDiem: existing?.MaDiem || undefined, // Để undefined cho bản ghi mới
+                MaDiem: existing?.MaDiem, 
                 MaHS: matchedStudent.MaHS,
                 MaMonHoc: item.MaMonHoc || selectedSubject,
                 MaNienHoc: state.selectedYear,
@@ -135,7 +135,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       );
 
       const newGrade: Grade = {
-        MaDiem: updated[idx]?.MaDiem, // Giữ nguyên ID cũ nếu có
+        MaDiem: updated[idx]?.MaDiem, 
         MaHS: studentId,
         MaMonHoc: selectedSubject,
         MaNienHoc: state.selectedYear,
@@ -155,7 +155,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
-      // Chỉ gửi những điểm có thay đổi hoặc liên quan đến môn/lớp hiện tại
       const gradesToSave = tempGrades.filter(g => 
         g.MaMonHoc === selectedSubject && 
         g.HocKy === selectedHK && 
@@ -164,7 +163,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       await onUpdateGrades(gradesToSave);
       setHasChanges(false);
     } catch (error) {
-      // Thông báo lỗi đã được xử lý trong App.tsx
+      // Xử lý lỗi tại App.tsx
     } finally {
       setIsSaving(false);
     }
