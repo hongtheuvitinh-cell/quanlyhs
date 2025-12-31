@@ -4,37 +4,34 @@ import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Load env file based on `mode` in the current working directory.
-  // Set the third parameter to '' to load all envs regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
     plugins: [react()],
     
-    // Polyfill process.env for compatibility with existing code
+    // Polyfill process.env cho code hiện tại
     define: {
       'process.env': env
     },
 
     server: {
       port: 3000,
-      open: true, // Tự động mở trình duyệt khi chạy dev
-      host: true  // Cho phép truy cập qua mạng nội bộ
+      open: true,
+      host: true
+    },
+
+    // Sử dụng esbuild để nén code (mặc định, cực nhanh và không cần cài thêm gói)
+    esbuild: {
+      // Tự động xóa console và debugger khi build bản production
+      drop: mode === 'production' ? ['console', 'debugger'] : [],
     },
 
     build: {
-      outDir: 'dist', // Thư mục xuất bản cho Vercel
-      sourcemap: false, // Tắt sourcemap để bảo mật code trên production
-      minify: 'terser', // Sử dụng terser để tối ưu hóa dung lượng file tốt nhất
-      terserOptions: {
-        compress: {
-          drop_console: true, // Xóa console.log khi build bản chính thức
-          drop_debugger: true
-        }
-      },
+      outDir: 'dist',
+      sourcemap: false,
+      minify: 'esbuild', // Thay terser bằng esbuild
       rollupOptions: {
         output: {
-          // Chia nhỏ các thư viện lớn thành các file riêng để trình duyệt cache tốt hơn
           manualChunks: {
             'react-vendor': ['react', 'react-dom'],
             'supabase-vendor': ['@supabase/supabase-js'],
