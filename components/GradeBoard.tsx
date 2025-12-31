@@ -39,6 +39,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Khi dữ liệu từ Server thay đổi (Prop grades), đồng bộ vào tempGrades cục bộ
   useEffect(() => {
     setTempGrades(grades);
     setHasChanges(false);
@@ -62,7 +63,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         try {
           const data = await parseGradesFromImage(base64, file.type);
           if (data && Array.isArray(data)) {
-            const newGrades: Grade[] = data.map((item: any) => {
+            const newGradesFromAi: Grade[] = data.map((item: any) => {
               const matchedStudent = students.find((s: Student) => 
                 (item.MaHS && s.MaHS.toLowerCase().trim() === item.MaHS.toLowerCase().trim()) ||
                 (s.Hoten.toLowerCase().trim() === item.Hoten.toLowerCase().trim())
@@ -70,16 +71,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
               if (!matchedStudent) return null;
 
-              const existing = tempGrades.find((g: Grade) => 
-                g.MaHS === matchedStudent.MaHS && 
-                g.MaMonHoc === (item.MaMonHoc || selectedSubject) && 
-                g.LoaiDiem === item.LoaiDiem &&
-                g.HocKy === selectedHK &&
-                g.MaNienHoc === state.selectedYear
-              );
-
               return {
-                MaDiem: existing?.MaDiem, 
+                MaDiem: 0, // Sẽ được DB sinh mới hoàn toàn
                 MaHS: matchedStudent.MaHS,
                 MaMonHoc: item.MaMonHoc || selectedSubject,
                 MaNienHoc: state.selectedYear,
@@ -89,10 +82,10 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               };
             }).filter((g: any) => g !== null) as Grade[];
 
-            if (newGrades.length > 0) {
+            if (newGradesFromAi.length > 0) {
               setTempGrades(prev => {
                 const updated = [...prev];
-                newGrades.forEach(ng => {
+                newGradesFromAi.forEach(ng => {
                   const idx = updated.findIndex(u => 
                     u.MaHS === ng.MaHS && 
                     u.MaMonHoc === ng.MaMonHoc && 
@@ -135,7 +128,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       );
 
       const newGrade: Grade = {
-        MaDiem: updated[idx]?.MaDiem, 
+        MaDiem: 0, // Reset ID cũ để App.tsx thực hiện quy trình Delete-then-Insert
         MaHS: studentId,
         MaMonHoc: selectedSubject,
         MaNienHoc: state.selectedYear,
@@ -155,15 +148,26 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
+      // Vì quy trình là Delete-then-Insert, ta cần gửi toàn bộ điểm hiện tại 
+      // của các học sinh trong lớp (thuộc môn và học kỳ đang xem)
+      const studentIds = students.map(s => s.MaHS);
       const gradesToSave = tempGrades.filter(g => 
+        studentIds.includes(g.MaHS) &&
         g.MaMonHoc === selectedSubject && 
         g.HocKy === selectedHK && 
         g.MaNienHoc === state.selectedYear
       );
+
+      if (gradesToSave.length === 0) {
+        alert("Không có dữ liệu điểm nào để lưu.");
+        setIsSaving(false);
+        return;
+      }
+
       await onUpdateGrades(gradesToSave);
       setHasChanges(false);
     } catch (error) {
-      // Xử lý lỗi tại App.tsx
+      // Lỗi sẽ được App.tsx hiển thị
     } finally {
       setIsSaving(false);
     }
@@ -218,7 +222,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95 animate-pulse"
             >
               {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-              Lưu thay đổi ngay
+              Đồng bộ bảng điểm
             </button>
           )}
 
@@ -261,10 +265,10 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       </div>
 
       <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden relative">
-        {hasChanges && (
+        {hasChanges && !isSaving && (
           <div className="absolute top-4 right-8 z-20 animate-bounce">
             <div className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase border border-amber-200">
-              <AlertCircle size={14} /> Có thay đổi chưa lưu
+              <AlertCircle size={14} /> Có thay đổi chưa đồng bộ
             </div>
           </div>
         )}
@@ -368,20 +372,28 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         </div>
       )}
 
-      {hasChanges && (
+      {isSaving && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white px-10 py-8 rounded-[32px] shadow-2xl flex flex-col items-center border border-gray-100">
+            <Loader2 className="text-indigo-600 animate-spin mb-4" size={40} />
+            <h3 className="font-black text-lg text-gray-800">Đang đồng bộ Cloud...</h3>
+            <p className="text-gray-400 text-xs mt-2 uppercase font-bold tracking-widest">Vui lòng không đóng trình duyệt</p>
+          </div>
+        </div>
+      )}
+
+      {hasChanges && !isSaving && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10">
           <div className="bg-gray-900 text-white px-8 py-4 rounded-3xl shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md">
             <div className="flex flex-col">
               <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Trạng thái dữ liệu</p>
-              <p className="text-sm font-bold">Bạn có thay đổi chưa được lưu!</p>
+              <p className="text-sm font-bold">Bạn có thay đổi chưa được đồng bộ!</p>
             </div>
             <button 
               onClick={handleSaveChanges} 
-              disabled={isSaving}
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs flex items-center gap-2 transition-all active:scale-95"
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-indigo-500/20"
             >
-              {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              Lưu vào Cloud ngay
+              <Save size={16} /> Đồng bộ ngay
             </button>
           </div>
         </div>
