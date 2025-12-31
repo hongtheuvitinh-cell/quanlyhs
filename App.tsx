@@ -9,7 +9,14 @@ import {
   LogOut,
   ChevronRight,
   Send,
-  Loader2
+  Loader2,
+  Settings,
+  Plus,
+  Trash2,
+  X,
+  Save,
+  // Fix: Added missing Calendar import
+  Calendar
 } from 'lucide-react';
 import { supabase } from './services/supabaseClient';
 import { Role, AppState, Student, Grade, Assignment, LearningLog, Discipline, AcademicYear, Class, ViolationRule, AssignmentTask, Teacher } from './types';
@@ -27,30 +34,38 @@ const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'grades' | 'discipline' | 'logs' | 'tasks'>('dashboard');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
-  const [years, setYears] = useState<AcademicYear[]>(mockAcademicYears);
-  const [classes, setClasses] = useState<Class[]>(mockClasses);
+  const [years, setYears] = useState<AcademicYear[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>(mockAssignments);
   const [students, setStudents] = useState<Student[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
-  const [violationRules, setViolationRules] = useState<ViolationRule[]>(mockViolationRules);
+  const [violationRules, setViolationRules] = useState<ViolationRule[]>([]);
   const [logs, setLogs] = useState<LearningLog[]>([]);
   const [tasks, setTasks] = useState<AssignmentTask[]>([]);
   
   const [state, setState] = useState<AppState>({
     currentUser: null,
     currentRole: Role.CHU_NHIEM,
-    selectedClass: '12A1',
-    selectedYear: 1,
+    selectedClass: '',
+    selectedYear: 0,
     selectedSubject: null
   });
+
+  // State cho việc thêm mới trong Settings
+  const [newYearName, setNewYearName] = useState('');
+  const [newClassName, setNewClassName] = useState('');
+  const [newClassID, setNewClassID] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
         const [
+          { data: yrData },
+          { data: clData },
           { data: stData },
           { data: grData },
           { data: dsData },
@@ -58,6 +73,8 @@ const App: React.FC = () => {
           { data: tkData },
           { data: rlData }
         ] = await Promise.all([
+          supabase.from('academic_years').select('*').order('MaNienHoc', { ascending: false }),
+          supabase.from('classes').select('*').order('MaLop', { ascending: true }),
           supabase.from('students').select('*'),
           supabase.from('grades').select('*'),
           supabase.from('disciplines').select('*'),
@@ -66,12 +83,20 @@ const App: React.FC = () => {
           supabase.from('violation_rules').select('*')
         ]);
 
+        if (yrData) {
+          setYears(yrData);
+          if (yrData.length > 0) setState(p => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
+        }
+        if (clData) {
+          setClasses(clData);
+          if (clData.length > 0) setState(p => ({ ...p, selectedClass: clData[0].MaLop }));
+        }
         if (stData) setStudents(stData);
         if (grData) setGrades(grData);
         if (dsData) setDisciplines(dsData);
         if (lgData) setLogs(lgData);
         if (tkData) setTasks(tkData);
-        if (rlData && rlData.length > 0) setViolationRules(rlData);
+        if (rlData) setViolationRules(rlData);
       } catch (err) {
         console.error("Lỗi fetch dữ liệu Supabase:", err);
       } finally {
@@ -104,6 +129,39 @@ const App: React.FC = () => {
         alert("Không tìm thấy mã Giáo viên!");
       }
     }
+  };
+
+  const handleAddYear = async () => {
+    if (!newYearName) return;
+    const newYear = { TenNienHoc: newYearName };
+    const { data, error } = await supabase.from('academic_years').insert([newYear]).select();
+    if (data) {
+      setYears([data[0], ...years]);
+      setNewYearName('');
+    }
+  };
+
+  const handleDeleteYear = async (id: number) => {
+    if (!confirm("Xóa niên học này?")) return;
+    await supabase.from('academic_years').delete().eq('MaNienHoc', id);
+    setYears(years.filter(y => y.MaNienHoc !== id));
+  };
+
+  const handleAddClass = async () => {
+    if (!newClassID || !newClassName) return;
+    const newCls = { MaLop: newClassID, TenLop: newClassName, Khoi: parseInt(newClassID) || 10 };
+    const { data, error } = await supabase.from('classes').insert([newCls]).select();
+    if (data) {
+      setClasses([...classes, data[0]]);
+      setNewClassID('');
+      setNewClassName('');
+    }
+  };
+
+  const handleDeleteClass = async (id: string) => {
+    if (!confirm("Xóa lớp học này?")) return;
+    await supabase.from('classes').delete().eq('MaLop', id);
+    setClasses(classes.filter(c => c.MaLop !== id));
   };
 
   const handleUpdateGrades = async (newGrades: Grade[]) => {
@@ -219,26 +277,49 @@ const App: React.FC = () => {
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-16 bg-white border-b border-gray-200 px-8 flex items-center justify-between shrink-0 z-10">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-8">
             <div className="flex flex-col">
-              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Niên học</span>
-              <select value={state.selectedYear} onChange={(e) => setState(prev => ({ ...prev, selectedYear: parseInt(e.target.value) }))} className="text-xs font-black border-none bg-transparent outline-none cursor-pointer text-gray-700">
-                {years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}
-              </select>
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Niên học</span>
+              <div className="flex items-center gap-1 group">
+                <select 
+                  value={state.selectedYear} 
+                  onChange={(e) => setState(prev => ({ ...prev, selectedYear: parseInt(e.target.value) }))} 
+                  className="text-base font-black border-none bg-transparent outline-none cursor-pointer text-gray-800 appearance-none pr-1"
+                >
+                  {years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}
+                </select>
+                <div className="text-gray-800 mt-1"><ChevronRight size={14} /></div>
+              </div>
             </div>
-            <ChevronRight className="text-gray-300" size={16} />
+            
+            <div className="flex items-center text-gray-200 h-8 self-center"><ChevronRight size={24} /></div>
+
             <div className="flex flex-col">
-              <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-0.5">Lớp hiện tại</span>
-              <select value={state.selectedClass} onChange={(e) => setState(prev => ({ ...prev, selectedClass: e.target.value }))} className="text-xs font-black border-none bg-indigo-50 text-indigo-700 rounded-lg px-2 py-1 outline-none cursor-pointer">
-                {classes.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}
-              </select>
+              <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Lớp hiện tại</span>
+              <div className="flex items-center gap-1 bg-indigo-50 px-3 py-1 rounded-xl mt-0.5 border border-indigo-100 group">
+                <select 
+                  value={state.selectedClass} 
+                  onChange={(e) => setState(prev => ({ ...prev, selectedClass: e.target.value }))} 
+                  className="text-base font-black border-none bg-transparent text-indigo-700 outline-none cursor-pointer appearance-none"
+                >
+                  {classes.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}
+                </select>
+                <div className="text-indigo-700"><ChevronRight size={14} className="rotate-90" /></div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-             <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+
+          <div className="flex items-center gap-4">
+             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-full text-[11px] font-black uppercase tracking-widest border border-emerald-100">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
                 Cloud Active
              </div>
+             <button 
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100 shadow-sm bg-white"
+             >
+               <Settings size={22} />
+             </button>
           </div>
         </header>
 
@@ -311,6 +392,100 @@ const App: React.FC = () => {
           )}
         </div>
       </main>
+
+      {/* MODAL CẤU HÌNH HỆ THỐNG */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95">
+            <div className="p-8 border-b flex items-center justify-between shrink-0">
+               <div className="flex items-center gap-4">
+                  <div className="p-3 bg-gray-900 text-white rounded-2xl"><Settings size={28}/></div>
+                  <div>
+                    <h3 className="font-black text-2xl text-gray-800 tracking-tight">Cấu hình Hệ thống</h3>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Quản lý danh mục Niên học và Lớp học Cloud</p>
+                  </div>
+               </div>
+               <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={28} className="text-gray-400"/></button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar grid grid-cols-1 md:grid-cols-2 gap-12">
+              {/* QUẢN LÝ NIÊN HỌC */}
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-black text-lg text-gray-800 flex items-center gap-2">
+                    <Calendar size={20} className="text-indigo-600" /> Quản lý Niên học
+                  </h4>
+                </div>
+                
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="VD: 2026-2027" 
+                    value={newYearName}
+                    onChange={e => setNewYearName(e.target.value)}
+                    className="flex-1 px-4 py-3 bg-gray-50 border rounded-xl font-bold text-sm outline-none focus:ring-2 ring-indigo-500/20"
+                  />
+                  <button onClick={handleAddYear} className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all"><Plus size={20}/></button>
+                </div>
+
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                  {years.map(y => (
+                    <div key={y.MaNienHoc} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 group">
+                      <span className="font-bold text-gray-700">{y.TenNienHoc}</span>
+                      <button onClick={() => handleDeleteYear(y.MaNienHoc)} className="p-2 text-gray-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* QUẢN LÝ LỚP HỌC */}
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-black text-lg text-gray-800 flex items-center gap-2">
+                    <Users size={20} className="text-emerald-600" /> Quản lý Lớp học
+                  </h4>
+                </div>
+
+                <div className="space-y-2">
+                  <input 
+                    type="text" 
+                    placeholder="Mã lớp (VD: 12A1)" 
+                    value={newClassID}
+                    onChange={e => setNewClassID(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm font-bold outline-none focus:ring-2 ring-indigo-500/20"
+                  />
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="Tên lớp hiển thị" 
+                      value={newClassName}
+                      onChange={e => setNewClassName(e.target.value)}
+                      className="flex-1 px-4 py-3 bg-gray-50 border rounded-xl font-bold text-sm outline-none focus:ring-2 ring-indigo-500/20"
+                    />
+                    <button onClick={handleAddClass} className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all"><Plus size={20}/></button>
+                  </div>
+                </div>
+
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                  {classes.map(c => (
+                    <div key={c.MaLop} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 group">
+                      <div className="flex flex-col">
+                        <span className="font-black text-emerald-600 text-[10px] uppercase tracking-widest">{c.MaLop}</span>
+                        <span className="font-bold text-gray-700">{c.TenLop}</span>
+                      </div>
+                      <button onClick={() => handleDeleteClass(c.MaLop)} className="p-2 text-gray-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-8 bg-gray-50 border-t flex justify-end shrink-0">
+               <button onClick={() => setIsSettingsOpen(false)} className="px-12 py-3.5 bg-gray-900 text-white rounded-2xl font-black shadow-xl hover:bg-black active:scale-95 transition-all text-sm">Xong</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
