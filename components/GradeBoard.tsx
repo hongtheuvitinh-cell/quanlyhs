@@ -34,13 +34,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // State quản lý điểm tạm thời trước khi lưu vào DB
   const [tempGrades, setTempGrades] = useState<Grade[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Đồng bộ hóa tempGrades khi danh sách grades từ props thay đổi (ví dụ khi chuyển lớp/môn)
   useEffect(() => {
     setTempGrades(grades);
     setHasChanges(false);
@@ -81,7 +79,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               );
 
               return {
-                MaDiem: existing?.MaDiem || Date.now() + Math.random(),
+                MaDiem: existing?.MaDiem || undefined, // Để undefined cho bản ghi mới
                 MaHS: matchedStudent.MaHS,
                 MaMonHoc: item.MaMonHoc || selectedSubject,
                 MaNienHoc: state.selectedYear,
@@ -92,18 +90,22 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
             }).filter((g: any) => g !== null) as Grade[];
 
             if (newGrades.length > 0) {
-              // Cập nhật vào state tạm thời
               setTempGrades(prev => {
                 const updated = [...prev];
                 newGrades.forEach(ng => {
-                  const idx = updated.findIndex(u => u.MaHS === ng.MaHS && u.MaMonHoc === ng.MaMonHoc && u.LoaiDiem === ng.LoaiDiem && u.HocKy === ng.HocKy);
+                  const idx = updated.findIndex(u => 
+                    u.MaHS === ng.MaHS && 
+                    u.MaMonHoc === ng.MaMonHoc && 
+                    u.LoaiDiem === ng.LoaiDiem && 
+                    u.HocKy === ng.HocKy &&
+                    u.MaNienHoc === ng.MaNienHoc
+                  );
                   if (idx > -1) updated[idx] = ng;
                   else updated.push(ng);
                 });
                 return updated;
               });
               setHasChanges(true);
-              alert(`🎉 Đã quét được ${newGrades.length} đầu điểm. Vui lòng kiểm tra lại và nhấn "Lưu thay đổi" để xác nhận.`);
             }
           }
         } catch (err: any) {
@@ -120,7 +122,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   };
 
   const handleInputChange = (studentId: string, type: string, value: string) => {
-    const val = value === '' ? null : parseFloat(value);
+    const val = value === '' ? 0 : parseFloat(value);
     
     setTempGrades(prev => {
       const updated = [...prev];
@@ -128,17 +130,18 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         g.MaHS === studentId && 
         g.MaMonHoc === selectedSubject && 
         g.HocKy === selectedHK && 
-        g.LoaiDiem === type
+        g.LoaiDiem === type &&
+        g.MaNienHoc === state.selectedYear
       );
 
       const newGrade: Grade = {
-        MaDiem: updated[idx]?.MaDiem || Date.now() + Math.random(),
+        MaDiem: updated[idx]?.MaDiem, // Giữ nguyên ID cũ nếu có
         MaHS: studentId,
         MaMonHoc: selectedSubject,
         MaNienHoc: state.selectedYear,
         HocKy: selectedHK,
         LoaiDiem: type,
-        DiemSo: val as any
+        DiemSo: val
       };
 
       if (idx > -1) updated[idx] = newGrade;
@@ -152,7 +155,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
-      // Chỉ gửi những điểm của môn học và học kỳ đang hiển thị để tối ưu
+      // Chỉ gửi những điểm có thay đổi hoặc liên quan đến môn/lớp hiện tại
       const gradesToSave = tempGrades.filter(g => 
         g.MaMonHoc === selectedSubject && 
         g.HocKy === selectedHK && 
@@ -161,7 +164,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       await onUpdateGrades(gradesToSave);
       setHasChanges(false);
     } catch (error) {
-      alert("Lỗi khi lưu dữ liệu lên Cloud.");
+      // Thông báo lỗi đã được xử lý trong App.tsx
     } finally {
       setIsSaving(false);
     }
@@ -178,7 +181,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     const ggk = sGrades.find((g: Grade) => g.LoaiDiem === 'ĐGGK')?.DiemSo;
     const gck = sGrades.find((g: Grade) => g.LoaiDiem === 'ĐGCK')?.DiemSo;
     
-    if (dgtx.length > 0 && ggk != null && gck != null) {
+    if (dgtx.length > 0 && ggk !== undefined && gck !== undefined) {
       return (dgtx.reduce((a: number, b: number) => a + b, 0) + Number(ggk) * 2 + Number(gck) * 3) / (dgtx.length + 5);
     }
     return null;
@@ -259,7 +262,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       </div>
 
       <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden relative">
-        {/* Fix: AlertCircle was missing from lucide-react imports */}
         {hasChanges && (
           <div className="absolute top-4 right-8 z-20 animate-bounce">
             <div className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase border border-amber-200">
@@ -280,7 +282,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredStudents.map((s: Student) => {
-                  const sGrades = tempGrades.filter((g: Grade) => g.MaHS === s.MaHS && g.MaMonHoc === selectedSubject && g.HocKy === selectedHK);
+                  const sGrades = tempGrades.filter((g: Grade) => g.MaHS === s.MaHS && g.MaMonHoc === selectedSubject && g.HocKy === selectedHK && g.MaNienHoc === state.selectedYear);
                   const tb = calculateSubjectAvg(s.MaHS, selectedSubject, selectedHK);
                   return (
                     <tr key={s.MaHS} className="hover:bg-indigo-50/20 transition-colors">
@@ -367,7 +369,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         </div>
       )}
 
-      {/* Thông báo trạng thái lưu dưới đáy màn hình */}
       {hasChanges && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10">
           <div className="bg-gray-900 text-white px-8 py-4 rounded-3xl shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md">
