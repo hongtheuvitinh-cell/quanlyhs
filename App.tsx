@@ -167,12 +167,11 @@ const App: React.FC = () => {
   };
 
   const handleUpdateGrades = async (newGrades: Grade[]) => {
-    // 1. Loại bỏ các giá trị null khỏi danh sách lưu nếu DB không cho phép null
-    // 2. Chuyển đổi MaDiem tạm thời sang undefined để Supabase tự tạo ID nếu là bản ghi mới
+    // Tối ưu: Chỉ giữ lại các trường dữ liệu hợp lệ, loại bỏ các ID tạm thời để DB tự sinh
     const gradesToUpload = newGrades.map((g: Grade) => {
       const { MaDiem, ...rest } = g;
-      // Nếu MaDiem lớn hơn 1 tỷ thì coi như là ID tạm thời sinh bởi Date.now()
-      return (MaDiem && MaDiem < 1000000000) ? g : rest;
+      // Nếu MaDiem là số hợp lệ (trong dải Int4 của PG), giữ lại để Update. Nếu không, bỏ qua để Insert.
+      return (MaDiem !== undefined && MaDiem > 0 && MaDiem < 2147483647) ? g : rest;
     });
 
     const { error } = await supabase.from('grades').upsert(gradesToUpload, {
@@ -180,12 +179,12 @@ const App: React.FC = () => {
     });
 
     if (error) {
-      console.error("Lỗi lưu điểm:", error);
-      alert("Không thể lưu điểm. Vui lòng kiểm tra kết nối mạng!");
+      console.error("Supabase Save Error:", error);
+      alert(`Lỗi hệ thống: ${error.message} (${error.code}). Vui lòng kiểm tra lại dữ liệu nhập.`);
       throw error;
     } else {
-      await fetchData(); // Đồng bộ lại dữ liệu sau khi lưu thành công
-      alert("Đã lưu điểm thành công lên Cloud!");
+      await fetchData(); 
+      alert("Đã lưu bảng điểm thành công lên Cloud!");
     }
   };
 
