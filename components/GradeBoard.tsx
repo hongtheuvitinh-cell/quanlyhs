@@ -2,7 +2,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
   Search, Sparkles, GraduationCap, BookOpen, BrainCircuit, Table, ListChecks
-} from 'lucide-center';
+} from 'lucide-react';
 import { AppState, Student, Grade, Role } from '../types';
 import { parseGradesFromImage } from '../services/geminiService';
 
@@ -89,7 +89,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
           }
         } catch (err: any) {
           console.error("Lỗi AI:", err);
-          alert(`Lỗi hệ thống: ${err.message || "AI không thể phân tích cấu trúc bảng này"}. Vui lòng thử lại hoặc kiểm tra Console (F12).`);
+          alert(`Lỗi hệ thống: ${err.message || "AI không thể phân tích cấu trúc bảng này"}. Vui lòng thử lại.`);
         } finally {
           setIsAiProcessing(false);
         }
