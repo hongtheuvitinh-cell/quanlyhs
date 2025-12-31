@@ -18,7 +18,9 @@ import {
   Calendar,
   UserCheck,
   UserPlus,
-  Database
+  Database,
+  BookOpen,
+  UserRoundCheck
 } from 'lucide-react';
 import { supabase } from './services/supabaseClient';
 import { Role, AppState, Student, Grade, Assignment, LearningLog, Discipline, AcademicYear, Class, ViolationRule, AssignmentTask, Teacher } from './types';
@@ -31,12 +33,27 @@ import TaskManager from './components/TaskManager';
 import Login from './components/Login';
 import StudentPortal from './components/StudentPortal';
 
+const SUBJECTS = [
+  { id: 'TOAN', name: 'Toán Học' },
+  { id: 'VAN', name: 'Ngữ Văn' },
+  { id: 'ANH', name: 'Tiếng Anh' },
+  { id: 'LY', name: 'Vật Lý' },
+  { id: 'HOA', name: 'Hóa Học' },
+  { id: 'SINH', name: 'Sinh Học' },
+  { id: 'SU', name: 'Lịch Sử' },
+  { id: 'DIA', name: 'Địa Lý' },
+  { id: 'GDCD', name: 'GDCD' },
+  { id: 'TIN', name: 'Tin Học' },
+  { id: 'CONGNGHE', name: 'Công Nghệ' },
+  { id: 'THE_DUC', name: 'Thể Dục' },
+];
+
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'grades' | 'discipline' | 'logs' | 'tasks'>('dashboard');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'years' | 'classes' | 'teachers'>('years');
+  const [settingsTab, setSettingsTab] = useState<'years' | 'classes' | 'teachers' | 'assignments'>('years');
   
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -63,6 +80,11 @@ const App: React.FC = () => {
   const [selectedTeacherID, setSelectedTeacherID] = useState('');
   const [newTeacherName, setNewTeacherName] = useState('');
   const [newTeacherID, setNewTeacherID] = useState('');
+
+  // Form phân công giảng dạy
+  const [assignGV, setAssignGV] = useState('');
+  const [assignClass, setAssignClass] = useState('');
+  const [assignSub, setAssignSub] = useState('');
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -126,7 +148,6 @@ const App: React.FC = () => {
     if (role === Role.STUDENT) {
       const student = students.find(s => s.MaHS === id);
       if (student) {
-        // Sử dụng ép kiểu (any) để bỏ qua lỗi build Vercel trong khi interface vẫn đúng
         const storedPass = (student as any).MatKhau || '123456';
         if (storedPass === passwordInput) {
           setState(prev => ({ ...prev, currentUser: student, currentRole: Role.STUDENT }));
@@ -140,7 +161,6 @@ const App: React.FC = () => {
     } else {
       const teacher = teachers.find(t => t.MaGV === id);
       if (teacher) {
-        // Sử dụng ép kiểu (any) để bỏ qua lỗi build Vercel
         const storedPass = (teacher as any).MatKhau || '123456';
         if (storedPass === passwordInput) {
           const cnAssignment = assignments.find(a => a.MaGV === id && a.LoaiPhanCong === Role.CHU_NHIEM && a.MaNienHoc === state.selectedYear);
@@ -214,6 +234,52 @@ const App: React.FC = () => {
       }
       setNewClassID(''); setNewClassName(''); setSelectedTeacherID('');
       alert(`Đã hoàn tất tạo lớp ${newClassName}!`);
+    }
+  };
+
+  const handleAddTeachingAssignment = async () => {
+    if (!assignGV || !assignClass || !assignSub) {
+      alert("Vui lòng nhập đầy đủ Giáo viên, Lớp và Môn học!");
+      return;
+    }
+    // Kiểm tra trùng lặp
+    const exists = assignments.some(a => 
+      a.MaGV === assignGV && 
+      a.MaLop === assignClass && 
+      a.MaMonHoc === assignSub && 
+      a.MaNienHoc === state.selectedYear
+    );
+    if (exists) {
+      alert("Phân công này đã tồn tại!");
+      return;
+    }
+
+    const { data, error } = await supabase.from('assignments').insert([{
+      MaGV: assignGV,
+      MaLop: assignClass,
+      MaNienHoc: state.selectedYear,
+      LoaiPhanCong: Role.GIANG_DAY,
+      MaMonHoc: assignSub
+    }]).select();
+
+    if (error) {
+      alert("Lỗi phân công: " + error.message);
+      return;
+    }
+    if (data) {
+      setAssignments([...assignments, data[0]]);
+      alert("Đã phân công giảng dạy thành công!");
+    }
+  };
+
+  const handleDeleteAssignment = async (id: number) => {
+    if (confirm("Gỡ bỏ phân công này?")) {
+      const { error } = await supabase.from('assignments').delete().eq('MaPhanCong', id);
+      if (error) {
+        alert("Lỗi khi xóa: " + error.message);
+      } else {
+        setAssignments(assignments.filter(a => a.MaPhanCong !== id));
+      }
     }
   };
 
@@ -436,6 +502,7 @@ const App: React.FC = () => {
               <button onClick={() => setSettingsTab('years')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${settingsTab === 'years' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}>1. Niên học</button>
               <button onClick={() => setSettingsTab('teachers')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${settingsTab === 'teachers' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}>2. Giáo viên</button>
               <button onClick={() => setSettingsTab('classes')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${settingsTab === 'classes' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}>3. Lớp học</button>
+              <button onClick={() => setSettingsTab('assignments')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${settingsTab === 'assignments' ? 'bg-rose-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}>4. Phân công dạy</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
@@ -495,6 +562,71 @@ const App: React.FC = () => {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === 'assignments' && (
+                <div className="max-w-4xl space-y-6">
+                  <div className="bg-rose-50 p-6 rounded-3xl border border-rose-100 grid grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-rose-600 uppercase">Giáo viên</label>
+                      <select value={assignGV} onChange={e => setAssignGV(e.target.value)} className="w-full px-4 py-3 bg-white border rounded-xl font-bold text-sm outline-none appearance-none">
+                        <option value="">-- Chọn GV --</option>
+                        {teachers.map(t => <option key={t.MaGV} value={t.MaGV}>{t.Hoten}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-rose-600 uppercase">Lớp học</label>
+                      <select value={assignClass} onChange={e => setAssignClass(e.target.value)} className="w-full px-4 py-3 bg-white border rounded-xl font-bold text-sm outline-none appearance-none">
+                        <option value="">-- Chọn lớp --</option>
+                        {classes.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-rose-600 uppercase">Môn học</label>
+                      <select value={assignSub} onChange={e => setAssignSub(e.target.value)} className="w-full px-4 py-3 bg-white border rounded-xl font-bold text-sm outline-none appearance-none">
+                        <option value="">-- Chọn môn --</option>
+                        {SUBJECTS.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </div>
+                    <button onClick={handleAddTeachingAssignment} className="col-span-3 py-4 bg-rose-600 text-white rounded-2xl font-black text-sm uppercase shadow-lg hover:bg-rose-700 transition-all flex items-center justify-center gap-2">
+                      <UserRoundCheck size={18}/> Phân công giảng dạy
+                    </button>
+                  </div>
+
+                  <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+                    <table className="w-full text-left">
+                      <thead className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                        <tr>
+                          <th className="px-6 py-4">Giáo viên</th>
+                          <th className="px-6 py-4 text-center">Lớp</th>
+                          <th className="px-6 py-4 text-center">Môn học</th>
+                          <th className="px-6 py-4 text-right">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {assignments.filter(a => a.LoaiPhanCong === Role.GIANG_DAY && a.MaNienHoc === state.selectedYear).map(a => {
+                          const t = teachers.find(item => item.MaGV === a.MaGV);
+                          const subName = SUBJECTS.find(s => s.id === a.MaMonHoc)?.name || a.MaMonHoc;
+                          return (
+                            <tr key={a.MaPhanCong} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-6 py-4">
+                                <p className="font-bold text-gray-800 text-sm">{t?.Hoten}</p>
+                                <p className="text-[9px] text-gray-400 font-black uppercase">ID: {a.MaGV}</p>
+                              </td>
+                              <td className="px-6 py-4 text-center font-black text-rose-600">{a.MaLop}</td>
+                              <td className="px-6 py-4 text-center font-bold text-gray-600">{subName}</td>
+                              <td className="px-6 py-4 text-right">
+                                <button onClick={() => handleDeleteAssignment(a.MaPhanCong)} className="p-2 text-gray-300 hover:text-rose-600 transition-colors">
+                                  <Trash2 size={16}/>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
