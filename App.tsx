@@ -167,24 +167,27 @@ const App: React.FC = () => {
   };
 
   const handleUpdateGrades = async (newGrades: Grade[]) => {
-    // Tối ưu: Chỉ giữ lại các trường dữ liệu hợp lệ, loại bỏ các ID tạm thời để DB tự sinh
+    // Để khắc phục lỗi 42P10, chúng ta sẽ thực hiện Upsert dựa trên khóa chính 'MaDiem'.
+    // Nếu MaDiem hợp lệ (đã tồn tại trong DB), Supabase sẽ thực hiện UPDATE.
+    // Nếu MaDiem không có (undefined), Supabase sẽ thực hiện INSERT bản ghi mới.
     const gradesToUpload = newGrades.map((g: Grade) => {
       const { MaDiem, ...rest } = g;
-      // Nếu MaDiem là số hợp lệ (trong dải Int4 của PG), giữ lại để Update. Nếu không, bỏ qua để Insert.
-      return (MaDiem !== undefined && MaDiem > 0 && MaDiem < 2147483647) ? g : rest;
+      // Chỉ gửi MaDiem nếu nó là ID thực từ database (thường là số nhỏ)
+      // Các ID tạm thời lớn từ Date.now() sẽ bị loại bỏ để Supabase tự sinh ID mới
+      return (MaDiem !== undefined && MaDiem > 0 && MaDiem < 1000000) ? g : rest;
     });
 
     const { error } = await supabase.from('grades').upsert(gradesToUpload, {
-      onConflict: 'MaHS,MaMonHoc,MaNienHoc,HocKy,LoaiDiem'
+      onConflict: 'MaDiem' // Chuyển sang MaDiem để đảm bảo luôn khớp với Unique Constraint mặc định của PG
     });
 
     if (error) {
-      console.error("Supabase Save Error:", error);
-      alert(`Lỗi hệ thống: ${error.message} (${error.code}). Vui lòng kiểm tra lại dữ liệu nhập.`);
+      console.error("Supabase Upsert Error:", error);
+      alert(`Lỗi lưu dữ liệu: ${error.message}. Thử nhấn "Lưu" lại một lần nữa hoặc kiểm tra kết nối mạng.`);
       throw error;
     } else {
       await fetchData(); 
-      alert("Đã lưu bảng điểm thành công lên Cloud!");
+      alert("Đã đồng bộ điểm số lên Cloud thành công!");
     }
   };
 
