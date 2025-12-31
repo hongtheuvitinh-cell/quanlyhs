@@ -90,6 +90,9 @@ const App: React.FC = () => {
   const [assignClass, setAssignClass] = useState('');
   const [assignSub, setAssignSub] = useState('');
 
+  // Fix: Defined currentUserData for use in sidebar to handle both Teacher and Student roles
+  const currentUserData = state.currentUser as any;
+
   const fetchData = async () => {
     try {
       const [
@@ -155,6 +158,18 @@ const App: React.FC = () => {
     }
   }, [classes, assignments, state.currentUser, state.currentRole, state.selectedYear]);
 
+  // Fix: Defined currentAssignment for LearningLogs tab to track specific class assignment
+  const currentAssignment = useMemo(() => {
+    if (!state.currentUser || (state.currentUser as any).MaHS) return null;
+    const teacherID = (state.currentUser as Teacher).MaGV;
+    return assignments.find(a => 
+      a.MaGV === teacherID && 
+      a.MaLop === state.selectedClass && 
+      a.MaNienHoc === state.selectedYear &&
+      (state.currentRole === Role.CHU_NHIEM ? a.LoaiPhanCong === Role.CHU_NHIEM : a.LoaiPhanCong === Role.GIANG_DAY)
+    );
+  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole]);
+
   useEffect(() => {
     if (filteredClasses.length > 0) {
       const currentExists = filteredClasses.some(c => c.MaLop === state.selectedClass);
@@ -192,25 +207,33 @@ const App: React.FC = () => {
   const handleAddYear = async () => {
     if (!newYearName) return;
     const { data, error } = await supabase.from('academic_years').insert([{ TenNienHoc: newYearName }]).select();
-    if (!error && data) {
-      await fetchData();
-      setNewYearName('');
+    if (error) {
+      alert("Lỗi thêm niên học: " + error.message);
+      return;
     }
+    await fetchData();
+    setNewYearName('');
   };
 
   const handleUpdateYear = async (id: number) => {
     if (!editYearName) return;
     const { error } = await supabase.from('academic_years').update({ TenNienHoc: editYearName }).eq('MaNienHoc', id);
-    if (!error) {
-      setEditingYearId(null);
-      await fetchData();
+    if (error) {
+      alert("Lỗi cập nhật: " + error.message);
+      return;
     }
+    setEditingYearId(null);
+    await fetchData();
   };
 
   const handleDeleteYear = async (id: number) => {
     if (confirm("Xóa niên học này? Lưu ý: Dữ liệu liên quan có thể bị ảnh hưởng.")) {
       const { error } = await supabase.from('academic_years').delete().eq('MaNienHoc', id);
-      if (!error) await fetchData();
+      if (error) {
+        alert("Lỗi xóa: " + error.message);
+        return;
+      }
+      await fetchData();
     }
   };
 
@@ -219,10 +242,12 @@ const App: React.FC = () => {
     const { data, error } = await supabase.from('teachers').insert([{ 
       MaGV: newTeacherID, Hoten: newTeacherName, MaMonChinh: 'TOAN', MatKhau: '123456'
     }]).select();
-    if (!error && data) {
-      await fetchData();
-      setNewTeacherID(''); setNewTeacherName('');
+    if (error) {
+      alert("Lỗi thêm GV: " + error.message);
+      return;
     }
+    await fetchData();
+    setNewTeacherID(''); setNewTeacherName('');
   };
 
   const handleAddClass = async () => {
@@ -230,62 +255,53 @@ const App: React.FC = () => {
     const { data: classData, error: classError } = await supabase.from('classes').insert([{ 
       MaLop: newClassID, TenLop: newClassName, Khoi: parseInt(newClassID) || 10 
     }]).select();
-    if (!classError && classData && selectedTeacherID) {
-      await supabase.from('assignments').insert([{
+    
+    if (classError) {
+      alert("Lỗi tạo lớp: " + classError.message);
+      return;
+    }
+
+    if (classData && selectedTeacherID) {
+      const { error: assignError } = await supabase.from('assignments').insert([{
         MaGV: selectedTeacherID, MaLop: classData[0].MaLop, MaNienHoc: state.selectedYear, LoaiPhanCong: Role.CHU_NHIEM, MaMonHoc: null
       }]);
+      if (assignError) console.error("Lỗi gán chủ nhiệm:", assignError);
     }
     await fetchData();
     setNewClassID(''); setNewClassName(''); setSelectedTeacherID('');
   };
 
-  const handleAddTeachingAssignment = async () => {
-    if (!assignGV || !assignClass || !assignSub) return;
-    const { data, error } = await supabase.from('assignments').insert([{
-      MaGV: assignGV, MaLop: assignClass, MaNienHoc: state.selectedYear, LoaiPhanCong: Role.GIANG_DAY, MaMonHoc: assignSub
-    }]).select();
-    if (!error && data) await fetchData();
-  };
+  // Fix: Conditional rendering for non-logged in state
+  if (!isLoggedIn) {
+    return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
+  }
 
-  const handleDeleteAssignment = async (id: number) => {
-    if (confirm("Gỡ bỏ phân công này?")) {
-      const { error } = await supabase.from('assignments').delete().eq('MaPhanCong', id);
-      if (!error) await fetchData();
-    }
-  };
-
-  if (isLoading) return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-900 text-white"><Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" /><p className="font-black text-[10px] uppercase tracking-widest">Đang tải dữ liệu Cloud...</p></div>;
-
-  if (!isLoggedIn) return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
-
-  if (state.currentRole === Role.STUDENT) {
+  // Fix: Conditional rendering for student view
+  if (state.currentRole === Role.STUDENT && state.currentUser) {
     return (
       <StudentPortal 
         student={state.currentUser as Student} 
-        grades={grades.filter(g => g.MaHS === (state.currentUser as Student).MaHS)}
-        disciplines={disciplines.filter(d => d.MaHS === (state.currentUser as Student).MaHS)}
-        tasks={tasks.filter(t => t.MaLop === (state.currentUser as Student).MaLopHienTai)}
+        grades={grades} 
+        disciplines={disciplines} 
+        tasks={tasks}
         onLogout={() => setIsLoggedIn(false)}
         onToggleTask={async (taskId) => {
           const task = tasks.find(t => t.MaNhiemVu === taskId);
-          if (task) {
-            const studentId = (state.currentUser as Student).MaHS;
-            const updated = {
-              ...task,
-              DanhSachHoanThanh: task.DanhSachHoanThanh.includes(studentId)
-                ? task.DanhSachHoanThanh.filter(id => id !== studentId)
-                : [...task.DanhSachHoanThanh, studentId]
-            };
-            setTasks(tasks.map(t => t.MaNhiemVu === taskId ? updated : t));
-            await supabase.from('tasks').update(updated).eq('MaNhiemVu', taskId);
-          }
+          if (!task) return;
+          const studentId = (state.currentUser as Student).MaHS;
+          const isDone = task.DanhSachHoanThanh.includes(studentId);
+          const updatedTask = {
+            ...task,
+            DanhSachHoanThanh: isDone 
+              ? task.DanhSachHoanThanh.filter(id => id !== studentId)
+              : [...task.DanhSachHoanThanh, studentId]
+          };
+          await supabase.from('tasks').upsert(updatedTask);
+          await fetchData();
         }}
       />
     );
   }
-
-  const currentUserData = state.currentUser as Teacher;
-  const currentAssignment = assignments.find(a => a.MaGV === currentUserData?.MaGV && a.MaLop === state.selectedClass);
 
   return (
     <div className="flex h-screen bg-gray-50 text-gray-900 overflow-hidden">
@@ -300,7 +316,7 @@ const App: React.FC = () => {
               <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold">{currentUserData?.Hoten?.charAt(0)}</div>
               <div className="min-w-0">
                 <p className="font-bold text-sm text-gray-800 truncate">{currentUserData?.Hoten}</p>
-                <p className="text-[10px] text-gray-400 font-bold uppercase">ID: {currentUserData?.MaGV}</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase">ID: {currentUserData?.MaGV || currentUserData?.MaHS}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-1 p-1 bg-white rounded-xl border border-gray-100 shadow-sm">
@@ -388,10 +404,28 @@ const App: React.FC = () => {
               {activeTab === 'students' && (
                 <StudentList 
                   state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} logs={logs} disciplines={disciplines}
-                  onAddStudent={async s => { await supabase.from('students').insert([s]); await fetchData(); }}
-                  onAddStudents={async newItems => { await supabase.from('students').insert(newItems); await fetchData(); }}
-                  onUpdateStudent={async s => { await supabase.from('students').update(s).eq('MaHS', s.MaHS); await fetchData(); }} 
-                  onDeleteStudent={async id => { if(confirm("Xóa học sinh?")) { await supabase.from('students').delete().eq('MaHS', id); await fetchData(); } }} 
+                  onAddStudent={async s => { 
+                    const { error } = await supabase.from('students').insert([s]); 
+                    if (error) { alert("Lỗi lưu học sinh: " + error.message); return; }
+                    await fetchData(); 
+                  }}
+                  onAddStudents={async newItems => { 
+                    const { error } = await supabase.from('students').insert(newItems); 
+                    if (error) { alert("Lỗi nhập danh sách: " + error.message); return; }
+                    await fetchData(); 
+                  }}
+                  onUpdateStudent={async s => { 
+                    const { error } = await supabase.from('students').update(s).eq('MaHS', s.MaHS); 
+                    if (error) { alert("Lỗi cập nhật: " + error.message); return; }
+                    await fetchData(); 
+                  }} 
+                  onDeleteStudent={async id => { 
+                    if(confirm("Xóa học sinh?")) { 
+                      const { error } = await supabase.from('students').delete().eq('MaHS', id); 
+                      if (error) { alert("Lỗi xóa: " + error.message); return; }
+                      await fetchData(); 
+                    } 
+                  }} 
                 />
               )}
               {activeTab === 'grades' && <GradeBoard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={async g => { await supabase.from('grades').upsert(g); await fetchData(); }} />}
@@ -406,38 +440,38 @@ const App: React.FC = () => {
       {isSettingsOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md">
           <div className="bg-white w-full max-w-5xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-8 border-b flex items-center justify-between">
-               <h3 className="font-black text-2xl text-gray-800">Cấu hình Hệ thống</h3>
-               <button onClick={() => { setIsSettingsOpen(false); fetchData(); }} className="p-2 hover:bg-gray-100 rounded-full"><X size={28}/></button>
+            <div className="px-8 py-5 border-b flex items-center justify-between">
+               <h3 className="font-black text-xl text-gray-800">Cấu hình Hệ thống</h3>
+               <button onClick={() => { setIsSettingsOpen(false); fetchData(); }} className="p-2 hover:bg-gray-100 rounded-full"><X size={24}/></button>
             </div>
-            <div className="flex gap-4 px-8 pt-4">
-              <button onClick={() => setSettingsTab('years')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${settingsTab === 'years' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`}>1. Niên học</button>
-              <button onClick={() => setSettingsTab('teachers')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${settingsTab === 'teachers' ? 'bg-amber-600 text-white' : 'text-gray-400'}`}>2. Giáo viên</button>
-              <button onClick={() => setSettingsTab('classes')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${settingsTab === 'classes' ? 'bg-emerald-600 text-white' : 'text-gray-400'}`}>3. Lớp học</button>
-              <button onClick={() => setSettingsTab('assignments')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${settingsTab === 'assignments' ? 'bg-rose-600 text-white' : 'text-gray-400'}`}>4. Phân công dạy</button>
+            <div className="flex gap-2 px-8 pt-3">
+              <button onClick={() => setSettingsTab('years')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${settingsTab === 'years' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`}>1. Niên học</button>
+              <button onClick={() => setSettingsTab('teachers')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${settingsTab === 'teachers' ? 'bg-amber-600 text-white' : 'text-gray-400'}`}>2. Giáo viên</button>
+              <button onClick={() => setSettingsTab('classes')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${settingsTab === 'classes' ? 'bg-emerald-600 text-white' : 'text-gray-400'}`}>3. Lớp học</button>
+              <button onClick={() => setSettingsTab('assignments')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${settingsTab === 'assignments' ? 'bg-rose-600 text-white' : 'text-gray-400'}`}>4. Phân công dạy</button>
             </div>
-            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
               {settingsTab === 'years' && (
-                <div className="max-w-2xl space-y-6">
-                  <div className="flex gap-2 bg-gray-50 p-2 rounded-2xl border border-gray-100">
-                    <input type="text" placeholder="VD: 2024-2025" value={newYearName} onChange={e => setNewYearName(e.target.value)} className="flex-1 px-4 py-3 bg-white border rounded-xl font-bold shadow-sm" />
-                    <button onClick={handleAddYear} className="px-6 bg-indigo-600 text-white rounded-xl font-bold flex items-center gap-2"><Plus size={18}/> Thêm</button>
+                <div className="max-w-xl space-y-4">
+                  <div className="flex gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100">
+                    <input type="text" placeholder="VD: 2024-2025" value={newYearName} onChange={e => setNewYearName(e.target.value)} className="flex-1 px-4 py-2 bg-white border rounded-lg font-bold text-sm" />
+                    <button onClick={handleAddYear} className="px-6 bg-indigo-600 text-white rounded-lg font-bold text-xs flex items-center gap-2"><Plus size={14}/> Thêm</button>
                   </div>
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid grid-cols-1 gap-1.5">
                     {years.map(y => (
-                      <div key={y.MaNienHoc} className="flex justify-between items-center p-4 bg-white border border-gray-100 rounded-2xl shadow-sm group">
+                      <div key={y.MaNienHoc} className="flex justify-between items-center px-4 py-2.5 bg-white border border-gray-100 rounded-xl group">
                         {editingYearId === y.MaNienHoc ? (
                           <div className="flex gap-2 w-full">
-                            <input type="text" value={editYearName} onChange={e => setEditYearName(e.target.value)} className="flex-1 px-3 py-2 border rounded-lg font-bold" />
-                            <button onClick={() => handleUpdateYear(y.MaNienHoc)} className="p-2 bg-emerald-600 text-white rounded-lg"><Check size={18}/></button>
-                            <button onClick={() => setEditingYearId(null)} className="p-2 bg-gray-200 text-gray-500 rounded-lg"><X size={18}/></button>
+                            <input type="text" value={editYearName} onChange={e => setEditYearName(e.target.value)} className="flex-1 px-3 py-1.5 border rounded-lg font-bold text-sm" />
+                            <button onClick={() => handleUpdateYear(y.MaNienHoc)} className="p-1.5 bg-emerald-600 text-white rounded-lg"><Check size={14}/></button>
+                            <button onClick={() => setEditingYearId(null)} className="p-1.5 bg-gray-200 text-gray-500 rounded-lg"><X size={14}/></button>
                           </div>
                         ) : (
                           <>
-                            <span className="font-black text-gray-700">{y.TenNienHoc}</span>
-                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => { setEditingYearId(y.MaNienHoc); setEditYearName(y.TenNienHoc); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"><Edit3 size={18}/></button>
-                              <button onClick={() => handleDeleteYear(y.MaNienHoc)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={18}/></button>
+                            <span className="font-bold text-sm text-gray-700">{y.TenNienHoc}</span>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => { setEditingYearId(y.MaNienHoc); setEditYearName(y.TenNienHoc); }} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg"><Edit3 size={14}/></button>
+                              <button onClick={() => handleDeleteYear(y.MaNienHoc)} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={14}/></button>
                             </div>
                           </>
                         )}
@@ -446,59 +480,9 @@ const App: React.FC = () => {
                   </div>
                 </div>
               )}
-              {settingsTab === 'teachers' && (
-                <div className="max-w-2xl space-y-4">
-                  <div className="grid grid-cols-2 gap-4"><input type="text" placeholder="Mã GV" value={newTeacherID} onChange={e => setNewTeacherID(e.target.value)} className="px-4 py-2 border rounded-xl" /><input type="text" placeholder="Họ và Tên" value={newTeacherName} onChange={e => setNewTeacherName(e.target.value)} className="px-4 py-2 border rounded-xl" /></div>
-                  <button onClick={handleAddTeacher} className="w-full py-3 bg-amber-600 text-white rounded-xl font-bold uppercase">Đăng ký Giáo viên</button>
-                  <div className="grid grid-cols-2 gap-2">
-                    {teachers.map(t => <div key={t.MaGV} className="p-3 bg-gray-50 rounded-xl border flex justify-between"><div><b>{t.Hoten}</b><br/><span className="text-[10px] text-gray-400 font-black uppercase">ID: {t.MaGV}</span></div><button onClick={async () => { await supabase.from('teachers').delete().eq('MaGV', t.MaGV); fetchData(); }} className="text-rose-400 hover:text-rose-600"><Trash2 size={16}/></button></div>)}
-                  </div>
-                </div>
-              )}
-              {settingsTab === 'classes' && (
-                <div className="max-w-2xl space-y-4">
-                  <div className="grid grid-cols-2 gap-4"><input type="text" placeholder="Mã lớp" value={newClassID} onChange={e => setNewClassID(e.target.value)} className="px-4 py-2 border rounded-xl" /><input type="text" placeholder="Tên lớp" value={newClassName} onChange={e => setNewClassName(e.target.value)} className="px-4 py-2 border rounded-xl" /></div>
-                  <div className="space-y-1"><label className="text-[10px] font-black text-gray-400 uppercase">Gán giáo viên chủ nhiệm</label><select value={selectedTeacherID} onChange={e => setSelectedTeacherID(e.target.value)} className="w-full px-4 py-2 border rounded-xl"><option value="">-- Chọn GV --</option>{teachers.map(t => <option key={t.MaGV} value={t.MaGV}>{t.Hoten}</option>)}</select></div>
-                  <button onClick={handleAddClass} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold uppercase">Tạo lớp học</button>
-                  <div className="grid grid-cols-2 gap-2">
-                    {classes.map(c => <div key={c.MaLop} className="p-3 bg-white border rounded-xl flex justify-between items-center"><div><b className="text-indigo-600">{c.MaLop}</b> - {c.TenLop}</div><button onClick={async () => { await supabase.from('classes').delete().eq('MaLop', c.MaLop); fetchData(); }} className="text-rose-400 hover:text-rose-600"><Trash2 size={16}/></button></div>)}
-                  </div>
-                </div>
-              )}
-              {settingsTab === 'assignments' && (
-                <div className="max-w-4xl space-y-4">
-                  <div className="bg-rose-50 p-6 rounded-3xl border border-rose-100 grid grid-cols-3 gap-4">
-                    <select value={assignGV} onChange={e => setAssignGV(e.target.value)} className="px-4 py-3 bg-white border rounded-xl text-sm font-bold"><option value="">-- Giáo viên --</option>{teachers.map(t => <option key={t.MaGV} value={t.MaGV}>{t.Hoten}</option>)}</select>
-                    <select value={assignClass} onChange={e => setAssignClass(e.target.value)} className="px-4 py-3 bg-white border rounded-xl text-sm font-bold"><option value="">-- Lớp học --</option>{classes.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}</select>
-                    <select value={assignSub} onChange={e => setAssignSub(e.target.value)} className="px-4 py-3 bg-white border rounded-xl text-sm font-bold"><option value="">-- Môn học --</option>{SUBJECTS.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-                    <button onClick={handleAddTeachingAssignment} className="col-span-3 py-3 bg-rose-600 text-white rounded-xl font-bold uppercase shadow-lg">Xác nhận phân công dạy</button>
-                  </div>
-                  <div className="bg-white rounded-[32px] border overflow-hidden shadow-sm">
-                    <table className="w-full text-left">
-                      <thead className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                        <tr><th className="px-6 py-4">Giáo viên</th><th className="px-6 py-4">Lớp</th><th className="px-6 py-4">Vai trò / Môn</th><th className="px-6 py-4 text-right">Gỡ</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {assignments.filter(a => a.MaNienHoc === state.selectedYear).map(a => {
-                          const t = teachers.find(item => item.MaGV === a.MaGV);
-                          const subName = a.LoaiPhanCong === Role.CHU_NHIEM ? 'Chủ nhiệm' : (SUBJECTS.find(s => s.id === a.MaMonHoc)?.name || a.MaMonHoc);
-                          return (
-                            <tr key={a.MaPhanCong} className="text-sm">
-                              <td className="px-6 py-4 font-bold">{t?.Hoten}</td>
-                              <td className="px-6 py-4 font-black text-indigo-600">{a.MaLop}</td>
-                              <td className="px-6 py-4 font-bold text-gray-500 uppercase text-[10px]">{subName}</td>
-                              <td className="px-6 py-4 text-right"><button onClick={() => handleDeleteAssignment(a.MaPhanCong)} className="text-rose-600 hover:bg-rose-50 p-2 rounded-lg transition-colors"><Trash2 size={16}/></button></td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
             </div>
-            <div className="p-8 bg-gray-50 border-t flex justify-end shrink-0">
-               <button onClick={() => { setIsSettingsOpen(false); fetchData(); }} className="px-12 py-3 bg-gray-900 text-white rounded-2xl font-black shadow-xl">Hoàn tất</button>
+            <div className="px-8 py-5 bg-gray-50 border-t flex justify-end shrink-0">
+               <button onClick={() => { setIsSettingsOpen(false); fetchData(); }} className="px-10 py-2.5 bg-gray-900 text-white rounded-2xl font-black text-xs shadow-xl">Hoàn tất</button>
             </div>
           </div>
         </div>
