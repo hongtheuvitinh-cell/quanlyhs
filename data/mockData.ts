@@ -29,10 +29,66 @@ export const mockViolationRules: ViolationRule[] = [
 ];
 
 export const mockStudents: Student[] = [
-  { MaHS: 'HS001', Hoten: 'Lê Văn Cường', NgaySinh: '2006-05-12', GioiTinh: true, DiaChi: '123 Nguyễn Huệ, Quận 1', HotenChame: 'Lê Văn Dũng', SDT_LinkHe: '0901234567', MaLopHienTai: '12A1', MaNienHoc: 1 },
-  { MaHS: 'HS002', Hoten: 'Phạm Thị Diệu', NgaySinh: '2006-08-20', GioiTinh: false, DiaChi: '456 Lê Lợi, Quận 1', HotenChame: 'Phạm Văn Hùng', SDT_LinkHe: '0907654321', MaLopHienTai: '12A1', MaNienHoc: 1 },
-  { MaHS: 'HS003', Hoten: 'Trần Minh Tâm', NgaySinh: '2007-02-15', GioiTinh: true, DiaChi: '789 CMT8, Quận 3', HotenChame: 'Trần Quốc Bảo', SDT_LinkHe: '0911223344', MaLopHienTai: '11B1', MaNienHoc: 1 },
-  { MaHS: 'HS004', Hoten: 'Nguyễn Hoàng Nam', NgaySinh: '2009-11-30', GioiTinh: true, DiaChi: '101 Phố Huế, Hà Nội', HotenChame: 'Nguyễn Hoàng Long', SDT_LinkHe: '0988776655', MaLopHienTai: '10C1', MaNienHoc: 3 }
+  { 
+    MaHS: 'HS001', 
+    Hoten: 'Lê Văn Cường', 
+    NgaySinh: '2006-05-12', 
+    GioiTinh: true, 
+    DiaChi: '123 Nguyễn Huệ, Quận 1', 
+    TenCha: 'Lê Văn Dũng', 
+    NgheNghiepCha: 'Kỹ sư',
+    TenMe: 'Nguyễn Thị Lan',
+    NgheNghiepMe: 'Giáo viên',
+    SDT_LinkHe: '0901234567', 
+    MaLopHienTai: '12A1', 
+    MaNienHoc: 1,
+    MatKhau: '123456'
+  },
+  { 
+    MaHS: 'HS002', 
+    Hoten: 'Phạm Thị Diệu', 
+    NgaySinh: '2006-08-20', 
+    GioiTinh: false, 
+    DiaChi: '456 Lê Lợi, Quận 1', 
+    TenCha: 'Phạm Văn Hùng', 
+    NgheNghiepCha: 'Kinh doanh',
+    TenMe: 'Lê Thị Mai',
+    NgheNghiepMe: 'Nội trợ',
+    SDT_LinkHe: '0907654321', 
+    MaLopHienTai: '12A1', 
+    MaNienHoc: 1,
+    MatKhau: '123456'
+  },
+  { 
+    MaHS: 'HS003', 
+    Hoten: 'Trần Minh Tâm', 
+    NgaySinh: '2007-02-15', 
+    GioiTinh: true, 
+    DiaChi: '789 CMT8, Quận 3', 
+    TenCha: 'Trần Quốc Bảo', 
+    NgheNghiepCha: 'Bác sĩ',
+    TenMe: 'Vũ Thu Hà',
+    NgheNghiepMe: 'Y tá',
+    SDT_LinkHe: '0911223344', 
+    MaLopHienTai: '11B1', 
+    MaNienHoc: 1,
+    MatKhau: '123456'
+  },
+  { 
+    MaHS: 'HS004', 
+    Hoten: 'Nguyễn Hoàng Nam', 
+    NgaySinh: '2009-11-30', 
+    GioiTinh: true, 
+    DiaChi: '101 Phố Huế, Hà Nội', 
+    TenCha: 'Nguyễn Hoàng Long', 
+    NgheNghiepCha: 'Công nhân',
+    TenMe: 'Phan Kim Liên',
+    NgheNghiepMe: 'Buôn bán',
+    SDT_LinkHe: '0988776655', 
+    MaLopHienTai: '10C1', 
+    MaNienHoc: 3,
+    MatKhau: '123456'
+  }
 ];
 
 export const mockAssignments: Assignment[] = [
@@ -43,10 +99,10 @@ export const mockAssignments: Assignment[] = [
 ];
 
 export const mockGrades: Grade[] = [
-  { MaDiem: 1, MaHS: 'HS001', MaMonHoc: 'TOAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: '15p', DiemSo: 8.5 },
-  { MaDiem: 2, MaHS: 'HS001', MaMonHoc: 'TOAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: '1 tiết', DiemSo: 7.0 },
-  { MaDiem: 3, MaHS: 'HS002', MaMonHoc: 'TOAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: '15p', DiemSo: 9.5 },
-  { MaDiem: 4, MaHS: 'HS001', MaMonHoc: 'VAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: '15p', DiemSo: 6.5 }
+  { MaDiem: 1, MaHS: 'HS001', MaMonHoc: 'TOAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: 'ĐGTX1', DiemSo: 8.5 },
+  { MaDiem: 2, MaHS: 'HS001', MaMonHoc: 'TOAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: 'ĐGGK', DiemSo: 7.0 },
+  { MaDiem: 3, MaHS: 'HS002', MaMonHoc: 'TOAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: 'ĐGTX1', DiemSo: 9.5 },
+  { MaDiem: 4, MaHS: 'HS001', MaMonHoc: 'VAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: 'ĐGTX1', DiemSo: 6.5 }
 ];
 
 export const mockDiscipline: Discipline[] = [
