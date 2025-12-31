@@ -1,0 +1,7 @@
+{
+  "name": "Hệ Thống Quản Lý Học Sinh Thông Minh",
+  "description": "Ứng dụng quản lý học sinh toàn diện với phân quyền giáo viên chủ nhiệm và giáo viên bộ môn, tích hợp AI Gemini để phân tích học tập.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
