@@ -2,11 +2,21 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Student, Grade, LearningLog, Role } from "../types";
 
+/**
+ * Hàm hỗ trợ làm sạch chuỗi JSON từ AI
+ * Loại bỏ các ký tự ```json và ``` nếu AI trả về định dạng markdown
+ */
+const cleanJsonResponse = (text: string) => {
+  return text.replace(/```json/g, "").replace(/```/g, "").trim();
+};
+
 export const analyzeStudentPerformance = async (
   student: Student,
   grades: Grade[],
   logs: LearningLog[]
 ) => {
+  if (!process.env.API_KEY) return "Lỗi: Chưa cấu hình API Key cho AI.";
+  
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `
     Phân tích tình hình học tập của học sinh sau đây và đưa ra nhận xét, lời khuyên:
@@ -18,12 +28,11 @@ export const analyzeStudentPerformance = async (
   `;
 
   try {
-    // Basic Text Task: Use gemini-3-flash-preview
     const response = await ai.models.generateContent({ 
       model: "gemini-3-flash-preview", 
       contents: prompt 
     });
-    return response.text;
+    return response.text || "AI không trả về kết quả.";
   } catch (error) {
     console.error("Gemini API Error:", error);
     return "Không thể phân tích dữ liệu học sinh lúc này.";
@@ -31,6 +40,8 @@ export const analyzeStudentPerformance = async (
 };
 
 export const parseStudentListFromImage = async (base64Image: string, mimeType: string, role: Role) => {
+  if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
+
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Bạn là một chuyên gia số hóa dữ liệu giáo dục tại Việt Nam.
     Hãy trích xuất danh sách học sinh từ bảng trong tài liệu này (đây có thể là ảnh hoặc tệp PDF nhiều trang) sang định dạng JSON.
@@ -43,11 +54,9 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
     - TenCha: Họ tên của Cha (nếu có)
     - TenMe: Họ tên của Mẹ (nếu có)
     - SDT_LinkHe: Số điện thoại liên lạc
-    
-    Lưu ý quan trọng: Chỉ trích xuất vào TenCha hoặc TenMe riêng biệt. Không sử dụng cột gộp.`;
+    Lưu ý: Chỉ trả về JSON thuần túy.`;
 
   try {
-    // Complex Text Task: Use gemini-3-pro-preview for advanced extraction
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: {
@@ -77,8 +86,9 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
         }
       }
     });
-    // Use .text property directly
-    return JSON.parse(response.text || "[]");
+    
+    const cleanedText = cleanJsonResponse(response.text || "[]");
+    return JSON.parse(cleanedText);
   } catch (error) {
     console.error("Gemini Parsing Error:", error);
     throw error;
@@ -86,22 +96,15 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
 };
 
 export const parseGradesFromImage = async (base64Image: string, mimeType: string) => {
+  if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
+
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Trích xuất bảng điểm từ tài liệu (ảnh/PDF).
     Hãy đọc từng hàng học sinh. Với mỗi học sinh, hãy trích xuất các cột điểm thành từng đối tượng riêng biệt.
     Các loại điểm chấp nhận: 'ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'.
-    Ví dụ: Nếu học sinh Nguyễn Văn A có điểm ĐGTX1 là 8 và ĐGGK là 7, hãy trả về 2 đối tượng cho học sinh đó.
-    
-    CẤU TRÚC JSON CẦN TRẢ VỀ (Mảng phẳng):
-    { 
-      "Hoten": "Tên đầy đủ", 
-      "DiemSo": số (0-10), 
-      "LoaiDiem": "ĐGTX1" | "ĐGTX2" | "ĐGTX3" | "ĐGTX4" | "ĐGGK" | "ĐGCK",
-      "MaMonHoc": "Mã môn học (nếu có trong bảng, ví dụ: TOAN, VAN, ANH)"
-    }`;
+    CẤU TRÚC JSON CẦN TRẢ VỀ: Một mảng các đối tượng gồm Hoten, DiemSo, LoaiDiem, MaMonHoc.`;
 
   try {
-    // Complex Text Task: Use gemini-3-pro-preview
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: {
@@ -127,8 +130,9 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
         }
       }
     });
-    // Use .text property directly
-    return JSON.parse(response.text || "[]");
+    
+    const cleanedText = cleanJsonResponse(response.text || "[]");
+    return JSON.parse(cleanedText);
   } catch (error) {
     console.error("Gemini Grade Parsing Error:", error);
     throw error;
