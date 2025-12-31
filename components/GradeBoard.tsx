@@ -53,27 +53,43 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
           const data = await parseGradesFromImage(base64, file.type);
           if (data && data.length > 0) {
             const newGrades: Grade[] = data.map((item: any) => {
+              // Tìm HS chính xác hơn (bỏ khoảng trắng, viết thường)
               const matchedStudent = students.find(s => 
                 s.Hoten.toLowerCase().trim() === item.Hoten.toLowerCase().trim()
               );
+
+              if (!matchedStudent) return null;
+
+              // Tìm xem đã có điểm này chưa để lấy MaDiem (nếu có)
+              const existing = grades.find(g => 
+                g.MaHS === matchedStudent.MaHS && 
+                g.MaMonHoc === (item.MaMonHoc || selectedSubject) && 
+                g.LoaiDiem === item.LoaiDiem &&
+                g.HocKy === selectedHK &&
+                g.MaNienHoc === state.selectedYear
+              );
+
               return {
-                MaDiem: Date.now() + Math.random(),
-                MaHS: matchedStudent?.MaHS || 'HS_UNKNOWN',
+                MaDiem: existing?.MaDiem || Date.now() + Math.random(),
+                MaHS: matchedStudent.MaHS,
                 MaMonHoc: item.MaMonHoc || selectedSubject,
                 MaNienHoc: state.selectedYear,
                 HocKy: selectedHK,
                 LoaiDiem: item.LoaiDiem,
-                DiemSo: item.DiemSo
+                DiemSo: Number(item.DiemSo)
               };
-            });
-            const validGrades = newGrades.filter(g => g.MaHS !== 'HS_UNKNOWN');
-            onUpdateGrades(validGrades);
-            setTimeout(() => {
-              alert(`🎉 Thành công! AI đã nạp ${validGrades.length} đầu điểm.`);
-            }, 100);
+            }).filter(g => g !== null) as Grade[];
+
+            if (newGrades.length > 0) {
+              onUpdateGrades(newGrades);
+              alert(`🎉 AI đã nhận diện và lưu ${newGrades.length} đầu điểm thành công!`);
+            } else {
+              alert("AI không tìm thấy học sinh nào khớp trong danh sách lớp.");
+            }
           }
         } catch (err) {
-          alert("AI gặp lỗi khi đọc dữ liệu.");
+          console.error(err);
+          alert("AI gặp lỗi khi xử lý dữ liệu bảng điểm.");
         } finally {
           setIsAiProcessing(false);
         }
@@ -92,11 +108,12 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       g.HocKy === semester && 
       g.MaNienHoc === state.selectedYear
     );
-    const dgtx = sGrades.filter(g => g.LoaiDiem.startsWith('ĐGTX')).map(g => g.DiemSo);
+    const dgtx = sGrades.filter(g => g.LoaiDiem.startsWith('ĐGTX')).map(g => Number(g.DiemSo)).filter(d => !isNaN(d));
     const ggk = sGrades.find(g => g.LoaiDiem === 'ĐGGK')?.DiemSo;
     const gck = sGrades.find(g => g.LoaiDiem === 'ĐGCK')?.DiemSo;
+    
     if (dgtx.length > 0 && ggk != null && gck != null) {
-      return (dgtx.reduce((a, b) => a + b, 0) + ggk * 2 + gck * 3) / (dgtx.length + 5);
+      return (dgtx.reduce((a, b) => a + b, 0) + Number(ggk) * 2 + Number(gck) * 3) / (dgtx.length + 5);
     }
     return null;
   };
@@ -139,11 +156,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
             <Sparkles size={18} className="animate-pulse" /> Nhập điểm AI
           </button>
           <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleAiFileUpload} />
-          
-          {/* KHÔI PHỤC: Nút Xuất Excel */}
-          <button className="flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-2xl text-sm font-black hover:bg-black transition-all shadow-lg active:scale-95">
-            <FileSpreadsheet size={18} /> Xuất Excel
-          </button>
         </div>
       </div>
 
@@ -172,8 +184,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
           {viewMode === 'DETAIL' ? (
-            /* FIX: Thêm key={selectedHK} để React reset giá trị input khi đổi học kỳ */
-            <table className="w-full text-left" key={`${selectedHK}-${selectedSubject}`}>
+            <table className="w-full text-left">
               <thead className="bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 <tr>
                   <th className="px-8 py-6 border-r border-gray-100">Học sinh</th>
@@ -188,19 +199,30 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                   return (
                     <tr key={s.MaHS} className="hover:bg-indigo-50/20 transition-colors">
                       <td className="px-8 py-5 border-r border-gray-100 font-black text-gray-700">{s.Hoten}</td>
-                      {['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'].map(type => (
-                        <td key={type} className="px-2 py-5 text-center">
-                          <input 
-                            type="number" step="0.1" 
-                            defaultValue={sGrades.find(g => g.LoaiDiem === type)?.DiemSo ?? ''} 
-                            onBlur={e => {
-                              const val = e.target.value === '' ? null : parseFloat(e.target.value);
-                              onUpdateGrades([{ MaDiem: Date.now(), MaHS: s.MaHS, MaMonHoc: selectedSubject, MaNienHoc: state.selectedYear, HocKy: selectedHK, LoaiDiem: type, DiemSo: val as any }]);
-                            }}
-                            className="w-12 h-10 text-center font-black bg-gray-50/50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-400 outline-none transition-all"
-                          />
-                        </td>
-                      ))}
+                      {['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'].map(type => {
+                        const gradeObj = sGrades.find(g => g.LoaiDiem === type);
+                        return (
+                          <td key={type} className="px-2 py-5 text-center">
+                            <input 
+                              type="number" step="0.1" 
+                              value={gradeObj?.DiemSo ?? ''} 
+                              onChange={e => {
+                                const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                                onUpdateGrades([{ 
+                                  MaDiem: gradeObj?.MaDiem || Date.now() + Math.random(), 
+                                  MaHS: s.MaHS, 
+                                  MaMonHoc: selectedSubject, 
+                                  MaNienHoc: state.selectedYear, 
+                                  HocKy: selectedHK, 
+                                  LoaiDiem: type, 
+                                  DiemSo: val as any 
+                                }]);
+                              }}
+                              className="w-12 h-10 text-center font-black bg-gray-50/50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-400 outline-none transition-all"
+                            />
+                          </td>
+                        );
+                      })}
                       <td className="px-8 py-5 text-center"><span className="text-sm font-black text-indigo-600 bg-indigo-50/30 px-4 py-2 rounded-xl inline-block">{tb?.toFixed(1) || '--'}</span></td>
                     </tr>
                   );
@@ -208,7 +230,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               </tbody>
             </table>
           ) : (
-            <table className="w-full text-left" key={`summary-${selectedHK}`}>
+            <table className="w-full text-left">
               <thead className="bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 <tr>
                   <th className="px-8 py-6 border-r border-gray-100 sticky left-0 bg-gray-50/80 z-10">Học sinh</th>
