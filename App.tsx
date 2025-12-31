@@ -13,7 +13,6 @@ import {
   Plus,
   X,
   Database,
-  // Added Loader2 to fix the 'Cannot find name Loader2' error on line 215
   Loader2
 } from 'lucide-react';
 import { supabase } from './services/supabaseClient';
@@ -168,24 +167,11 @@ const App: React.FC = () => {
   };
 
   const handleUpdateGrades = async (newGrades: Grade[]) => {
-    setGrades((prev: Grade[]) => {
-      const updated = [...prev];
-      newGrades.forEach((ng: Grade) => {
-        const idx = updated.findIndex((g: Grade) => 
-          (ng.MaDiem && g.MaDiem === ng.MaDiem) || 
-          (g.MaHS === ng.MaHS && g.MaMonHoc === ng.MaMonHoc && g.LoaiDiem === ng.LoaiDiem && g.HocKy === ng.HocKy)
-        );
-        if (idx > -1) {
-          updated[idx] = { ...updated[idx], ...ng };
-        } else {
-          updated.push(ng);
-        }
-      });
-      return updated;
-    });
-
+    // 1. Loại bỏ các giá trị null khỏi danh sách lưu nếu DB không cho phép null
+    // 2. Chuyển đổi MaDiem tạm thời sang undefined để Supabase tự tạo ID nếu là bản ghi mới
     const gradesToUpload = newGrades.map((g: Grade) => {
       const { MaDiem, ...rest } = g;
+      // Nếu MaDiem lớn hơn 1 tỷ thì coi như là ID tạm thời sinh bởi Date.now()
       return (MaDiem && MaDiem < 1000000000) ? g : rest;
     });
 
@@ -195,8 +181,11 @@ const App: React.FC = () => {
 
     if (error) {
       console.error("Lỗi lưu điểm:", error);
+      alert("Không thể lưu điểm. Vui lòng kiểm tra kết nối mạng!");
+      throw error;
     } else {
-      fetchData();
+      await fetchData(); // Đồng bộ lại dữ liệu sau khi lưu thành công
+      alert("Đã lưu điểm thành công lên Cloud!");
     }
   };
 
@@ -214,7 +203,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Fixed Loader2 error by adding it to imports
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>;
 
   if (!isLoggedIn) {
