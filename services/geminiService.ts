@@ -18,6 +18,7 @@ export const analyzeStudentPerformance = async (
   `;
 
   try {
+    // Basic Text Task: Use gemini-3-flash-preview
     const response = await ai.models.generateContent({ 
       model: "gemini-3-flash-preview", 
       contents: prompt 
@@ -46,8 +47,9 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
     Lưu ý quan trọng: Chỉ trích xuất vào TenCha hoặc TenMe riêng biệt. Không sử dụng cột gộp.`;
 
   try {
+    // Complex Text Task: Use gemini-3-pro-preview for advanced extraction
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview",
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: mimeType } },
@@ -75,6 +77,7 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
         }
       }
     });
+    // Use .text property directly
     return JSON.parse(response.text || "[]");
   } catch (error) {
     console.error("Gemini Parsing Error:", error);
@@ -84,18 +87,23 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
 
 export const parseGradesFromImage = async (base64Image: string, mimeType: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Trích xuất bảng điểm từ tài liệu (đây có thể là ảnh hoặc tệp PDF).
-    Bảng có các cột: STT, Lớp, Họ, Tên, ĐGTX (1,2,3,4), ĐGGK, ĐGCK.
-    Hãy gộp cột Họ và Tên thành Hoten.
-    Trả về mảng JSON các đối tượng học sinh với các đầu điểm tương ứng.
-    Mỗi học sinh có thể có nhiều loại điểm: ĐGTX1, ĐGTX2, ĐGTX3, ĐGTX4, ĐGGK, ĐGCK.
-    Trả về mảng các bản ghi Grade: { Hoten, DiemSo, LoaiDiem, MaMonHoc }.
-    LoaiDiem phải là một trong: 'ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'.
-    Chú ý: Nếu là PDF, hãy đọc toàn bộ danh sách ở tất cả các trang.`;
+  const prompt = `Trích xuất bảng điểm từ tài liệu (ảnh/PDF).
+    Hãy đọc từng hàng học sinh. Với mỗi học sinh, hãy trích xuất các cột điểm thành từng đối tượng riêng biệt.
+    Các loại điểm chấp nhận: 'ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'.
+    Ví dụ: Nếu học sinh Nguyễn Văn A có điểm ĐGTX1 là 8 và ĐGGK là 7, hãy trả về 2 đối tượng cho học sinh đó.
+    
+    CẤU TRÚC JSON CẦN TRẢ VỀ (Mảng phẳng):
+    { 
+      "Hoten": "Tên đầy đủ", 
+      "DiemSo": số (0-10), 
+      "LoaiDiem": "ĐGTX1" | "ĐGTX2" | "ĐGTX3" | "ĐGTX4" | "ĐGGK" | "ĐGCK",
+      "MaMonHoc": "Mã môn học (nếu có trong bảng, ví dụ: TOAN, VAN, ANH)"
+    }`;
 
   try {
+    // Complex Text Task: Use gemini-3-pro-preview
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview",
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: mimeType } },
@@ -119,6 +127,7 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
         }
       }
     });
+    // Use .text property directly
     return JSON.parse(response.text || "[]");
   } catch (error) {
     console.error("Gemini Grade Parsing Error:", error);
