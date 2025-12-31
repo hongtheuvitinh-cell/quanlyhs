@@ -155,7 +155,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                 <h4 className="font-black text-gray-900 truncate leading-tight">{student.Hoten}</h4>
                 <p className="text-xs text-gray-400 font-bold">{new Date(student.NgaySinh).toLocaleDateString('vi-VN')}</p>
               </div>
-              {/* KHÔI PHỤC: Nút Xem kết quả */}
               <button 
                 onClick={() => { setSelectedStudentForProfile(student); setModalMode('profile'); setIsModalOpen(true); }}
                 className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
@@ -168,7 +167,10 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                <button 
                  onClick={() => { 
                    setIsAnalyzing(true); 
-                   analyzeStudentPerformance(student, grades.filter(g => g.MaHS === student.MaHS), logs.filter(l => l.MaHS === student.MaHS)).then(res => { setAiAnalysis(res); setIsAnalyzing(false); }); 
+                   analyzeStudentPerformance(student, grades.filter(g => g.MaHS === student.MaHS), logs.filter(l => l.MaHS === student.MaHS)).then(res => { 
+                     setAiAnalysis(res ?? null); 
+                     setIsAnalyzing(false); 
+                   }); 
                  }} 
                  className="text-[10px] font-black text-indigo-600 px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 border border-indigo-100 uppercase tracking-wider hover:bg-indigo-600 hover:text-white"
                >
@@ -203,7 +205,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
 
             <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
               {modalMode === 'profile' && selectedStudentForProfile ? (
-                /* PHẦN XEM KẾT QUẢ HỌC TẬP CHI TIẾT */
                 <div className="space-y-8 animate-in slide-in-from-bottom-4">
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="bg-indigo-50 p-6 rounded-[32px] border border-indigo-100 flex items-center gap-4">
