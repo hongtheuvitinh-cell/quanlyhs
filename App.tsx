@@ -9,20 +9,12 @@ import {
   LogOut,
   ChevronRight,
   Send,
-  Loader2,
   Settings,
   Plus,
-  Trash2,
   X,
-  Save,
-  Calendar,
-  UserCheck,
-  UserPlus,
   Database,
-  BookOpen,
-  UserRoundCheck,
-  Edit3,
-  Check
+  // Added Loader2 to fix the 'Cannot find name Loader2' error on line 215
+  Loader2
 } from 'lucide-react';
 import { supabase } from './services/supabaseClient';
 import { Role, AppState, Student, Grade, Assignment, LearningLog, Discipline, AcademicYear, Class, ViolationRule, AssignmentTask, Teacher } from './types';
@@ -62,14 +54,6 @@ const App: React.FC = () => {
   });
 
   const [newYearName, setNewYearName] = useState('');
-  const [editingYearId, setEditingYearId] = useState<number | null>(null);
-  const [editYearName, setEditYearName] = useState('');
-
-  const [newClassName, setNewClassName] = useState('');
-  const [newClassID, setNewClassID] = useState('');
-  const [selectedTeacherID, setSelectedTeacherID] = useState('');
-  const [newTeacherName, setNewTeacherName] = useState('');
-  const [newTeacherID, setNewTeacherID] = useState('');
 
   const currentUserData = state.currentUser as any;
 
@@ -111,7 +95,7 @@ const App: React.FC = () => {
       if (rlData) setViolationRules(rlData);
 
       if (yrData && yrData.length > 0 && state.selectedYear === 0) {
-        setState(p => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
+        setState((p: AppState) => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
       }
     } catch (err) {
       console.error("Lỗi đồng bộ dữ liệu:", err);
@@ -127,21 +111,21 @@ const App: React.FC = () => {
   const filteredClasses = useMemo(() => {
     if (!state.currentUser || (state.currentUser as any).MaHS) return [];
     const teacherID = (state.currentUser as Teacher).MaGV;
-    const myAssignments = assignments.filter(a => a.MaGV === teacherID && a.MaNienHoc === state.selectedYear);
+    const myAssignments = assignments.filter((a: Assignment) => a.MaGV === teacherID && a.MaNienHoc === state.selectedYear);
     
     if (state.currentRole === Role.CHU_NHIEM) {
-      const homeroomClasses = myAssignments.filter(a => a.LoaiPhanCong === Role.CHU_NHIEM).map(a => a.MaLop);
-      return classes.filter(c => homeroomClasses.includes(c.MaLop));
+      const homeroomClasses = myAssignments.filter((a: Assignment) => a.LoaiPhanCong === Role.CHU_NHIEM).map((a: Assignment) => a.MaLop);
+      return classes.filter((c: Class) => homeroomClasses.includes(c.MaLop));
     } else {
-      const subjectClasses = myAssignments.filter(a => a.LoaiPhanCong === Role.GIANG_DAY).map(a => a.MaLop);
-      return classes.filter(c => subjectClasses.includes(c.MaLop));
+      const subjectClasses = myAssignments.filter((a: Assignment) => a.LoaiPhanCong === Role.GIANG_DAY).map((a: Assignment) => a.MaLop);
+      return classes.filter((c: Class) => subjectClasses.includes(c.MaLop));
     }
   }, [classes, assignments, state.currentUser, state.currentRole, state.selectedYear]);
 
   const currentAssignment = useMemo(() => {
     if (!state.currentUser || (state.currentUser as any).MaHS) return null;
     const teacherID = (state.currentUser as Teacher).MaGV;
-    return assignments.find(a => 
+    return assignments.find((a: Assignment) => 
       a.MaGV === teacherID && 
       a.MaLop === state.selectedClass && 
       a.MaNienHoc === state.selectedYear &&
@@ -151,28 +135,28 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (filteredClasses.length > 0) {
-      const currentExists = filteredClasses.some(c => c.MaLop === state.selectedClass);
+      const currentExists = filteredClasses.some((c: Class) => c.MaLop === state.selectedClass);
       if (!currentExists) {
-        setState(prev => ({ ...prev, selectedClass: filteredClasses[0].MaLop }));
+        setState((prev: AppState) => ({ ...prev, selectedClass: filteredClasses[0].MaLop }));
       }
     } else if (isLoggedIn && state.currentUser && !(state.currentUser as any).MaHS) {
-      setState(prev => ({ ...prev, selectedClass: '' }));
+      setState((prev: AppState) => ({ ...prev, selectedClass: '' }));
     }
   }, [filteredClasses, state.currentRole]);
 
   const handleLogin = (role: Role, id: string, passwordInput: string) => {
     if (role === Role.STUDENT) {
-      const student = students.find(s => s.MaHS === id);
+      const student = students.find((s: Student) => s.MaHS === id);
       if (student && (student.MatKhau || '123456') === passwordInput) {
-        setState(prev => ({ ...prev, currentUser: student, currentRole: Role.STUDENT, selectedClass: student.MaLopHienTai }));
+        setState((prev: AppState) => ({ ...prev, currentUser: student, currentRole: Role.STUDENT, selectedClass: student.MaLopHienTai }));
         setIsLoggedIn(true);
       } else { alert("Thông tin đăng nhập không chính xác!"); }
     } else {
-      const teacher = teachers.find(t => t.MaGV === id);
+      const teacher = teachers.find((t: Teacher) => t.MaGV === id);
       if (teacher && (teacher.MatKhau || '123456') === passwordInput) {
-        const myAs = assignments.filter(a => a.MaGV === id);
-        const cnAs = myAs.find(a => a.LoaiPhanCong === Role.CHU_NHIEM);
-        setState(prev => ({ 
+        const myAs = assignments.filter((a: Assignment) => a.MaGV === id);
+        const cnAs = myAs.find((a: Assignment) => a.LoaiPhanCong === Role.CHU_NHIEM);
+        setState((prev: AppState) => ({ 
           ...prev, 
           currentUser: teacher, 
           currentRole: cnAs ? Role.CHU_NHIEM : Role.GIANG_DAY,
@@ -183,13 +167,11 @@ const App: React.FC = () => {
     }
   };
 
-  // HÀM QUAN TRỌNG: Cập nhật điểm tối ưu
   const handleUpdateGrades = async (newGrades: Grade[]) => {
-    // 1. Cập nhật state cục bộ ngay lập tức để ĐTB nhảy (Optimistic)
-    setGrades(prev => {
+    setGrades((prev: Grade[]) => {
       const updated = [...prev];
-      newGrades.forEach(ng => {
-        const idx = updated.findIndex(g => 
+      newGrades.forEach((ng: Grade) => {
+        const idx = updated.findIndex((g: Grade) => 
           (ng.MaDiem && g.MaDiem === ng.MaDiem) || 
           (g.MaHS === ng.MaHS && g.MaMonHoc === ng.MaMonHoc && g.LoaiDiem === ng.LoaiDiem && g.HocKy === ng.HocKy)
         );
@@ -202,11 +184,8 @@ const App: React.FC = () => {
       return updated;
     });
 
-    // 2. Gửi lên Supabase
-    // Loại bỏ MaDiem nếu nó là ID tạm (Số lớn hoặc undefined) để Supabase tự tạo ID
-    const gradesToUpload = newGrades.map(g => {
+    const gradesToUpload = newGrades.map((g: Grade) => {
       const { MaDiem, ...rest } = g;
-      // Nếu MaDiem < 1000000000 (ID thực từ DB thường nhỏ) thì giữ lại, nếu không thì bỏ để Insert mới
       return (MaDiem && MaDiem < 1000000000) ? g : rest;
     });
 
@@ -217,12 +196,10 @@ const App: React.FC = () => {
     if (error) {
       console.error("Lỗi lưu điểm:", error);
     } else {
-      // 3. Re-fetch để đảm bảo ID chính xác từ DB
       fetchData();
     }
   };
 
-  // Fix: Added missing handleAddYear function to fix the error on line 397.
   const handleAddYear = async () => {
     if (!newYearName.trim()) {
       alert("Vui lòng nhập tên niên học");
@@ -237,6 +214,9 @@ const App: React.FC = () => {
     }
   };
 
+  // Fixed Loader2 error by adding it to imports
+  if (isLoading) return <div className="h-screen flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>;
+
   if (!isLoggedIn) {
     return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
   }
@@ -249,15 +229,15 @@ const App: React.FC = () => {
         disciplines={disciplines} 
         tasks={tasks}
         onLogout={() => setIsLoggedIn(false)}
-        onToggleTask={async (taskId) => {
-          const task = tasks.find(t => t.MaNhiemVu === taskId);
+        onToggleTask={async (taskId: number) => {
+          const task = tasks.find((t: AssignmentTask) => t.MaNhiemVu === taskId);
           if (!task) return;
           const studentId = (state.currentUser as Student).MaHS;
           const isDone = task.DanhSachHoanThanh.includes(studentId);
           const updatedTask = {
             ...task,
             DanhSachHoanThanh: isDone 
-              ? task.DanhSachHoanThanh.filter(id => id !== studentId)
+              ? task.DanhSachHoanThanh.filter((id: string) => id !== studentId)
               : [...task.DanhSachHoanThanh, studentId]
           };
           await supabase.from('tasks').upsert(updatedTask);
@@ -284,8 +264,8 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-1 p-1 bg-white rounded-xl border border-gray-100 shadow-sm">
-              <button onClick={() => setState(p => ({...p, currentRole: Role.CHU_NHIEM}))} className={`text-[10px] py-2 rounded-lg font-black uppercase transition-all ${state.currentRole === Role.CHU_NHIEM ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Chủ nhiệm</button>
-              <button onClick={() => setState(p => ({...p, currentRole: Role.GIANG_DAY}))} className={`text-[10px] py-2 rounded-lg font-black uppercase transition-all ${state.currentRole === Role.GIANG_DAY ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Giảng dạy</button>
+              <button onClick={() => setState((p: AppState) => ({...p, currentRole: Role.CHU_NHIEM}))} className={`text-[10px] py-2 rounded-lg font-black uppercase transition-all ${state.currentRole === Role.CHU_NHIEM ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Chủ nhiệm</button>
+              <button onClick={() => setState((p: AppState) => ({...p, currentRole: Role.GIANG_DAY}))} className={`text-[10px] py-2 rounded-lg font-black uppercase transition-all ${state.currentRole === Role.GIANG_DAY ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Giảng dạy</button>
             </div>
           </div>
           <nav className="space-y-1">
@@ -315,8 +295,8 @@ const App: React.FC = () => {
             <div className="flex flex-col">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Niên học</span>
               <div className="flex items-center gap-1">
-                <select value={state.selectedYear} onChange={(e) => setState(prev => ({ ...prev, selectedYear: parseInt(e.target.value) }))} className="text-base font-black border-none bg-transparent outline-none cursor-pointer text-gray-800 appearance-none pr-1">
-                  {years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}
+                <select value={state.selectedYear} onChange={(e) => setState((prev: AppState) => ({ ...prev, selectedYear: parseInt(e.target.value) }))} className="text-base font-black border-none bg-transparent outline-none cursor-pointer text-gray-800 appearance-none pr-1">
+                  {years.map((y: AcademicYear) => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}
                 </select>
                 <ChevronRight size={14} className="text-gray-400 mt-1" />
               </div>
@@ -324,9 +304,9 @@ const App: React.FC = () => {
             <div className="flex flex-col border-l pl-8">
               <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Lớp</span>
               <div className="flex items-center gap-1 bg-indigo-50 px-3 py-1 rounded-xl mt-0.5 border border-indigo-100">
-                <select value={state.selectedClass} onChange={(e) => setState(prev => ({ ...prev, selectedClass: e.target.value }))} className="text-base font-black border-none bg-transparent text-indigo-700 outline-none cursor-pointer appearance-none">
+                <select value={state.selectedClass} onChange={(e) => setState((prev: AppState) => ({ ...prev, selectedClass: e.target.value }))} className="text-base font-black border-none bg-transparent text-indigo-700 outline-none cursor-pointer appearance-none">
                   {filteredClasses.length > 0 ? (
-                    filteredClasses.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)
+                    filteredClasses.map((c: Class) => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)
                   ) : (
                     <option value="">(Không có lớp)</option>
                   )}
@@ -350,26 +330,26 @@ const App: React.FC = () => {
             </div>
           ) : (
             <>
-              {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} />}
+              {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} />}
               {activeTab === 'students' && (
                 <StudentList 
-                  state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} logs={logs} disciplines={disciplines}
-                  onAddStudent={async s => { 
+                  state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} grades={grades} logs={logs} disciplines={disciplines}
+                  onAddStudent={async (s: Student) => { 
                     const { error } = await supabase.from('students').insert([s]); 
                     if (error) { alert("Lỗi lưu học sinh: " + error.message); return; }
                     await fetchData(); 
                   }}
-                  onAddStudents={async newItems => { 
+                  onAddStudents={async (newItems: Student[]) => { 
                     const { error } = await supabase.from('students').insert(newItems); 
                     if (error) { alert("Lỗi nhập danh sách: " + error.message); return; }
                     await fetchData(); 
                   }}
-                  onUpdateStudent={async s => { 
+                  onUpdateStudent={async (s: Student) => { 
                     const { error } = await supabase.from('students').update(s).eq('MaHS', s.MaHS); 
                     if (error) { alert("Lỗi cập nhật: " + error.message); return; }
                     await fetchData(); 
                   }} 
-                  onDeleteStudent={async id => { 
+                  onDeleteStudent={async (id: string) => { 
                     if(confirm("Xóa học sinh?")) { 
                       const { error } = await supabase.from('students').delete().eq('MaHS', id); 
                       if (error) { alert("Lỗi xóa: " + error.message); return; }
@@ -381,14 +361,14 @@ const App: React.FC = () => {
               {activeTab === 'grades' && (
                 <GradeBoard 
                   state={state} 
-                  students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
+                  students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} 
                   grades={grades} 
                   onUpdateGrades={handleUpdateGrades} 
                 />
               )}
-              {activeTab === 'tasks' && <TaskManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={async t => { await supabase.from('tasks').upsert(t); await fetchData(); }} />}
-              {activeTab === 'discipline' && <DisciplineManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={async d => { await supabase.from('disciplines').insert(d); await fetchData(); }} onUpdateRules={async r => { await supabase.from('violation_rules').upsert(r); await fetchData(); }} />}
-              {activeTab === 'logs' && <LearningLogs state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} logs={logs} assignment={currentAssignment!} onUpdateLogs={async l => { await supabase.from('learning_logs').insert(l); await fetchData(); }} />}
+              {activeTab === 'tasks' && <TaskManager state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={async (t: AssignmentTask[]) => { await supabase.from('tasks').upsert(t); await fetchData(); }} />}
+              {activeTab === 'discipline' && <DisciplineManager state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={async (d: Discipline[]) => { await supabase.from('disciplines').insert(d); await fetchData(); }} onUpdateRules={async (r: ViolationRule[]) => { await supabase.from('violation_rules').upsert(r); await fetchData(); }} />}
+              {activeTab === 'logs' && <LearningLogs state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} logs={logs} assignment={currentAssignment!} onUpdateLogs={async (l: LearningLog[]) => { await supabase.from('learning_logs').insert(l); await fetchData(); }} />}
             </>
           )}
         </div>
@@ -408,7 +388,7 @@ const App: React.FC = () => {
               {settingsTab === 'years' && (
                 <div className="max-w-xl space-y-4">
                   <div className="flex gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100">
-                    <input type="text" placeholder="VD: 2024-2025" value={newYearName} onChange={e => setNewYearName(e.target.value)} className="flex-1 px-4 py-2 bg-white border rounded-lg font-bold text-sm" />
+                    <input type="text" placeholder="VD: 2024-2025" value={newYearName} onChange={(e) => setNewYearName(e.target.value)} className="flex-1 px-4 py-2 bg-white border rounded-lg font-bold text-sm" />
                     <button onClick={handleAddYear} className="px-6 bg-indigo-600 text-white rounded-lg font-bold text-xs flex items-center gap-2"><Plus size={14}/> Thêm</button>
                   </div>
                 </div>
