@@ -60,8 +60,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
               if (!matchedStudent) return null;
 
-              // Tìm xem đã có điểm này chưa để lấy MaDiem (nếu có)
-              const existing = grades.find(g => 
+              // SỬA LỖI TS7006: Khai báo kiểu (g: Grade)
+              const existing = grades.find((g: Grade) => 
                 g.MaHS === matchedStudent.MaHS && 
                 g.MaMonHoc === (item.MaMonHoc || selectedSubject) && 
                 g.LoaiDiem === item.LoaiDiem &&
@@ -102,15 +102,16 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   };
 
   const calculateSubjectAvg = (studentId: string, subjectId: string, semester: number) => {
-    const sGrades = grades.filter(g => 
+    // SỬA LỖI TS7006: Khai báo kiểu (g: Grade)
+    const sGrades = grades.filter((g: Grade) => 
       g.MaHS === studentId && 
       g.MaMonHoc === subjectId && 
       g.HocKy === semester && 
       g.MaNienHoc === state.selectedYear
     );
-    const dgtx = sGrades.filter(g => g.LoaiDiem.startsWith('ĐGTX')).map(g => Number(g.DiemSo)).filter(d => !isNaN(d));
-    const ggk = sGrades.find(g => g.LoaiDiem === 'ĐGGK')?.DiemSo;
-    const gck = sGrades.find(g => g.LoaiDiem === 'ĐGCK')?.DiemSo;
+    const dgtx = sGrades.filter((g: Grade) => g.LoaiDiem.startsWith('ĐGTX')).map((g: Grade) => Number(g.DiemSo)).filter(d => !isNaN(d));
+    const ggk = sGrades.find((g: Grade) => g.LoaiDiem === 'ĐGGK')?.DiemSo;
+    const gck = sGrades.find((g: Grade) => g.LoaiDiem === 'ĐGCK')?.DiemSo;
     
     if (dgtx.length > 0 && ggk != null && gck != null) {
       return (dgtx.reduce((a, b) => a + b, 0) + Number(ggk) * 2 + Number(gck) * 3) / (dgtx.length + 5);
@@ -194,13 +195,13 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredStudents.map(s => {
-                  const sGrades = grades.filter(g => g.MaHS === s.MaHS && g.MaMonHoc === selectedSubject && g.HocKy === selectedHK);
+                  const sGrades = grades.filter((g: Grade) => g.MaHS === s.MaHS && g.MaMonHoc === selectedSubject && g.HocKy === selectedHK);
                   const tb = calculateSubjectAvg(s.MaHS, selectedSubject, selectedHK);
                   return (
                     <tr key={s.MaHS} className="hover:bg-indigo-50/20 transition-colors">
                       <td className="px-8 py-5 border-r border-gray-100 font-black text-gray-700">{s.Hoten}</td>
                       {['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'].map(type => {
-                        const gradeObj = sGrades.find(g => g.LoaiDiem === type);
+                        const gradeObj = sGrades.find((g: Grade) => g.LoaiDiem === type);
                         return (
                           <td key={type} className="px-2 py-5 text-center">
                             <input 
