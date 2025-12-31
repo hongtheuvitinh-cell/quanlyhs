@@ -2,14 +2,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Student, Grade, LearningLog, Role } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const analyzeStudentPerformance = async (
   student: Student,
   grades: Grade[],
   logs: LearningLog[]
 ) => {
-  const model = "gemini-3-flash-preview";
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `
     Phân tích tình hình học tập của học sinh sau đây và đưa ra nhận xét, lời khuyên:
     Học sinh: ${student.Hoten}
@@ -20,7 +18,10 @@ export const analyzeStudentPerformance = async (
   `;
 
   try {
-    const response = await ai.models.generateContent({ model, contents: prompt });
+    const response = await ai.models.generateContent({ 
+      model: "gemini-3-flash-preview", 
+      contents: prompt 
+    });
     return response.text;
   } catch (error) {
     console.error("Gemini API Error:", error);
@@ -29,15 +30,24 @@ export const analyzeStudentPerformance = async (
 };
 
 export const parseStudentListFromImage = async (base64Image: string, mimeType: string, role: Role) => {
-  const model = "gemini-3-flash-preview";
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Bạn là một chuyên gia số hóa dữ liệu giáo dục tại Việt Nam.
     Hãy trích xuất danh sách học sinh từ bảng trong tài liệu này (đây có thể là ảnh hoặc tệp PDF nhiều trang) sang định dạng JSON.
-    CẤU TRÚC: MaHS, Hoten, NgaySinh (YYYY-MM-DD), GioiTinh (Boolean: Nữ là false, Nam là true), DiaChi, TenCha, TenMe, SDT_LinkHe.
-    Chú ý: Nếu là tệp PDF, hãy đọc kỹ tất cả các trang để không bỏ sót học sinh nào.`;
+    CẤU TRÚC JSON CẦN TRẢ VỀ:
+    - MaHS: Mã học sinh (nếu không có thì tự tạo theo format HSxxx)
+    - Hoten: Họ và tên đầy đủ
+    - NgaySinh: Ngày sinh định dạng YYYY-MM-DD
+    - GioiTinh: Boolean (Nam là true, Nữ là false)
+    - DiaChi: Địa chỉ thường trú
+    - TenCha: Họ tên của Cha (nếu có)
+    - TenMe: Họ tên của Mẹ (nếu có)
+    - SDT_LinkHe: Số điện thoại liên lạc
+    
+    Lưu ý: Nếu bảng chỉ có cột "Họ tên cha mẹ", hãy cố gắng tách ra nếu được, hoặc điền vào TenCha.`;
 
   try {
     const response = await ai.models.generateContent({
-      model,
+      model: "gemini-3-flash-preview",
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: mimeType } },
@@ -73,7 +83,7 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
 };
 
 export const parseGradesFromImage = async (base64Image: string, mimeType: string) => {
-  const model = "gemini-3-flash-preview";
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Trích xuất bảng điểm từ tài liệu (đây có thể là ảnh hoặc tệp PDF).
     Bảng có các cột: STT, Lớp, Họ, Tên, ĐGTX (1,2,3,4), ĐGGK, ĐGCK.
     Hãy gộp cột Họ và Tên thành Hoten.
@@ -85,7 +95,7 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
 
   try {
     const response = await ai.models.generateContent({
-      model,
+      model: "gemini-3-flash-preview",
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: mimeType } },
