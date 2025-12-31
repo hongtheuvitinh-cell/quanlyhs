@@ -2,13 +2,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Student, Grade, LearningLog, Role } from "../types";
 
-/**
- * Hàm hỗ trợ làm sạch chuỗi JSON từ AI
- * Loại bỏ các ký tự ```json và ``` nếu AI trả về định dạng markdown
- */
 const cleanJsonResponse = (text: string) => {
   if (!text) return "[]";
-  // Xóa các khối mã markdown nếu có
   let cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
   return cleaned;
 };
@@ -22,12 +17,11 @@ export const analyzeStudentPerformance = async (
   
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `
-    Phân tích tình hình học tập của học sinh sau đây và đưa ra nhận xét, lời khuyên:
+    Phân tích tình hình học tập của học sinh sau đây và đưa ra nhận xét:
     Học sinh: ${student.Hoten}
     Điểm số: ${JSON.stringify(grades.map(g => ({ mon: g.MaMonHoc, loai: g.LoaiDiem, diem: g.DiemSo })))}
     Nhận xét giáo viên: ${JSON.stringify(logs.map(l => l.NhanXet))}
-    Chuyên cần: ${logs.filter(l => l.TrangThai === 'VANG_CP' || l.TrangThai === 'VANG_KP').length} buổi vắng.
-    Hãy viết nhận xét bằng tiếng Việt, ngắn gọn, súc tích, chia thành 2 phần: Ưu điểm và Cần cố gắng.
+    Viết ngắn gọn, súc tích (Ưu điểm và Cần cố gắng).
   `;
 
   try {
@@ -44,24 +38,14 @@ export const analyzeStudentPerformance = async (
 
 export const parseStudentListFromImage = async (base64Image: string, mimeType: string, role: Role) => {
   if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
-
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Bạn là một chuyên gia số hóa dữ liệu giáo dục tại Việt Nam.
-    Hãy trích xuất danh sách học sinh từ tài liệu này sang định dạng JSON.
-    Yêu cầu:
-    - Nhận diện chính xác các cột: STT, Họ và tên (Hoten), Ngày sinh (NgaySinh), Giới tính (GioiTinh), Địa chỉ (DiaChi), Số điện thoại (SDT_LinkHe).
-    - NgaySinh phải có định dạng YYYY-MM-DD. Nếu chỉ có năm, hãy giả định là 01-01.
-    - GioiTinh: Nếu là "Nam" trả về true, "Nữ" trả về false.
-    Lưu ý: Chỉ trả về mảng JSON, không giải thích gì thêm.`;
+  const prompt = `Trích xuất danh sách học sinh sang JSON. Định dạng NgaySinh: YYYY-MM-DD. GioiTinh: true (Nam)/false (Nữ).`;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: {
-        parts: [
-          { inlineData: { data: base64Image, mimeType: mimeType } },
-          { text: prompt }
-        ]
+        parts: [{ inlineData: { data: base64Image, mimeType: mimeType } }, { text: prompt }]
       },
       config: {
         responseMimeType: "application/json",
@@ -75,8 +59,6 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
               NgaySinh: { type: Type.STRING },
               GioiTinh: { type: Type.BOOLEAN },
               DiaChi: { type: Type.STRING },
-              TenCha: { type: Type.STRING },
-              TenMe: { type: Type.STRING },
               SDT_LinkHe: { type: Type.STRING }
             },
             required: ["Hoten"]
@@ -84,12 +66,8 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
         }
       }
     });
-    
-    const rawText = response.text || "[]";
-    const cleanedText = cleanJsonResponse(rawText);
-    return JSON.parse(cleanedText);
+    return JSON.parse(cleanJsonResponse(response.text || "[]"));
   } catch (error) {
-    console.error("Lỗi trích xuất danh sách HS:", error);
     throw error;
   }
 };
@@ -98,17 +76,14 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
   if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Bạn là chuyên gia đọc bảng điểm học sinh Việt Nam. 
-    Nhiệm vụ: Trích xuất điểm số từ ảnh/PDF.
-    Các cột thường gặp: "Họ và tên", "Kiểm tra thường xuyên" (ĐGTX), "Giữa kỳ" (ĐGGK), "Cuối kỳ" (ĐGCK).
-    Quy tắc chuyển đổi:
-    - Nếu cột là "Thường xuyên 1" hoặc "TX1" -> LoaiDiem: "ĐGTX1"
-    - Nếu cột là "Thường xuyên 2" hoặc "TX2" -> LoaiDiem: "ĐGTX2"
-    - Nếu cột là "Giữa kỳ" hoặc "GK" -> LoaiDiem: "ĐGGK"
-    - Nếu cột là "Cuối kỳ" hoặc "CK" -> LoaiDiem: "ĐGCK"
-    - DiemSo: Phải là số thực (ví dụ 8.5).
-    - MaMonHoc: Nếu ảnh có tên môn học, hãy điền mã môn (TOAN, VAN, ANH, ...). Nếu không rõ hãy để trống.
-    Lưu ý quan trọng: Chỉ trả về mảng JSON, không thêm văn bản rác.`;
+  const prompt = `Bạn là chuyên gia số hóa bảng điểm Việt Nam.
+    NHIỆM VỤ: Đọc bảng điểm từ ảnh. 
+    LƯU Ý QUAN TRỌNG:
+    1. Một hàng có thể chứa nhiều loại điểm (ví dụ: ĐGTX1, ĐGTX2, ĐGTX3, ĐGTX4, ĐGGK). 
+    2. Bạn phải tách (unpivot) mỗi ô điểm thành một đối tượng JSON riêng biệt.
+    3. Nhận diện tiêu đề thông minh: "Mã Học Sir" hoặc "Mã HS" đều là MaHS. "Họ và Tên" là Hoten.
+    4. Trả về một mảng phẳng các đối tượng.
+    Ví dụ: Nếu Nguyễn Văn A có điểm ĐGTX1=8 và ĐGGK=9, bạn phải trả về 2 đối tượng cho Nguyễn Văn A.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -126,9 +101,10 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
           items: {
             type: Type.OBJECT,
             properties: {
-              Hoten: { type: Type.STRING, description: "Họ và tên học sinh" },
-              DiemSo: { type: Type.NUMBER, description: "Giá trị điểm số" },
-              LoaiDiem: { type: Type.STRING, description: "Mã loại điểm: ĐGTX1, ĐGTX2, ĐGGK, ĐGCK..." },
+              MaHS: { type: Type.STRING, description: "Mã học sinh nếu có" },
+              Hoten: { type: Type.STRING, description: "Họ tên đầy đủ" },
+              DiemSo: { type: Type.NUMBER, description: "Điểm số" },
+              LoaiDiem: { type: Type.STRING, description: "Loại điểm (ĐGTX1, ĐGTX2, ĐGGK, ĐGCK...)" },
               MaMonHoc: { type: Type.STRING, description: "Mã môn học nếu có" }
             },
             required: ["Hoten", "DiemSo", "LoaiDiem"]
@@ -138,11 +114,10 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
     });
     
     const rawText = response.text || "[]";
-    console.log("Raw AI Response (Grades):", rawText); // Ghi log để kiểm tra nếu lỗi parse
-    const cleanedText = cleanJsonResponse(rawText);
-    return JSON.parse(cleanedText);
+    console.log("Dữ liệu gốc từ AI:", rawText);
+    return JSON.parse(cleanJsonResponse(rawText));
   } catch (error) {
-    console.error("Lỗi trích xuất bảng điểm Gemini:", error);
+    console.error("Lỗi Gemini:", error);
     throw error;
   }
 };
