@@ -4,6 +4,7 @@ import { Student, Grade, LearningLog, Role } from "../types";
 
 const cleanJsonResponse = (text: string) => {
   if (!text) return "[]";
+  // Loại bỏ các khối mã markdown json nếu có
   let cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
   return cleaned;
 };
@@ -43,7 +44,7 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-3-pro-image-preview",
       contents: {
         parts: [{ inlineData: { data: base64Image, mimeType: mimeType } }, { text: prompt }]
       },
@@ -76,18 +77,25 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
   if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Bạn là chuyên gia số hóa bảng điểm Việt Nam.
-    NHIỆM VỤ: Đọc bảng điểm từ ảnh. 
-    LƯU Ý QUAN TRỌNG:
-    1. Một hàng có thể chứa nhiều loại điểm (ví dụ: ĐGTX1, ĐGTX2, ĐGTX3, ĐGTX4, ĐGGK). 
-    2. Bạn phải tách (unpivot) mỗi ô điểm thành một đối tượng JSON riêng biệt.
-    3. Nhận diện tiêu đề thông minh: "Mã Học Sir" hoặc "Mã HS" đều là MaHS. "Họ và Tên" là Hoten.
-    4. Trả về một mảng phẳng các đối tượng.
-    Ví dụ: Nếu Nguyễn Văn A có điểm ĐGTX1=8 và ĐGGK=9, bạn phải trả về 2 đối tượng cho Nguyễn Văn A.`;
+  const prompt = `Bạn là chuyên gia trích xuất dữ liệu bảng điểm học sinh Việt Nam. 
+    Trong ảnh có bảng gồm các cột: STT, Mã Học Sir (đây là Mã HS), Họ và Tên (Hoten), và các cột điểm (ĐGTX1, ĐGTX2, ĐGTX3, ĐGTX4, ĐGGK).
+    
+    YÊU CẦU:
+    1. Trả về một mảng JSON phẳng.
+    2. Mỗi phần tử trong mảng là MỘT ĐẦU ĐIỂM duy nhất của một học sinh.
+    3. Ví dụ: Nếu học sinh 'NGUYỄN ĐĂNG KHOA' có 5 cột điểm, bạn phải tạo ra 5 đối tượng JSON riêng biệt cho học sinh này.
+    
+    QUY TẮC ĐỊNH DANH:
+    - MaHS: Lấy từ cột "Mã Học Sir" (Ví dụ: HS1B11).
+    - Hoten: Lấy từ cột "Họ và Tên".
+    - DiemSo: Là giá trị số trong các ô điểm (Ví dụ: 6.8, 7, 8.8).
+    - LoaiDiem: Tên của cột điểm đó (ĐGTX1, ĐGTX2, ĐGTX3, ĐGTX4, hoặc ĐGGK).
+    
+    Lưu ý: Chỉ trả về JSON, không giải thích gì thêm.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-3-pro-image-preview",
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: mimeType } },
@@ -101,10 +109,10 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
           items: {
             type: Type.OBJECT,
             properties: {
-              MaHS: { type: Type.STRING, description: "Mã học sinh nếu có" },
-              Hoten: { type: Type.STRING, description: "Họ tên đầy đủ" },
-              DiemSo: { type: Type.NUMBER, description: "Điểm số" },
-              LoaiDiem: { type: Type.STRING, description: "Loại điểm (ĐGTX1, ĐGTX2, ĐGGK, ĐGCK...)" },
+              MaHS: { type: Type.STRING, description: "Mã học sinh lấy từ cột Mã Học Sir" },
+              Hoten: { type: Type.STRING, description: "Họ và tên đầy đủ" },
+              DiemSo: { type: Type.NUMBER, description: "Giá trị điểm số" },
+              LoaiDiem: { type: Type.STRING, description: "Loại điểm: ĐGTX1, ĐGTX2, ĐGTX3, ĐGTX4, ĐGGK" },
               MaMonHoc: { type: Type.STRING, description: "Mã môn học nếu có" }
             },
             required: ["Hoten", "DiemSo", "LoaiDiem"]
@@ -117,7 +125,7 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
     console.log("Dữ liệu gốc từ AI:", rawText);
     return JSON.parse(cleanJsonResponse(rawText));
   } catch (error) {
-    console.error("Lỗi Gemini:", error);
+    console.error("Lỗi Gemini Grade Parsing:", error);
     throw error;
   }
 };
