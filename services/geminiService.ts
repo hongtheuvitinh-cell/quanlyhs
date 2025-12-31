@@ -44,7 +44,7 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-image-preview",
+      model: "gemini-2.5-flash-image",
       contents: {
         parts: [{ inlineData: { data: base64Image, mimeType: mimeType } }, { text: prompt }]
       },
@@ -95,7 +95,7 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-image-preview",
+      model: "gemini-2.5-flash-image",
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: mimeType } },
@@ -122,7 +122,6 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
     });
     
     const rawText = response.text || "[]";
-    console.log("Dữ liệu gốc từ AI:", rawText);
     return JSON.parse(cleanJsonResponse(rawText));
   } catch (error) {
     console.error("Lỗi Gemini Grade Parsing:", error);
