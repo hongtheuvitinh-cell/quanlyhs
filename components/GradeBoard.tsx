@@ -53,8 +53,10 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
           const data = await parseGradesFromImage(base64, file.type);
           if (data && Array.isArray(data)) {
             const newGrades: Grade[] = data.map((item: any) => {
+              // Ưu tiên khớp theo Mã HS (MaHS), nếu không có mới khớp theo Tên
               const matchedStudent = students.find((s: Student) => 
-                s.Hoten.toLowerCase().trim() === item.Hoten.toLowerCase().trim()
+                (item.MaHS && s.MaHS.toLowerCase().trim() === item.MaHS.toLowerCase().trim()) ||
+                (s.Hoten.toLowerCase().trim() === item.Hoten.toLowerCase().trim())
               );
 
               if (!matchedStudent) return null;
@@ -80,17 +82,14 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
             if (newGrades.length > 0) {
               onUpdateGrades(newGrades);
-              alert(`🎉 AI đã nhận diện và lưu ${newGrades.length} đầu điểm thành công!`);
+              alert(`🎉 AI đã nhận diện thành công ${newGrades.length} đầu điểm!`);
             } else {
-              alert("AI không tìm thấy học sinh nào khớp trong danh sách lớp.");
+              alert("AI đọc được bảng nhưng không tìm thấy học sinh nào khớp với danh sách lớp hiện tại.");
             }
           }
         } catch (err: any) {
           console.error(err);
-          const errorMsg = err.message === 'API_KEY_MISSING' 
-            ? "Chưa thiết lập API Key. Vui lòng kiểm tra lại cấu hình." 
-            : "AI gặp lỗi khi xử lý dữ liệu. Vui lòng kiểm tra định dạng bảng điểm hoặc thử lại sau.";
-          alert(errorMsg);
+          alert("Lỗi xử lý: AI không thể phân tích cấu trúc bảng này. Hãy thử chụp ảnh rõ hơn hoặc căn lề bảng thẳng hơn.");
         } finally {
           setIsAiProcessing(false);
         }
@@ -199,7 +198,12 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                   const tb = calculateSubjectAvg(s.MaHS, selectedSubject, selectedHK);
                   return (
                     <tr key={s.MaHS} className="hover:bg-indigo-50/20 transition-colors">
-                      <td className="px-8 py-5 border-r border-gray-100 font-black text-gray-700">{s.Hoten}</td>
+                      <td className="px-8 py-5 border-r border-gray-100 font-black text-gray-700">
+                        <div className="flex flex-col">
+                          <span>{s.Hoten}</span>
+                          <span className="text-[9px] text-gray-400">{s.MaHS}</span>
+                        </div>
+                      </td>
                       {['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'].map((type: string) => {
                         const gradeObj = sGrades.find((g: Grade) => g.LoaiDiem === type);
                         return (
