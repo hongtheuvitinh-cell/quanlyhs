@@ -51,7 +51,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         const base64 = (reader.result as string).split(',')[1];
         try {
           const data = await parseGradesFromImage(base64, file.type);
-          if (data && data.length > 0) {
+          if (data && Array.isArray(data)) {
             const newGrades: Grade[] = data.map((item: any) => {
               const matchedStudent = students.find((s: Student) => 
                 s.Hoten.toLowerCase().trim() === item.Hoten.toLowerCase().trim()
@@ -85,9 +85,12 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               alert("AI không tìm thấy học sinh nào khớp trong danh sách lớp.");
             }
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error(err);
-          alert("AI gặp lỗi khi xử lý dữ liệu bảng điểm.");
+          const errorMsg = err.message === 'API_KEY_MISSING' 
+            ? "Chưa thiết lập API Key. Vui lòng kiểm tra lại cấu hình." 
+            : "AI gặp lỗi khi xử lý dữ liệu. Vui lòng kiểm tra định dạng bảng điểm hoặc thử lại sau.";
+          alert(errorMsg);
         } finally {
           setIsAiProcessing(false);
         }
