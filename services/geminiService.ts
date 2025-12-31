@@ -27,7 +27,8 @@ export const analyzeStudentPerformance = async (
 
   try {
     const response = await ai.models.generateContent({ 
-      model: "gemini-3-flash-preview", 
+      // Chuyển sang Flash Lite để tránh lỗi 429 Quota Exceeded
+      model: "gemini-flash-lite-latest", 
       contents: prompt 
     });
     return response.text || "AI không trả về kết quả.";
