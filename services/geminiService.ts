@@ -43,7 +43,7 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
     - TenMe: Họ tên của Mẹ (nếu có)
     - SDT_LinkHe: Số điện thoại liên lạc
     
-    Lưu ý: Nếu bảng chỉ có cột "Họ tên cha mẹ", hãy cố gắng tách ra nếu được, hoặc điền vào TenCha.`;
+    Lưu ý quan trọng: Chỉ trích xuất vào TenCha hoặc TenMe riêng biệt. Không sử dụng cột gộp.`;
 
   try {
     const response = await ai.models.generateContent({
