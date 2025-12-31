@@ -2,7 +2,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
   Search, Sparkles, GraduationCap, BookOpen, BrainCircuit, Table, ListChecks
-} from 'lucide-react';
+} from 'lucide-center';
 import { AppState, Student, Grade, Role } from '../types';
 import { parseGradesFromImage } from '../services/geminiService';
 
@@ -53,7 +53,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
           const data = await parseGradesFromImage(base64, file.type);
           if (data && Array.isArray(data)) {
             const newGrades: Grade[] = data.map((item: any) => {
-              // Ưu tiên khớp theo Mã HS (MaHS), nếu không có mới khớp theo Tên
+              // Khớp theo Mã HS hoặc Tên (không phân biệt hoa thường, cắt khoảng trắng)
               const matchedStudent = students.find((s: Student) => 
                 (item.MaHS && s.MaHS.toLowerCase().trim() === item.MaHS.toLowerCase().trim()) ||
                 (s.Hoten.toLowerCase().trim() === item.Hoten.toLowerCase().trim())
@@ -82,14 +82,14 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
             if (newGrades.length > 0) {
               onUpdateGrades(newGrades);
-              alert(`🎉 AI đã nhận diện thành công ${newGrades.length} đầu điểm!`);
+              alert(`🎉 Tuyệt vời! AI đã nhận diện thành công ${newGrades.length} đầu điểm từ ảnh.`);
             } else {
-              alert("AI đọc được bảng nhưng không tìm thấy học sinh nào khớp với danh sách lớp hiện tại.");
+              alert("AI đã đọc được bảng nhưng không tìm thấy học sinh nào trong ảnh khớp với danh sách lớp này. Hãy kiểm tra lại Mã HS hoặc Tên.");
             }
           }
         } catch (err: any) {
-          console.error(err);
-          alert("Lỗi xử lý: AI không thể phân tích cấu trúc bảng này. Hãy thử chụp ảnh rõ hơn hoặc căn lề bảng thẳng hơn.");
+          console.error("Lỗi AI:", err);
+          alert(`Lỗi hệ thống: ${err.message || "AI không thể phân tích cấu trúc bảng này"}. Vui lòng thử lại hoặc kiểm tra Console (F12).`);
         } finally {
           setIsAiProcessing(false);
         }
