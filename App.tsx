@@ -17,11 +17,11 @@ import {
   Save,
   Calendar,
   UserCheck,
-  UserPlus
+  UserPlus,
+  Database
 } from 'lucide-react';
 import { supabase } from './services/supabaseClient';
 import { Role, AppState, Student, Grade, Assignment, LearningLog, Discipline, AcademicYear, Class, ViolationRule, AssignmentTask, Teacher } from './types';
-import { mockTeachers, mockAssignments } from './data/mockData';
 import StudentList from './components/StudentList';
 import GradeBoard from './components/GradeBoard';
 import Dashboard from './components/Dashboard';
@@ -57,7 +57,6 @@ const App: React.FC = () => {
     selectedSubject: null
   });
 
-  // Form states cho Settings
   const [newYearName, setNewYearName] = useState('');
   const [newClassName, setNewClassName] = useState('');
   const [newClassID, setNewClassID] = useState('');
@@ -92,13 +91,17 @@ const App: React.FC = () => {
         supabase.from('violation_rules').select('*')
       ]);
 
-      if (yrData) {
+      if (yrData && yrData.length > 0) {
         setYears(yrData);
-        if (yrData.length > 0 && state.selectedYear === 0) setState(p => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
+        if (state.selectedYear === 0) {
+          setState(p => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
+        }
       }
       if (clData) {
         setClasses(clData);
-        if (clData.length > 0 && state.selectedClass === '') setState(p => ({ ...p, selectedClass: clData[0].MaLop }));
+        if (clData.length > 0 && state.selectedClass === '') {
+          setState(p => ({ ...p, selectedClass: clData[0].MaLop }));
+        }
       }
       if (tcData) setTeachers(tcData);
       if (asData) setAssignments(asData);
@@ -109,7 +112,7 @@ const App: React.FC = () => {
       if (tkData) setTasks(tkData);
       if (rlData) setViolationRules(rlData);
     } catch (err) {
-      console.error("Lỗi fetch dữ liệu Supabase:", err);
+      console.error("Lỗi kết nối dữ liệu Cloud:", err);
     } finally {
       setIsLoading(false);
     }
@@ -119,85 +122,99 @@ const App: React.FC = () => {
     fetchData();
   }, []);
 
-  const handleLogin = (role: Role, id: string) => {
+  const handleLogin = (role: Role, id: string, passwordInput: string) => {
     if (role === Role.STUDENT) {
       const student = students.find(s => s.MaHS === id);
       if (student) {
-        setState(prev => ({ ...prev, currentUser: student, currentRole: Role.STUDENT }));
-        setIsLoggedIn(true);
+        if (student.MatKhau === passwordInput || (passwordInput === '123456' && !student.MatKhau)) {
+          setState(prev => ({ ...prev, currentUser: student, currentRole: Role.STUDENT }));
+          setIsLoggedIn(true);
+        } else {
+          alert("Mật khẩu truy cập không chính xác!");
+        }
       } else {
-        alert("Mã Học sinh không tồn tại trên Cloud!");
+        alert("Mã số học sinh không tồn tại trên hệ thống!");
       }
     } else {
       const teacher = teachers.find(t => t.MaGV === id);
       if (teacher) {
-        const cnAssignment = assignments.find(a => a.MaGV === id && a.LoaiPhanCong === Role.CHU_NHIEM && a.MaNienHoc === state.selectedYear);
-        if (cnAssignment) {
-           setState(prev => ({ ...prev, currentUser: teacher, currentRole: Role.CHU_NHIEM, selectedClass: cnAssignment.MaLop }));
+        if (teacher.MatKhau === passwordInput || (passwordInput === '123456' && !teacher.MatKhau)) {
+          const cnAssignment = assignments.find(a => a.MaGV === id && a.LoaiPhanCong === Role.CHU_NHIEM && a.MaNienHoc === state.selectedYear);
+          if (cnAssignment) {
+             setState(prev => ({ ...prev, currentUser: teacher, currentRole: Role.CHU_NHIEM, selectedClass: cnAssignment.MaLop }));
+          } else {
+             setState(prev => ({ ...prev, currentUser: teacher, currentRole: Role.GIANG_DAY }));
+          }
+          setIsLoggedIn(true);
         } else {
-           setState(prev => ({ ...prev, currentUser: teacher, currentRole: Role.GIANG_DAY }));
+          alert("Mật khẩu giáo viên không chính xác!");
         }
-        setIsLoggedIn(true);
       } else {
-        alert("Mã Giáo viên không tồn tại trên Cloud! Hãy liên hệ quản trị viên hoặc xem danh sách ID.");
+        alert("Mã số giáo viên không tồn tại!");
       }
     }
   };
 
   const handleAddYear = async () => {
     if (!newYearName) return;
-    const { data } = await supabase.from('academic_years').insert([{ TenNienHoc: newYearName }]).select();
+    // Kiểm tra trùng tên niên học
+    if (years.some(y => y.TenNienHoc === newYearName)) {
+      alert("Niên học này đã tồn tại trên Cloud!");
+      return;
+    }
+
+    const { data, error } = await supabase.from('academic_years').insert([{ TenNienHoc: newYearName }]).select();
+    if (error) {
+      alert("Lỗi SQL: " + error.message);
+      return;
+    }
     if (data) {
       setYears([data[0], ...years]);
+      if (state.selectedYear === 0) setState(p => ({ ...p, selectedYear: data[0].MaNienHoc }));
       setNewYearName('');
-      alert("Đã thêm Niên học thành công!");
+      alert("Đã khởi tạo niên học mới thành công!");
     }
   };
 
   const handleAddTeacher = async () => {
-    if (!newTeacherID || !newTeacherName) {
-      alert("Vui lòng nhập Mã GV và Họ tên!");
-      return;
-    }
-    const { data, error } = await supabase.from('teachers').insert([{ MaGV: newTeacherID, Hoten: newTeacherName, MaMonChinh: 'TOAN' }]).select();
-    if (error) {
-      alert("Lỗi: Mã GV này đã tồn tại!");
-      return;
-    }
+    if (!newTeacherID || !newTeacherName) return;
+    const { data, error } = await supabase.from('teachers').insert([{ 
+      MaGV: newTeacherID, 
+      Hoten: newTeacherName, 
+      MaMonChinh: 'TOAN',
+      MatKhau: '123456'
+    }]).select();
+    if (error) { alert("Lỗi khi thêm giáo viên: " + error.message); return; }
     if (data) {
       setTeachers([...teachers, data[0]]);
-      setNewTeacherID('');
-      setNewTeacherName('');
-      alert("Đã thêm Giáo viên mới thành công!");
+      setNewTeacherID(''); setNewTeacherName('');
+      alert("Đã thêm Giáo viên! Mật khẩu mặc định: 123456");
     }
   };
 
   const handleAddClass = async () => {
-    if (!newClassID || !newClassName) {
-      alert("Vui lòng nhập Mã lớp và Tên lớp!");
-      return;
-    }
+    if (!newClassID || !newClassName) return;
+    if (state.selectedYear === 0) { alert("Cần chọn niên học trước khi tạo lớp!"); return; }
+    
     const { data: classData, error: classError } = await supabase.from('classes').insert([{ MaLop: newClassID, TenLop: newClassName, Khoi: parseInt(newClassID) || 10 }]).select();
-    if (classError) {
-      alert("Lỗi tạo lớp: " + classError.message);
-      return;
-    }
+    if (classError) { alert("Lỗi: " + classError.message); return; }
+    
     if (classData) {
       setClasses(prev => [...prev, classData[0]]);
+      if (state.selectedClass === '') setState(p => ({ ...p, selectedClass: classData[0].MaLop }));
+      
       if (selectedTeacherID) {
         const { data: assignData } = await supabase.from('assignments').insert([{
           MaGV: selectedTeacherID, MaLop: classData[0].MaLop, MaNienHoc: state.selectedYear, LoaiPhanCong: Role.CHU_NHIEM, MaMonHoc: null
         }]).select();
         if (assignData) setAssignments(prev => [...prev, assignData[0]]);
       }
-      setNewClassID('');
-      setNewClassName('');
-      setSelectedTeacherID('');
-      alert(`Đã tạo lớp ${newClassName} thành công!`);
+      setNewClassID(''); setNewClassName(''); setSelectedTeacherID('');
+      alert(`Đã hoàn tất cấu hình lớp ${newClassName}!`);
     }
   };
 
-  // Fix: Added handleUpdateGrades to manage grade state and sync with Supabase
+  // Các hàm cập nhật khác giữ nguyên logic nhưng có thông báo Cloud
   const handleUpdateGrades = async (newGrades: Grade[]) => {
     setGrades(prev => {
       const updated = [...prev];
@@ -211,39 +228,60 @@ const App: React.FC = () => {
     await supabase.from('grades').upsert(newGrades);
   };
 
-  // Fix: Added handleUpdateTasks to manage task state and sync with Supabase
   const handleUpdateTasks = async (updatedTasks: AssignmentTask[]) => {
     setTasks(updatedTasks);
     await supabase.from('tasks').upsert(updatedTasks);
   };
 
-  // Fix: Added handleUpdateDisciplines to manage discipline state and sync with Supabase
   const handleUpdateDisciplines = async (newDisciplines: Discipline[]) => {
     setDisciplines(prev => [...prev, ...newDisciplines]);
     await supabase.from('disciplines').insert(newDisciplines);
   };
 
-  // Fix: Added handleUpdateLogs to manage learning log state and sync with Supabase
   const handleUpdateLogs = async (newLogs: LearningLog[]) => {
     setLogs(prev => [...prev, ...newLogs]);
     await supabase.from('learning_logs').insert(newLogs);
   };
 
   if (isLoading) return (
-    <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50">
-      <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
-      <p className="font-bold text-gray-400 uppercase tracking-widest text-xs">Đang đồng bộ Cloud...</p>
+    <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-900 text-white">
+      <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
+      <p className="font-black text-indigo-200 uppercase tracking-[0.2em] text-[10px]">Đang đồng bộ dữ liệu Cloud...</p>
     </div>
   );
 
   if (!isLoggedIn) return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
+
+  if (state.currentRole === Role.STUDENT) {
+    return (
+      <StudentPortal 
+        student={state.currentUser as Student} 
+        grades={grades.filter(g => g.MaHS === (state.currentUser as Student).MaHS)}
+        disciplines={disciplines.filter(d => d.MaHS === (state.currentUser as Student).MaHS)}
+        tasks={tasks.filter(t => t.MaLop === (state.currentUser as Student).MaLopHienTai)}
+        onLogout={() => setIsLoggedIn(false)}
+        onToggleTask={(taskId) => {
+          const task = tasks.find(t => t.MaNhiemVu === taskId);
+          if (task) {
+            const isDone = task.DanhSachHoanThanh.includes((state.currentUser as Student).MaHS);
+            const updated = {
+              ...task,
+              DanhSachHoanThanh: isDone 
+                ? task.DanhSachHoanThanh.filter(id => id !== (state.currentUser as Student).MaHS)
+                : [...task.DanhSachHoanThanh, (state.currentUser as Student).MaHS]
+            };
+            handleUpdateTasks([updated]);
+          }
+        }}
+      />
+    );
+  }
 
   const currentUserData = state.currentUser as Teacher;
   const currentAssignment = assignments.find(a => a.MaGV === currentUserData?.MaGV && a.MaLop === state.selectedClass);
 
   return (
     <div className="flex h-screen bg-gray-50 text-gray-900 overflow-hidden">
-      {/* SIDEBAR */}
       <aside className="w-72 bg-white border-r border-gray-200 flex flex-col shrink-0">
         <div className="p-6 flex items-center gap-3 border-b border-gray-100 shrink-0">
           <div className="bg-indigo-600 p-2 rounded-lg text-white shadow-lg"><GraduationCap size={24} /></div>
@@ -255,7 +293,7 @@ const App: React.FC = () => {
               <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold border border-indigo-200">{currentUserData?.Hoten?.charAt(0)}</div>
               <div className="min-w-0">
                 <p className="font-bold text-sm text-gray-800 truncate">{currentUserData?.Hoten}</p>
-                <p className="text-[10px] text-gray-400 font-bold uppercase">Mã GV: {currentUserData?.MaGV}</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase">ID: {currentUserData?.MaGV}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-1 p-1 bg-white rounded-xl border border-gray-100 shadow-sm">
@@ -286,20 +324,23 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-16 bg-white border-b border-gray-200 px-8 flex items-center justify-between shrink-0 z-10">
           <div className="flex items-center gap-8">
             <div className="flex flex-col">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Niên học</span>
               <div className="flex items-center gap-1 group">
-                <select 
-                  value={state.selectedYear} 
-                  onChange={(e) => setState(prev => ({ ...prev, selectedYear: parseInt(e.target.value) }))} 
-                  className="text-base font-black border-none bg-transparent outline-none cursor-pointer text-gray-800 appearance-none pr-1"
-                >
-                  {years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}
-                </select>
+                {years.length > 0 ? (
+                  <select 
+                    value={state.selectedYear} 
+                    onChange={(e) => setState(prev => ({ ...prev, selectedYear: parseInt(e.target.value) }))} 
+                    className="text-base font-black border-none bg-transparent outline-none cursor-pointer text-gray-800 appearance-none pr-1"
+                  >
+                    {years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}
+                  </select>
+                ) : (
+                  <span className="text-sm font-bold text-rose-500 italic">Chưa có dữ liệu</span>
+                )}
                 <div className="text-gray-800 mt-1"><ChevronRight size={14} /></div>
               </div>
             </div>
@@ -309,13 +350,17 @@ const App: React.FC = () => {
             <div className="flex flex-col">
               <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Lớp hiện tại</span>
               <div className="flex items-center gap-1 bg-indigo-50 px-3 py-1 rounded-xl mt-0.5 border border-indigo-100 group">
-                <select 
-                  value={state.selectedClass} 
-                  onChange={(e) => setState(prev => ({ ...prev, selectedClass: e.target.value }))} 
-                  className="text-base font-black border-none bg-transparent text-indigo-700 outline-none cursor-pointer appearance-none"
-                >
-                  {classes.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}
-                </select>
+                {classes.length > 0 ? (
+                  <select 
+                    value={state.selectedClass} 
+                    onChange={(e) => setState(prev => ({ ...prev, selectedClass: e.target.value }))} 
+                    className="text-base font-black border-none bg-transparent text-indigo-700 outline-none cursor-pointer appearance-none"
+                  >
+                    {classes.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}
+                  </select>
+                ) : (
+                  <span className="text-sm font-bold text-indigo-400 italic">Trống</span>
+                )}
                 <div className="text-indigo-700"><ChevronRight size={14} className="rotate-90" /></div>
               </div>
             </div>
@@ -324,54 +369,53 @@ const App: React.FC = () => {
           <div className="flex items-center gap-4">
              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-full text-[11px] font-black uppercase tracking-widest border border-emerald-100">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                Cloud Active
+                Cloud Online
              </div>
-             <button 
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100 shadow-sm bg-white"
-             >
+             <button onClick={() => setIsSettingsOpen(true)} className="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100 shadow-sm bg-white">
                <Settings size={22} />
              </button>
           </div>
         </header>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-          {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} />}
-          {activeTab === 'students' && (
-            <StudentList 
-              state={state} 
-              students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
-              grades={grades} 
-              logs={logs} 
-              disciplines={disciplines}
-              onAddStudent={async s => {
-                setStudents([...students, s]);
-                await supabase.from('students').insert([s]);
-              }}
-              onAddStudents={async newItems => {
-                setStudents([...students, ...newItems]);
-                await supabase.from('students').insert(newItems);
-              }}
-              onUpdateStudent={async s => {
-                setStudents(students.map(item => item.MaHS === s.MaHS ? s : item));
-                await supabase.from('students').update(s).eq('MaHS', s.MaHS);
-              }} 
-              onDeleteStudent={async id => {
-                if(confirm("Xóa học sinh này khỏi Cloud?")) {
-                  setStudents(students.filter(s => s.MaHS !== id));
-                  await supabase.from('students').delete().eq('MaHS', id);
-                }
-              }} 
-            />
+          {years.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
+              <div className="p-6 bg-amber-50 rounded-[40px] text-amber-600 mb-6 border border-amber-100"><Database size={64}/></div>
+              <h3 className="text-2xl font-black text-gray-800 mb-2">Cloud chưa được cấu hình</h3>
+              <p className="text-gray-400 font-medium mb-8 leading-relaxed">Để bắt đầu, bạn cần thiết lập ít nhất một Niên học và một Lớp học trong phần Cấu hình.</p>
+              <button onClick={() => setIsSettingsOpen(true)} className="px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2">
+                <Settings size={20}/> Mở Cấu hình ngay
+              </button>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} />}
+              {activeTab === 'students' && (
+                <StudentList 
+                  state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} logs={logs} disciplines={disciplines}
+                  onAddStudent={async s => { 
+                    const studentWithPass = { ...s, MatKhau: '123456' };
+                    setStudents([...students, studentWithPass]); 
+                    await supabase.from('students').insert([studentWithPass]); 
+                  }}
+                  onAddStudents={async newItems => { 
+                    const itemsWithPass = newItems.map(item => ({ ...item, MatKhau: '123456' }));
+                    setStudents([...students, ...itemsWithPass]); 
+                    await supabase.from('students').insert(itemsWithPass); 
+                  }}
+                  onUpdateStudent={async s => { setStudents(students.map(item => item.MaHS === s.MaHS ? s : item)); await supabase.from('students').update(s).eq('MaHS', s.MaHS); }} 
+                  onDeleteStudent={async id => { if(confirm("Xóa học sinh này?")) { setStudents(students.filter(s => s.MaHS !== id)); await supabase.from('students').delete().eq('MaHS', id); } }} 
+                />
+              )}
+              {activeTab === 'grades' && <GradeBoard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={handleUpdateGrades} />}
+              {activeTab === 'tasks' && <TaskManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={handleUpdateTasks} />}
+              {activeTab === 'discipline' && <DisciplineManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={handleUpdateDisciplines} onUpdateRules={async r => { setViolationRules(r); await supabase.from('violation_rules').upsert(r); }} />}
+              {activeTab === 'logs' && <LearningLogs state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} logs={logs} assignment={currentAssignment!} onUpdateLogs={handleUpdateLogs} />}
+            </>
           )}
-          {activeTab === 'grades' && <GradeBoard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={handleUpdateGrades} />}
-          {activeTab === 'tasks' && <TaskManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={handleUpdateTasks} />}
-          {activeTab === 'discipline' && <DisciplineManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={handleUpdateDisciplines} onUpdateRules={async r => { setViolationRules(r); await supabase.from('violation_rules').upsert(r); }} />}
-          {activeTab === 'logs' && <LearningLogs state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} logs={logs} assignment={currentAssignment!} onUpdateLogs={handleUpdateLogs} />}
         </div>
       </main>
 
-      {/* MODAL CẤU HÌNH HỆ THỐNG */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in">
           <div className="bg-white w-full max-w-5xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95">
@@ -379,31 +423,31 @@ const App: React.FC = () => {
                <div className="flex items-center gap-4">
                   <div className="p-3 bg-gray-900 text-white rounded-2xl"><Settings size={28}/></div>
                   <div>
-                    <h3 className="font-black text-2xl text-gray-800 tracking-tight">Cấu hình Hệ thống</h3>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Thiết lập Niên học, Lớp học và Giáo viên trên Cloud</p>
+                    <h3 className="font-black text-2xl text-gray-800 tracking-tight">Cấu hình Hệ thống Cloud</h3>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Thiết lập dữ liệu nền tảng cho trường học</p>
                   </div>
                </div>
                <button onClick={() => { setIsSettingsOpen(false); fetchData(); }} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={28} className="text-gray-400"/></button>
             </div>
 
             <div className="flex gap-4 px-8 pt-4">
-              <button onClick={() => setSettingsTab('years')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${settingsTab === 'years' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}>Niên học</button>
-              <button onClick={() => setSettingsTab('teachers')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${settingsTab === 'teachers' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}>Giáo viên</button>
-              <button onClick={() => setSettingsTab('classes')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${settingsTab === 'classes' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}>Lớp học</button>
+              <button onClick={() => setSettingsTab('years')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${settingsTab === 'years' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}>1. Niên học</button>
+              <button onClick={() => setSettingsTab('teachers')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${settingsTab === 'teachers' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}>2. Giáo viên</button>
+              <button onClick={() => setSettingsTab('classes')} className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${settingsTab === 'classes' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}>3. Lớp học</button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
               {settingsTab === 'years' && (
                 <div className="max-w-md space-y-6">
                   <div className="flex gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
-                    <input type="text" placeholder="Tên niên học (VD: 2025-2026)" value={newYearName} onChange={e => setNewYearName(e.target.value)} className="flex-1 px-4 py-3 bg-white border border-transparent rounded-xl font-bold text-sm outline-none focus:ring-2 ring-indigo-500/20 shadow-sm" />
+                    <input type="text" placeholder="VD: 2024-2025" value={newYearName} onChange={e => setNewYearName(e.target.value)} className="flex-1 px-4 py-3 bg-white border border-transparent rounded-xl font-bold text-sm outline-none shadow-sm" />
                     <button onClick={handleAddYear} className="px-6 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase hover:bg-indigo-700 transition-all flex items-center gap-2"><Plus size={16}/> Thêm</button>
                   </div>
                   <div className="space-y-2">
                     {years.map(y => (
                       <div key={y.MaNienHoc} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 group shadow-sm">
                         <span className="font-bold text-gray-700">{y.TenNienHoc}</span>
-                        <button onClick={async () => { if(confirm("Xóa?")) { await supabase.from('academic_years').delete().eq('MaNienHoc', y.MaNienHoc); setYears(years.filter(item => item.MaNienHoc !== y.MaNienHoc)); } }} className="p-2 text-gray-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
+                        <button onClick={async () => { if(confirm("Xóa niên học này? Lưu ý: Tất cả dữ liệu liên quan sẽ bị ảnh hưởng.")) { await supabase.from('academic_years').delete().eq('MaNienHoc', y.MaNienHoc); setYears(years.filter(item => item.MaNienHoc !== y.MaNienHoc)); } }} className="p-2 text-gray-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
                       </div>
                     ))}
                   </div>
@@ -413,8 +457,8 @@ const App: React.FC = () => {
               {settingsTab === 'teachers' && (
                 <div className="max-w-2xl space-y-6">
                   <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100 grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-amber-600 uppercase">Mã Giáo viên</label><input type="text" placeholder="VD: GV003" value={newTeacherID} onChange={e => setNewTeacherID(e.target.value)} className="w-full px-4 py-3 bg-white border rounded-xl font-bold text-sm outline-none" /></div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-amber-600 uppercase">Họ và Tên</label><input type="text" placeholder="VD: Nguyễn Văn C" value={newTeacherName} onChange={e => setNewTeacherName(e.target.value)} className="w-full px-4 py-3 bg-white border rounded-xl font-bold text-sm outline-none" /></div>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-amber-600 uppercase">Mã GV (Sẽ dùng đăng nhập)</label><input type="text" placeholder="VD: GV_ANH" value={newTeacherID} onChange={e => setNewTeacherID(e.target.value)} className="w-full px-4 py-3 bg-white border rounded-xl font-bold text-sm outline-none" /></div>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-amber-600 uppercase">Họ và Tên</label><input type="text" placeholder="VD: Nguyễn Văn Anh" value={newTeacherName} onChange={e => setNewTeacherName(e.target.value)} className="w-full px-4 py-3 bg-white border rounded-xl font-bold text-sm outline-none" /></div>
                     <button onClick={handleAddTeacher} className="col-span-2 py-4 bg-amber-600 text-white rounded-2xl font-black text-sm uppercase shadow-lg hover:bg-amber-700 transition-all flex items-center justify-center gap-2"><UserPlus size={18}/> Đăng ký Giáo viên</button>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -435,8 +479,8 @@ const App: React.FC = () => {
                       <div className="space-y-1.5"><label className="text-[10px] font-black text-emerald-600 uppercase">Mã lớp</label><input type="text" placeholder="12A1" value={newClassID} onChange={e => setNewClassID(e.target.value)} className="w-full px-4 py-3 bg-white border rounded-xl font-bold text-sm outline-none" /></div>
                       <div className="space-y-1.5"><label className="text-[10px] font-black text-emerald-600 uppercase">Tên lớp</label><input type="text" placeholder="Lớp 12A1" value={newClassName} onChange={e => setNewClassName(e.target.value)} className="w-full px-4 py-3 bg-white border rounded-xl font-bold text-sm outline-none" /></div>
                     </div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-emerald-600 uppercase flex items-center gap-1"><UserCheck size={12}/> GV Chủ nhiệm</label><select value={selectedTeacherID} onChange={e => setSelectedTeacherID(e.target.value)} className="w-full px-4 py-3 bg-white border rounded-xl font-bold text-sm outline-none appearance-none"><option value="">-- Chọn Giáo viên --</option>{teachers.map(t => <option key={t.MaGV} value={t.MaGV}>{t.Hoten} ({t.MaGV})</option>)}</select></div>
-                    <button onClick={handleAddClass} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm uppercase shadow-lg hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"><Save size={18}/> Xác nhận tạo lớp</button>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-emerald-600 uppercase flex items-center gap-1"><UserCheck size={12}/> GV Chủ nhiệm</label><select value={selectedTeacherID} onChange={e => setSelectedTeacherID(e.target.value)} className="w-full px-4 py-3 bg-white border rounded-xl font-bold text-sm outline-none appearance-none"><option value="">-- Chọn từ danh sách GV --</option>{teachers.map(t => <option key={t.MaGV} value={t.MaGV}>{t.Hoten} ({t.MaGV})</option>)}</select></div>
+                    <button onClick={handleAddClass} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm uppercase shadow-lg hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"><Save size={18}/> Tạo lớp học</button>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     {classes.map(c => {
@@ -444,7 +488,7 @@ const App: React.FC = () => {
                       const t = teachers.find(item => item.MaGV === gvcn?.MaGV);
                       return (
                         <div key={c.MaLop} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 group shadow-sm">
-                          <div className="flex items-center gap-3"><div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-black text-xs uppercase border border-emerald-100">{c.MaLop}</div><div><p className="font-bold text-gray-700">{c.TenLop}</p><p className="text-[10px] text-gray-400 font-bold uppercase">GVCN: {t?.Hoten || 'Chưa phân công'}</p></div></div>
+                          <div className="flex items-center gap-3"><div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-black text-xs uppercase border border-emerald-100">{c.MaLop}</div><div><p className="font-bold text-gray-700">{c.TenLop}</p><p className="text-[10px] text-gray-400 font-bold uppercase">CN: {t?.Hoten || 'Chưa có'}</p></div></div>
                           <button onClick={async () => { if(confirm("Xóa lớp?")) { await supabase.from('classes').delete().eq('MaLop', c.MaLop); setClasses(classes.filter(item => item.MaLop !== c.MaLop)); } }} className="p-2 text-gray-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
                         </div>
                       );
