@@ -18,15 +18,6 @@ interface Props {
   onDeleteStudent: (maHS: string) => void;
 }
 
-const subjectsList = [
-  { id: 'TOAN', name: 'Toán Học' },
-  { id: 'VAN', name: 'Ngữ Văn' },
-  { id: 'ANH', name: 'Tiếng Anh' },
-  { id: 'LY', name: 'Vật Lý' },
-  { id: 'HOA', name: 'Hóa Học' },
-  { id: 'SINH', name: 'Sinh Học' },
-];
-
 const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplines, onAddStudent, onAddStudents, onUpdateStudent, onDeleteStudent }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -76,7 +67,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
   const handleSave = () => {
     if (!formStudent.MaHS || !formStudent.Hoten) { alert("Vui lòng nhập đủ Mã HS và Họ tên!"); return; }
     
-    // ĐÃ KÍCH HOẠT: Bao gồm trường 'Anh' trong dữ liệu gửi đi
+    // ĐÃ ĐỒNG BỘ: Điền vào tất cả các cột tương ứng trong DB của bạn
     const finalStudent: Student = {
       MaHS: formStudent.MaHS!,
       Hoten: formStudent.Hoten!,
@@ -87,7 +78,8 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
       NgheNghiepCha: formStudent.NgheNghiepCha || '',
       TenMe: formStudent.TenMe || '',
       NgheNghiepMe: formStudent.NgheNghiepMe || '',
-      HotenChame: formStudent.TenCha || formStudent.TenMe || 'N/A',
+      // HotenChame: Tự động tổng hợp để bạn dùng in ấn nếu cần
+      HotenChame: formStudent.TenCha || formStudent.TenMe || 'Chưa rõ',
       SDT_LinkHe: formStudent.SDT_LinkHe || '',
       Email: formStudent.Email || '',
       MaLopHienTai: state.selectedClass,
@@ -111,10 +103,9 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
       DiaChi: s.DiaChi || '',
       TenCha: s.TenCha || '',
       NgheNghiepCha: '',
-      // Fix: Corrected property name from 's.Me' to 's.TenMe' to match the Student type and Gemini schema
       TenMe: s.TenMe || '',
       NgheNghiepMe: '',
-      HotenChame: s.TenCha || s.TenMe || 'N/A',
+      HotenChame: s.TenCha || s.TenMe || 'Chưa rõ',
       SDT_LinkHe: s.SDT_LinkHe || '',
       Email: '',
       MaLopHienTai: state.selectedClass,
@@ -140,19 +131,9 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
     });
   };
 
-  const calculateSubjectAvg = (mStudent: Student, mSubject: string, semester: number) => {
-    const sGrades = grades.filter(g => g.MaHS === mStudent.MaHS && g.MaMonHoc === mSubject && g.HocKy === semester);
-    const dgtx = sGrades.filter(g => g.LoaiDiem.startsWith('ĐGTX')).map(g => g.DiemSo);
-    const ggk = sGrades.find(g => g.LoaiDiem === 'ĐGGK')?.DiemSo;
-    const gck = sGrades.find(g => g.LoaiDiem === 'ĐGCK')?.DiemSo;
-    if (dgtx.length > 0 && ggk !== undefined && gck !== undefined) {
-      return (dgtx.reduce((a, b) => a + b, 0) + ggk * 2 + gck * 3) / (dgtx.length + 5);
-    }
-    return null;
-  };
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-[32px] shadow-sm border border-gray-100">
         <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3"><Users className="text-indigo-600" /> Hồ sơ Học sinh</h2>
         <div className="flex items-center gap-3">
@@ -165,6 +146,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
         </div>
       </div>
 
+      {/* LIST GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredStudents.map(student => (
           <div key={student.MaHS} className="bg-white rounded-[32px] p-5 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group">
@@ -190,6 +172,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
         ))}
       </div>
 
+      {/* MODAL FORM */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white w-full max-w-5xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95">
@@ -206,45 +189,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-              {modalMode === 'profile' && selectedStudentForProfile ? (
-                <div className="space-y-6">
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-indigo-50 p-4 rounded-3xl border border-indigo-100 flex items-center gap-4">
-                         <div className="p-2.5 bg-white text-indigo-600 rounded-xl shadow-sm"><TrendingUp size={20}/></div>
-                         <div><p className="text-[9px] font-black text-indigo-400 uppercase">Học lực</p><h4 className="text-lg font-black text-indigo-900">8.2</h4></div>
-                      </div>
-                      <div className="bg-emerald-50 p-4 rounded-3xl border border-emerald-100 flex items-center gap-4">
-                         <div className="p-2.5 bg-white text-emerald-600 rounded-xl shadow-sm"><Award size={20}/></div>
-                         <div><p className="text-[9px] font-black text-emerald-400 uppercase">Rèn luyện</p><h4 className="text-lg font-black text-emerald-900">Tốt</h4></div>
-                      </div>
-                      <div className="bg-rose-50 p-4 rounded-3xl border border-rose-100 flex items-center gap-4">
-                         <div className="p-2.5 bg-white text-rose-600 rounded-xl shadow-sm"><ShieldAlert size={20}/></div>
-                         <div><p className="text-[9px] font-black text-rose-400 uppercase">Vi phạm</p><h4 className="text-lg font-black text-rose-900">{disciplines.filter(d => d.MaHS === selectedStudentForProfile.MaHS).length} vụ</h4></div>
-                      </div>
-                   </div>
-                   <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                      <table className="w-full text-left text-sm">
-                        <thead>
-                           <tr className="bg-gray-50/50 text-[10px] font-black text-gray-400 uppercase tracking-widest"><th className="px-6 py-4">Môn học</th><th className="px-6 py-4 text-center">HK 1</th><th className="px-6 py-4 text-center">HK 2</th><th className="px-6 py-4 text-center bg-indigo-50 text-indigo-600">Cả năm</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                           {subjectsList.map(sub => {
-                              const tb1 = calculateSubjectAvg(selectedStudentForProfile, sub.id, 1);
-                              const tb2 = calculateSubjectAvg(selectedStudentForProfile, sub.id, 2);
-                              return (
-                                <tr key={sub.id} className="hover:bg-gray-50/50">
-                                  <td className="px-6 py-3 font-bold text-gray-800">{sub.name}</td>
-                                  <td className="px-6 py-3 text-center text-gray-500">{tb1?.toFixed(1) || '--'}</td>
-                                  <td className="px-6 py-3 text-center text-gray-500">{tb2?.toFixed(1) || '--'}</td>
-                                  <td className="px-6 py-3 text-center font-black text-indigo-600 bg-indigo-50/20">{(tb1 && tb2) ? ((tb1 + tb2 * 2) / 3).toFixed(1) : '--'}</td>
-                                </tr>
-                              );
-                           })}
-                        </tbody>
-                      </table>
-                   </div>
-                </div>
-              ) : modalMode === 'ai' ? (
+              {modalMode === 'ai' ? (
                 <div className="space-y-4">
                   <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex items-center gap-3 text-indigo-700 text-sm"><CheckCircle2 size={20} className="shrink-0" /><div><p className="font-black">AI đã trích xuất {aiPreviewData.length} học sinh!</p></div></div>
                   <div className="overflow-hidden border border-gray-100 rounded-3xl">
