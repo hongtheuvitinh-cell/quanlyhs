@@ -16,6 +16,7 @@ export interface Teacher {
   MaGV: string;
   Hoten: string;
   MaMonChinh: string;
+  MatKhau?: string;
 }
 
 export interface Class {
@@ -41,6 +42,7 @@ export interface Student {
   MaNienHoc: number; 
   Anh?: string; 
   GhiChuKhac?: string;
+  MatKhau?: string;
 }
 
 export interface Assignment {
