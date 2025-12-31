@@ -7,7 +7,10 @@ import { Student, Grade, LearningLog, Role } from "../types";
  * Loại bỏ các ký tự ```json và ``` nếu AI trả về định dạng markdown
  */
 const cleanJsonResponse = (text: string) => {
-  return text.replace(/```json/g, "").replace(/```/g, "").trim();
+  if (!text) return "[]";
+  // Xóa các khối mã markdown nếu có
+  let cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
+  return cleaned;
 };
 
 export const analyzeStudentPerformance = async (
@@ -44,17 +47,12 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Bạn là một chuyên gia số hóa dữ liệu giáo dục tại Việt Nam.
-    Hãy trích xuất danh sách học sinh từ bảng trong tài liệu này (đây có thể là ảnh hoặc tệp PDF nhiều trang) sang định dạng JSON.
-    CẤU TRÚC JSON CẦN TRẢ VỀ:
-    - MaHS: Mã học sinh (nếu không có thì tự tạo theo format HSxxx)
-    - Hoten: Họ và tên đầy đủ
-    - NgaySinh: Ngày sinh định dạng YYYY-MM-DD
-    - GioiTinh: Boolean (Nam là true, Nữ là false)
-    - DiaChi: Địa chỉ thường trú
-    - TenCha: Họ tên của Cha (nếu có)
-    - TenMe: Họ tên của Mẹ (nếu có)
-    - SDT_LinkHe: Số điện thoại liên lạc
-    Lưu ý: Chỉ trả về JSON thuần túy.`;
+    Hãy trích xuất danh sách học sinh từ tài liệu này sang định dạng JSON.
+    Yêu cầu:
+    - Nhận diện chính xác các cột: STT, Họ và tên (Hoten), Ngày sinh (NgaySinh), Giới tính (GioiTinh), Địa chỉ (DiaChi), Số điện thoại (SDT_LinkHe).
+    - NgaySinh phải có định dạng YYYY-MM-DD. Nếu chỉ có năm, hãy giả định là 01-01.
+    - GioiTinh: Nếu là "Nam" trả về true, "Nữ" trả về false.
+    Lưu ý: Chỉ trả về mảng JSON, không giải thích gì thêm.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -81,16 +79,17 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
               TenMe: { type: Type.STRING },
               SDT_LinkHe: { type: Type.STRING }
             },
-            required: ["MaHS", "Hoten"]
+            required: ["Hoten"]
           }
         }
       }
     });
     
-    const cleanedText = cleanJsonResponse(response.text || "[]");
+    const rawText = response.text || "[]";
+    const cleanedText = cleanJsonResponse(rawText);
     return JSON.parse(cleanedText);
   } catch (error) {
-    console.error("Gemini Parsing Error:", error);
+    console.error("Lỗi trích xuất danh sách HS:", error);
     throw error;
   }
 };
@@ -99,10 +98,17 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
   if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Trích xuất bảng điểm từ tài liệu (ảnh/PDF).
-    Hãy đọc từng hàng học sinh. Với mỗi học sinh, hãy trích xuất các cột điểm thành từng đối tượng riêng biệt.
-    Các loại điểm chấp nhận: 'ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'.
-    CẤU TRÚC JSON CẦN TRẢ VỀ: Một mảng các đối tượng gồm Hoten, DiemSo, LoaiDiem, MaMonHoc.`;
+  const prompt = `Bạn là chuyên gia đọc bảng điểm học sinh Việt Nam. 
+    Nhiệm vụ: Trích xuất điểm số từ ảnh/PDF.
+    Các cột thường gặp: "Họ và tên", "Kiểm tra thường xuyên" (ĐGTX), "Giữa kỳ" (ĐGGK), "Cuối kỳ" (ĐGCK).
+    Quy tắc chuyển đổi:
+    - Nếu cột là "Thường xuyên 1" hoặc "TX1" -> LoaiDiem: "ĐGTX1"
+    - Nếu cột là "Thường xuyên 2" hoặc "TX2" -> LoaiDiem: "ĐGTX2"
+    - Nếu cột là "Giữa kỳ" hoặc "GK" -> LoaiDiem: "ĐGGK"
+    - Nếu cột là "Cuối kỳ" hoặc "CK" -> LoaiDiem: "ĐGCK"
+    - DiemSo: Phải là số thực (ví dụ 8.5).
+    - MaMonHoc: Nếu ảnh có tên môn học, hãy điền mã môn (TOAN, VAN, ANH, ...). Nếu không rõ hãy để trống.
+    Lưu ý quan trọng: Chỉ trả về mảng JSON, không thêm văn bản rác.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -120,10 +126,10 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
           items: {
             type: Type.OBJECT,
             properties: {
-              Hoten: { type: Type.STRING },
-              DiemSo: { type: Type.NUMBER },
-              LoaiDiem: { type: Type.STRING },
-              MaMonHoc: { type: Type.STRING }
+              Hoten: { type: Type.STRING, description: "Họ và tên học sinh" },
+              DiemSo: { type: Type.NUMBER, description: "Giá trị điểm số" },
+              LoaiDiem: { type: Type.STRING, description: "Mã loại điểm: ĐGTX1, ĐGTX2, ĐGGK, ĐGCK..." },
+              MaMonHoc: { type: Type.STRING, description: "Mã môn học nếu có" }
             },
             required: ["Hoten", "DiemSo", "LoaiDiem"]
           }
@@ -131,10 +137,12 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
       }
     });
     
-    const cleanedText = cleanJsonResponse(response.text || "[]");
+    const rawText = response.text || "[]";
+    console.log("Raw AI Response (Grades):", rawText); // Ghi log để kiểm tra nếu lỗi parse
+    const cleanedText = cleanJsonResponse(rawText);
     return JSON.parse(cleanedText);
   } catch (error) {
-    console.error("Gemini Grade Parsing Error:", error);
+    console.error("Lỗi trích xuất bảng điểm Gemini:", error);
     throw error;
   }
 };
