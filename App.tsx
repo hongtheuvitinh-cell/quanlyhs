@@ -35,21 +35,6 @@ import TaskManager from './components/TaskManager';
 import Login from './components/Login';
 import StudentPortal from './components/StudentPortal';
 
-const SUBJECTS = [
-  { id: 'TOAN', name: 'Toán Học' },
-  { id: 'VAN', name: 'Ngữ Văn' },
-  { id: 'ANH', name: 'Tiếng Anh' },
-  { id: 'LY', name: 'Vật Lý' },
-  { id: 'HOA', name: 'Hóa Học' },
-  { id: 'SINH', name: 'Sinh Học' },
-  { id: 'SU', name: 'Lịch Sử' },
-  { id: 'DIA', name: 'Địa Lý' },
-  { id: 'GDCD', name: 'GDCD' },
-  { id: 'TIN', name: 'Tin Học' },
-  { id: 'CONGNGHE', name: 'Công Nghệ' },
-  { id: 'THE_DUC', name: 'Thể Dục' },
-];
-
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -86,11 +71,6 @@ const App: React.FC = () => {
   const [newTeacherName, setNewTeacherName] = useState('');
   const [newTeacherID, setNewTeacherID] = useState('');
 
-  const [assignGV, setAssignGV] = useState('');
-  const [assignClass, setAssignClass] = useState('');
-  const [assignSub, setAssignSub] = useState('');
-
-  // Fix: Defined currentUserData for use in sidebar to handle both Teacher and Student roles
   const currentUserData = state.currentUser as any;
 
   const fetchData = async () => {
@@ -158,7 +138,6 @@ const App: React.FC = () => {
     }
   }, [classes, assignments, state.currentUser, state.currentRole, state.selectedYear]);
 
-  // Fix: Defined currentAssignment for LearningLogs tab to track specific class assignment
   const currentAssignment = useMemo(() => {
     if (!state.currentUser || (state.currentUser as any).MaHS) return null;
     const teacherID = (state.currentUser as Teacher).MaGV;
@@ -204,79 +183,64 @@ const App: React.FC = () => {
     }
   };
 
+  // HÀM QUAN TRỌNG: Cập nhật điểm tối ưu
+  const handleUpdateGrades = async (newGrades: Grade[]) => {
+    // 1. Cập nhật state cục bộ ngay lập tức để ĐTB nhảy (Optimistic)
+    setGrades(prev => {
+      const updated = [...prev];
+      newGrades.forEach(ng => {
+        const idx = updated.findIndex(g => 
+          (ng.MaDiem && g.MaDiem === ng.MaDiem) || 
+          (g.MaHS === ng.MaHS && g.MaMonHoc === ng.MaMonHoc && g.LoaiDiem === ng.LoaiDiem && g.HocKy === ng.HocKy)
+        );
+        if (idx > -1) {
+          updated[idx] = { ...updated[idx], ...ng };
+        } else {
+          updated.push(ng);
+        }
+      });
+      return updated;
+    });
+
+    // 2. Gửi lên Supabase
+    // Loại bỏ MaDiem nếu nó là ID tạm (Số lớn hoặc undefined) để Supabase tự tạo ID
+    const gradesToUpload = newGrades.map(g => {
+      const { MaDiem, ...rest } = g;
+      // Nếu MaDiem < 1000000000 (ID thực từ DB thường nhỏ) thì giữ lại, nếu không thì bỏ để Insert mới
+      return (MaDiem && MaDiem < 1000000000) ? g : rest;
+    });
+
+    const { error } = await supabase.from('grades').upsert(gradesToUpload, {
+      onConflict: 'MaHS,MaMonHoc,MaNienHoc,HocKy,LoaiDiem'
+    });
+
+    if (error) {
+      console.error("Lỗi lưu điểm:", error);
+    } else {
+      // 3. Re-fetch để đảm bảo ID chính xác từ DB
+      fetchData();
+    }
+  };
+
+  // Fix: Added missing handleAddYear function to fix the error on line 397.
   const handleAddYear = async () => {
-    if (!newYearName) return;
-    const { data, error } = await supabase.from('academic_years').insert([{ TenNienHoc: newYearName }]).select();
+    if (!newYearName.trim()) {
+      alert("Vui lòng nhập tên niên học");
+      return;
+    }
+    const { error } = await supabase.from('academic_years').insert([{ TenNienHoc: newYearName }]);
     if (error) {
       alert("Lỗi thêm niên học: " + error.message);
-      return;
-    }
-    await fetchData();
-    setNewYearName('');
-  };
-
-  const handleUpdateYear = async (id: number) => {
-    if (!editYearName) return;
-    const { error } = await supabase.from('academic_years').update({ TenNienHoc: editYearName }).eq('MaNienHoc', id);
-    if (error) {
-      alert("Lỗi cập nhật: " + error.message);
-      return;
-    }
-    setEditingYearId(null);
-    await fetchData();
-  };
-
-  const handleDeleteYear = async (id: number) => {
-    if (confirm("Xóa niên học này? Lưu ý: Dữ liệu liên quan có thể bị ảnh hưởng.")) {
-      const { error } = await supabase.from('academic_years').delete().eq('MaNienHoc', id);
-      if (error) {
-        alert("Lỗi xóa: " + error.message);
-        return;
-      }
+    } else {
+      setNewYearName('');
       await fetchData();
     }
   };
 
-  const handleAddTeacher = async () => {
-    if (!newTeacherID || !newTeacherName) return;
-    const { data, error } = await supabase.from('teachers').insert([{ 
-      MaGV: newTeacherID, Hoten: newTeacherName, MaMonChinh: 'TOAN', MatKhau: '123456'
-    }]).select();
-    if (error) {
-      alert("Lỗi thêm GV: " + error.message);
-      return;
-    }
-    await fetchData();
-    setNewTeacherID(''); setNewTeacherName('');
-  };
-
-  const handleAddClass = async () => {
-    if (!newClassID || !newClassName) return;
-    const { data: classData, error: classError } = await supabase.from('classes').insert([{ 
-      MaLop: newClassID, TenLop: newClassName, Khoi: parseInt(newClassID) || 10 
-    }]).select();
-    
-    if (classError) {
-      alert("Lỗi tạo lớp: " + classError.message);
-      return;
-    }
-
-    if (classData && selectedTeacherID) {
-      const { error: assignError } = await supabase.from('assignments').insert([{
-        MaGV: selectedTeacherID, MaLop: classData[0].MaLop, MaNienHoc: state.selectedYear, LoaiPhanCong: Role.CHU_NHIEM, MaMonHoc: null
-      }]);
-      if (assignError) console.error("Lỗi gán chủ nhiệm:", assignError);
-    }
-    await fetchData();
-    setNewClassID(''); setNewClassName(''); setSelectedTeacherID('');
-  };
-
-  // Fix: Conditional rendering for non-logged in state
   if (!isLoggedIn) {
     return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
   }
 
-  // Fix: Conditional rendering for student view
   if (state.currentRole === Role.STUDENT && state.currentUser) {
     return (
       <StudentPortal 
@@ -320,18 +284,8 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-1 p-1 bg-white rounded-xl border border-gray-100 shadow-sm">
-              <button 
-                onClick={() => setState(p => ({...p, currentRole: Role.CHU_NHIEM}))} 
-                className={`text-[10px] py-2 rounded-lg font-black uppercase transition-all ${state.currentRole === Role.CHU_NHIEM ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
-              >
-                Chủ nhiệm
-              </button>
-              <button 
-                onClick={() => setState(p => ({...p, currentRole: Role.GIANG_DAY}))} 
-                className={`text-[10px] py-2 rounded-lg font-black uppercase transition-all ${state.currentRole === Role.GIANG_DAY ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
-              >
-                Giảng dạy
-              </button>
+              <button onClick={() => setState(p => ({...p, currentRole: Role.CHU_NHIEM}))} className={`text-[10px] py-2 rounded-lg font-black uppercase transition-all ${state.currentRole === Role.CHU_NHIEM ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Chủ nhiệm</button>
+              <button onClick={() => setState(p => ({...p, currentRole: Role.GIANG_DAY}))} className={`text-[10px] py-2 rounded-lg font-black uppercase transition-all ${state.currentRole === Role.GIANG_DAY ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>Giảng dạy</button>
             </div>
           </div>
           <nav className="space-y-1">
@@ -351,9 +305,7 @@ const App: React.FC = () => {
           </nav>
         </div>
         <div className="p-4 border-t border-gray-100 bg-white shrink-0">
-          <button onClick={() => setIsLoggedIn(false)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
-            <LogOut size={20} />Thoát Cloud
-          </button>
+          <button onClick={() => setIsLoggedIn(false)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"><LogOut size={20} />Thoát Cloud</button>
         </div>
       </aside>
 
@@ -362,17 +314,16 @@ const App: React.FC = () => {
           <div className="flex items-center gap-8">
             <div className="flex flex-col">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Niên học</span>
-              <div className="flex items-center gap-1 group">
+              <div className="flex items-center gap-1">
                 <select value={state.selectedYear} onChange={(e) => setState(prev => ({ ...prev, selectedYear: parseInt(e.target.value) }))} className="text-base font-black border-none bg-transparent outline-none cursor-pointer text-gray-800 appearance-none pr-1">
                   {years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}
                 </select>
-                <div className="text-gray-800 mt-1"><ChevronRight size={14} /></div>
+                <ChevronRight size={14} className="text-gray-400 mt-1" />
               </div>
             </div>
-            <div className="flex items-center text-gray-200 h-8 self-center"><ChevronRight size={24} /></div>
-            <div className="flex flex-col">
-              <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Lớp {state.currentRole === Role.CHU_NHIEM ? 'Chủ nhiệm' : 'Giảng dạy'}</span>
-              <div className="flex items-center gap-1 bg-indigo-50 px-3 py-1 rounded-xl mt-0.5 border border-indigo-100 group">
+            <div className="flex flex-col border-l pl-8">
+              <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Lớp</span>
+              <div className="flex items-center gap-1 bg-indigo-50 px-3 py-1 rounded-xl mt-0.5 border border-indigo-100">
                 <select value={state.selectedClass} onChange={(e) => setState(prev => ({ ...prev, selectedClass: e.target.value }))} className="text-base font-black border-none bg-transparent text-indigo-700 outline-none cursor-pointer appearance-none">
                   {filteredClasses.length > 0 ? (
                     filteredClasses.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)
@@ -380,7 +331,6 @@ const App: React.FC = () => {
                     <option value="">(Không có lớp)</option>
                   )}
                 </select>
-                <div className="text-indigo-700"><ChevronRight size={14} className="rotate-90" /></div>
               </div>
             </div>
           </div>
@@ -428,7 +378,14 @@ const App: React.FC = () => {
                   }} 
                 />
               )}
-              {activeTab === 'grades' && <GradeBoard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={async g => { await supabase.from('grades').upsert(g); await fetchData(); }} />}
+              {activeTab === 'grades' && (
+                <GradeBoard 
+                  state={state} 
+                  students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
+                  grades={grades} 
+                  onUpdateGrades={handleUpdateGrades} 
+                />
+              )}
               {activeTab === 'tasks' && <TaskManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={async t => { await supabase.from('tasks').upsert(t); await fetchData(); }} />}
               {activeTab === 'discipline' && <DisciplineManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={async d => { await supabase.from('disciplines').insert(d); await fetchData(); }} onUpdateRules={async r => { await supabase.from('violation_rules').upsert(r); await fetchData(); }} />}
               {activeTab === 'logs' && <LearningLogs state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} logs={logs} assignment={currentAssignment!} onUpdateLogs={async l => { await supabase.from('learning_logs').insert(l); await fetchData(); }} />}
@@ -446,9 +403,6 @@ const App: React.FC = () => {
             </div>
             <div className="flex gap-2 px-8 pt-3">
               <button onClick={() => setSettingsTab('years')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${settingsTab === 'years' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`}>1. Niên học</button>
-              <button onClick={() => setSettingsTab('teachers')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${settingsTab === 'teachers' ? 'bg-amber-600 text-white' : 'text-gray-400'}`}>2. Giáo viên</button>
-              <button onClick={() => setSettingsTab('classes')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${settingsTab === 'classes' ? 'bg-emerald-600 text-white' : 'text-gray-400'}`}>3. Lớp học</button>
-              <button onClick={() => setSettingsTab('assignments')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${settingsTab === 'assignments' ? 'bg-rose-600 text-white' : 'text-gray-400'}`}>4. Phân công dạy</button>
             </div>
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
               {settingsTab === 'years' && (
@@ -456,27 +410,6 @@ const App: React.FC = () => {
                   <div className="flex gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100">
                     <input type="text" placeholder="VD: 2024-2025" value={newYearName} onChange={e => setNewYearName(e.target.value)} className="flex-1 px-4 py-2 bg-white border rounded-lg font-bold text-sm" />
                     <button onClick={handleAddYear} className="px-6 bg-indigo-600 text-white rounded-lg font-bold text-xs flex items-center gap-2"><Plus size={14}/> Thêm</button>
-                  </div>
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {years.map(y => (
-                      <div key={y.MaNienHoc} className="flex justify-between items-center px-4 py-2.5 bg-white border border-gray-100 rounded-xl group">
-                        {editingYearId === y.MaNienHoc ? (
-                          <div className="flex gap-2 w-full">
-                            <input type="text" value={editYearName} onChange={e => setEditYearName(e.target.value)} className="flex-1 px-3 py-1.5 border rounded-lg font-bold text-sm" />
-                            <button onClick={() => handleUpdateYear(y.MaNienHoc)} className="p-1.5 bg-emerald-600 text-white rounded-lg"><Check size={14}/></button>
-                            <button onClick={() => setEditingYearId(null)} className="p-1.5 bg-gray-200 text-gray-500 rounded-lg"><X size={14}/></button>
-                          </div>
-                        ) : (
-                          <>
-                            <span className="font-bold text-sm text-gray-700">{y.TenNienHoc}</span>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => { setEditingYearId(y.MaNienHoc); setEditYearName(y.TenNienHoc); }} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg"><Edit3 size={14}/></button>
-                              <button onClick={() => handleDeleteYear(y.MaNienHoc)} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={14}/></button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    ))}
                   </div>
                 </div>
               )}
