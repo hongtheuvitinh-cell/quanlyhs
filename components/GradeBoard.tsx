@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
-  Search, Sparkles, FileSpreadsheet, GraduationCap, Info, BookOpen, BrainCircuit, Table, ListChecks, Award, TrendingUp
+  Search, Sparkles, GraduationCap, BookOpen, BrainCircuit, Table, ListChecks
 } from 'lucide-react';
 import { AppState, Student, Grade, Role } from '../types';
 import { parseGradesFromImage } from '../services/geminiService';
@@ -53,14 +53,12 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
           const data = await parseGradesFromImage(base64, file.type);
           if (data && data.length > 0) {
             const newGrades: Grade[] = data.map((item: any) => {
-              // Tìm HS chính xác hơn (bỏ khoảng trắng, viết thường)
-              const matchedStudent = students.find(s => 
+              const matchedStudent = students.find((s: Student) => 
                 s.Hoten.toLowerCase().trim() === item.Hoten.toLowerCase().trim()
               );
 
               if (!matchedStudent) return null;
 
-              // SỬA LỖI TS7006: Khai báo kiểu (g: Grade)
               const existing = grades.find((g: Grade) => 
                 g.MaHS === matchedStudent.MaHS && 
                 g.MaMonHoc === (item.MaMonHoc || selectedSubject) && 
@@ -78,7 +76,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                 LoaiDiem: item.LoaiDiem,
                 DiemSo: Number(item.DiemSo)
               };
-            }).filter(g => g !== null) as Grade[];
+            }).filter((g: any) => g !== null) as Grade[];
 
             if (newGrades.length > 0) {
               onUpdateGrades(newGrades);
@@ -102,19 +100,18 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   };
 
   const calculateSubjectAvg = (studentId: string, subjectId: string, semester: number) => {
-    // SỬA LỖI TS7006: Khai báo kiểu (g: Grade)
     const sGrades = grades.filter((g: Grade) => 
       g.MaHS === studentId && 
       g.MaMonHoc === subjectId && 
       g.HocKy === semester && 
       g.MaNienHoc === state.selectedYear
     );
-    const dgtx = sGrades.filter((g: Grade) => g.LoaiDiem.startsWith('ĐGTX')).map((g: Grade) => Number(g.DiemSo)).filter(d => !isNaN(d));
+    const dgtx = sGrades.filter((g: Grade) => g.LoaiDiem.startsWith('ĐGTX')).map((g: Grade) => Number(g.DiemSo)).filter((d: number) => !isNaN(d));
     const ggk = sGrades.find((g: Grade) => g.LoaiDiem === 'ĐGGK')?.DiemSo;
     const gck = sGrades.find((g: Grade) => g.LoaiDiem === 'ĐGCK')?.DiemSo;
     
     if (dgtx.length > 0 && ggk != null && gck != null) {
-      return (dgtx.reduce((a, b) => a + b, 0) + Number(ggk) * 2 + Number(gck) * 3) / (dgtx.length + 5);
+      return (dgtx.reduce((a: number, b: number) => a + b, 0) + Number(ggk) * 2 + Number(gck) * 3) / (dgtx.length + 5);
     }
     return null;
   };
@@ -126,7 +123,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     return { label: 'Yếu', color: 'bg-rose-50 text-rose-600' };
   };
 
-  const filteredStudents = students.filter(s => s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredStudents = students.filter((s: Student) => s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
@@ -163,20 +160,20 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       <div className="bg-white p-4 rounded-[32px] border border-gray-100 shadow-sm flex flex-wrap items-center gap-4">
         <div className="relative flex-1 min-w-[300px]">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input type="text" placeholder="Tìm tên học sinh..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border border-transparent rounded-2xl outline-none text-sm font-black focus:bg-white focus:border-indigo-100 transition-all" />
+          <input type="text" placeholder="Tìm tên học sinh..." value={searchTerm} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-6 py-3.5 bg-gray-50 border border-transparent rounded-2xl outline-none text-sm font-black focus:bg-white focus:border-indigo-100 transition-all" />
         </div>
         
         {viewMode === 'DETAIL' && (
           <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-2xl border border-gray-100">
             <BookOpen size={16} className="text-indigo-600" />
-            <select disabled={isGiangDay} value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="text-sm font-black bg-transparent outline-none cursor-pointer">
-              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <select disabled={isGiangDay} value={selectedSubject} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedSubject(e.target.value)} className="text-sm font-black bg-transparent outline-none cursor-pointer">
+              {subjects.map((s: {id: string, name: string}) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
         )}
 
         <div className="flex gap-1 p-1 bg-gray-100 rounded-2xl">
-          {[1, 2].map(hk => (
+          {[1, 2].map((hk: number) => (
             <button key={hk} onClick={() => setSelectedHK(hk)} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${selectedHK === hk ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400'}`}>HK {hk}</button>
           ))}
         </div>
@@ -189,25 +186,25 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               <thead className="bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 <tr>
                   <th className="px-8 py-6 border-r border-gray-100">Học sinh</th>
-                  {['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'].map(h => <th key={h} className="px-4 py-6 text-center">{h}</th>)}
+                  {['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'].map((h: string) => <th key={h} className="px-4 py-6 text-center">{h}</th>)}
                   <th className="px-8 py-6 text-center bg-indigo-50/50 text-indigo-600 font-black">TB Môn</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredStudents.map(s => {
+                {filteredStudents.map((s: Student) => {
                   const sGrades = grades.filter((g: Grade) => g.MaHS === s.MaHS && g.MaMonHoc === selectedSubject && g.HocKy === selectedHK);
                   const tb = calculateSubjectAvg(s.MaHS, selectedSubject, selectedHK);
                   return (
                     <tr key={s.MaHS} className="hover:bg-indigo-50/20 transition-colors">
                       <td className="px-8 py-5 border-r border-gray-100 font-black text-gray-700">{s.Hoten}</td>
-                      {['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'].map(type => {
+                      {['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'].map((type: string) => {
                         const gradeObj = sGrades.find((g: Grade) => g.LoaiDiem === type);
                         return (
                           <td key={type} className="px-2 py-5 text-center">
                             <input 
                               type="number" step="0.1" 
                               value={gradeObj?.DiemSo ?? ''} 
-                              onChange={e => {
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                 const val = e.target.value === '' ? null : parseFloat(e.target.value);
                                 onUpdateGrades([{ 
                                   MaDiem: gradeObj?.MaDiem || Date.now() + Math.random(), 
@@ -235,21 +232,21 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               <thead className="bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 <tr>
                   <th className="px-8 py-6 border-r border-gray-100 sticky left-0 bg-gray-50/80 z-10">Học sinh</th>
-                  {subjects.map(sub => <th key={sub.id} className="px-4 py-6 text-center text-[9px]">{sub.name}</th>)}
+                  {subjects.map((sub: {id: string, name: string}) => <th key={sub.id} className="px-4 py-6 text-center text-[9px]">{sub.name}</th>)}
                   <th className="px-6 py-6 text-center bg-emerald-50 text-emerald-700 font-black">TB Học kỳ</th>
                   <th className="px-8 py-6 text-center bg-gray-900 text-white font-black">Xếp loại</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredStudents.map(s => {
-                  const subjectAvgs = subjects.map(sub => calculateSubjectAvg(s.MaHS, sub.id, selectedHK));
-                  const validAvgs = subjectAvgs.filter(a => a !== null) as number[];
-                  const semAvg = validAvgs.length > 0 ? validAvgs.reduce((a, b) => a + b, 0) / validAvgs.length : null;
+                {filteredStudents.map((s: Student) => {
+                  const subjectAvgs = subjects.map((sub: {id: string, name: string}) => calculateSubjectAvg(s.MaHS, sub.id, selectedHK));
+                  const validAvgs = subjectAvgs.filter((a: number | null) => a !== null) as number[];
+                  const semAvg = validAvgs.length > 0 ? validAvgs.reduce((a: number, b: number) => a + b, 0) / validAvgs.length : null;
                   const rank = semAvg ? getRank(semAvg) : null;
                   return (
                     <tr key={s.MaHS} className="hover:bg-gray-50 transition-colors">
                       <td className="px-8 py-5 border-r border-gray-100 font-black text-gray-700 sticky left-0 bg-white z-10">{s.Hoten}</td>
-                      {subjectAvgs.map((avg, i) => (
+                      {subjectAvgs.map((avg: number | null, i: number) => (
                         <td key={i} className="px-4 py-5 text-center text-sm font-bold text-gray-500">
                           {avg?.toFixed(1) || '-'}
                         </td>
