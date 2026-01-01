@@ -63,19 +63,19 @@ const App: React.FC = () => {
         supabase.from('violation_rules').select('*')
       ]);
 
-      if (yrData) setYears(yrData as AcademicYear[]);
-      if (clData) setClasses(clData as Class[]);
-      if (tcData) setTeachers(tcData as Teacher[]);
-      if (asData) setAssignments(asData as Assignment[]);
-      if (stData) setStudents(stData as Student[]);
-      if (grData) setGrades(grData as Grade[]);
-      if (dsData) setDisciplines(dsData as Discipline[]);
-      if (lgData) setLogs(lgData as LearningLog[]);
-      if (tkData) setTasks(tkData as AssignmentTask[]);
-      if (rlData) setViolationRules(rlData as ViolationRule[]);
+      if (yrData) setYears(yrData);
+      if (clData) setClasses(clData);
+      if (tcData) setTeachers(tcData);
+      if (asData) setAssignments(asData);
+      if (stData) setStudents(stData);
+      if (grData) setGrades(grData);
+      if (dsData) setDisciplines(dsData);
+      if (lgData) setLogs(lgData);
+      if (tkData) setTasks(tkData);
+      if (rlData) setViolationRules(rlData);
 
-      if (yrData?.length && state.selectedYear === 0) {
-        setState((p: AppState) => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
+      if (yrData?.length && (state.selectedYear === 0)) {
+        setState((p: AppState) => ({ ...p, selectedYear: (yrData[0] as AcademicYear).MaNienHoc }));
       }
       
       if (state.currentUser) {
@@ -184,7 +184,6 @@ const App: React.FC = () => {
           <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-indigo-100 shadow-lg"><GraduationCap size={18} /></div>
           <h1 className="font-bold text-base text-slate-800 tracking-tight">EduManager</h1>
         </div>
-        
         <div className="p-4">
            <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100">
               <p className="text-[9px] font-bold uppercase text-slate-400 mb-2 px-1 tracking-widest">Chế độ làm việc</p>
@@ -204,7 +203,6 @@ const App: React.FC = () => {
               </div>
            </div>
         </div>
-
         <nav className="flex-1 px-3 space-y-0.5 pt-2 overflow-y-auto custom-scrollbar">
           <p className="text-[9px] font-bold uppercase text-slate-400 mb-2 px-2 tracking-widest mt-4">Nghiệp vụ</p>
           {[
@@ -220,14 +218,12 @@ const App: React.FC = () => {
               {activeTab === item.id && <ChevronRight size={12} />}
             </button>
           ))}
-
           <p className="text-[9px] font-bold uppercase text-slate-400 mb-2 px-2 tracking-widest mt-8">Quản trị</p>
           <button onClick={() => setActiveTab('system')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-bold transition-all ${activeTab === 'system' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
             <Settings size={16} /> <span className="flex-1 text-left">Cấu hình hệ thống</span>
             {activeTab === 'system' && <ChevronRight size={12} />}
           </button>
         </nav>
-        
         <div className="p-4 mt-auto border-t border-slate-50">
           <button onClick={() => setIsLoggedIn(false)} className="w-full flex items-center gap-3 px-3 py-2 text-rose-500 font-bold hover:bg-rose-50 rounded-xl transition-all"><LogOut size={16}/> Đăng xuất</button>
         </div>
