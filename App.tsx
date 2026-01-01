@@ -36,7 +36,6 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'grades' | 'discipline' | 'logs' | 'tasks'>('dashboard');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'years' | 'classes' | 'teachers' | 'assignments'>('years');
   
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -60,6 +59,21 @@ const App: React.FC = () => {
   const [newYearName, setNewYearName] = useState('');
 
   const currentUserData = state.currentUser as any;
+
+  // Hàm helper để log lỗi chi tiết
+  const handleSupabaseError = (error: any, actionName: string) => {
+    console.error(`Lỗi ${actionName}:`, error);
+    let message = `❌ KHÔNG THỂ GHI DỮ LIỆU: ${actionName}\n\n`;
+    
+    if (error.code === '42P01') message += "Lỗi: Bảng không tồn tại trong Database.";
+    else if (error.code === '42703') message += "Lỗi: Sai tên cột. Vui lòng kiểm tra tên cột trong Supabase (có thể là ma_hs thay vì MaHS).";
+    else if (error.code === '23505') message += "Lỗi: Dữ liệu bị trùng Mã số (Primary Key).";
+    else if (error.code === 'PGRST301') message += "Lỗi: JWT hết hạn, vui lòng F5 trang.";
+    else if (error.message.includes('policy')) message += "Lỗi: Bị chặn bởi RLS Policy. Bạn hãy kiểm tra lại cấu hình Policy ALL/true như hướng dẫn.";
+    else message += `Mã lỗi: ${error.code}\nNội dung: ${error.message}`;
+
+    alert(message);
+  };
 
   const fetchData = async () => {
     if (!isSupabaseConfigured) {
@@ -185,24 +199,20 @@ const App: React.FC = () => {
       const gradesToInsert = newGrades.map((g, index) => ({
         ...g, MaDiem: Math.floor(Date.now() / 1000) + index + Math.floor(Math.random() * 1000000)
       }));
-      await supabase.from('grades').insert(gradesToInsert);
+      const { error } = await supabase.from('grades').insert(gradesToInsert);
+      if (error) throw error;
       await fetchData(); 
-      alert("Đã đồng bộ Cloud!");
-    } catch (error: any) { alert(`Lỗi: ${error.message}`); }
+      alert("Đã đồng bộ điểm lên Cloud!");
+    } catch (error: any) { handleSupabaseError(error, "Cập nhật điểm số"); }
   };
 
   const handleUpdateTasks = async (newTasks: AssignmentTask[]) => {
-    if (!isSupabaseConfigured) {
-       throw new Error("Cloud chưa được cấu hình (Thiếu API Key hoặc URL Supabase)");
-    }
+    if (!isSupabaseConfigured) return;
     try {
       const { error } = await supabase.from('tasks').upsert(newTasks);
       if (error) throw error;
       await fetchData();
-    } catch (error: any) {
-      console.error("Lỗi cập nhật nhiệm vụ:", error);
-      throw error;
-    }
+    } catch (error: any) { handleSupabaseError(error, "Giao nhiệm vụ"); }
   };
 
   const handleDeleteTask = async (taskId: number) => {
@@ -211,15 +221,33 @@ const App: React.FC = () => {
       const { error } = await supabase.from('tasks').delete().eq('MaNhiemVu', taskId);
       if (error) throw error;
       await fetchData();
-    } catch (error: any) {
-      alert(`Lỗi khi xóa nhiệm vụ: ${error.message}`);
-    }
+    } catch (error: any) { handleSupabaseError(error, "Xóa nhiệm vụ"); }
+  };
+
+  const handleUpdateDisciplines = async (newDisciplines: Discipline[]) => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { error } = await supabase.from('disciplines').insert(newDisciplines);
+      if (error) throw error;
+      await fetchData();
+      alert("✅ Đã ghi nhận kỷ luật lên Cloud thành công!");
+    } catch (err: any) { handleSupabaseError(err, "Lưu kỷ luật"); }
+  };
+
+  const handleUpdateViolationRules = async (newRules: ViolationRule[]) => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { error } = await supabase.from('violation_rules').upsert(newRules);
+      if (error) throw error;
+      await fetchData();
+    } catch (err: any) { handleSupabaseError(err, "Cấu hình quy tắc"); }
   };
 
   const handleAddYear = async () => {
     if (!newYearName.trim() || !isSupabaseConfigured) return;
     const { error } = await supabase.from('academic_years').insert([{ TenNienHoc: newYearName }]);
-    if (!error) { setNewYearName(''); await fetchData(); }
+    if (error) handleSupabaseError(error, "Thêm niên học");
+    else { setNewYearName(''); await fetchData(); }
   };
 
   if (!isSupabaseConfigured && !isLoading) {
@@ -351,16 +379,16 @@ const App: React.FC = () => {
               {activeTab === 'students' && (
                 <StudentList 
                   state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} grades={grades} logs={logs} disciplines={disciplines}
-                  onAddStudent={async (s: Student) => { await supabase.from('students').insert([s]); await fetchData(); }}
-                  onAddStudents={async (newItems: Student[]) => { await supabase.from('students').insert(newItems); await fetchData(); }}
-                  onUpdateStudent={async (s: Student) => { await supabase.from('students').update(s).eq('MaHS', s.MaHS); await fetchData(); }} 
-                  onDeleteStudent={async (id: string) => { if(confirm("Xóa?")) { await supabase.from('students').delete().eq('MaHS', id); await fetchData(); } }} 
+                  onAddStudent={async (s: Student) => { try { const { error } = await supabase.from('students').insert([s]); if (error) throw error; await fetchData(); } catch(e) { handleSupabaseError(e, "Thêm học sinh"); } }}
+                  onAddStudents={async (newItems: Student[]) => { try { const { error } = await supabase.from('students').insert(newItems); if (error) throw error; await fetchData(); } catch(e) { handleSupabaseError(e, "Nhập học sinh"); } }}
+                  onUpdateStudent={async (s: Student) => { try { const { error } = await supabase.from('students').update(s).eq('MaHS', s.MaHS); if (error) throw error; await fetchData(); } catch(e) { handleSupabaseError(e, "Cập nhật học sinh"); } }} 
+                  onDeleteStudent={async (id: string) => { if(confirm("Xóa học sinh này?")) { try { const { error } = await supabase.from('students').delete().eq('MaHS', id); if (error) throw error; await fetchData(); } catch(e) { handleSupabaseError(e, "Xóa học sinh"); } } }} 
                 />
               )}
               {activeTab === 'grades' && <GradeBoard state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={handleUpdateGrades} />}
               {activeTab === 'tasks' && <TaskManager state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={handleUpdateTasks} onDeleteTask={handleDeleteTask} />}
-              {activeTab === 'discipline' && <DisciplineManager state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={async (d: Discipline[]) => { await supabase.from('disciplines').insert(d); await fetchData(); }} onUpdateRules={async (r: ViolationRule[]) => { await supabase.from('violation_rules').upsert(r); await fetchData(); }} />}
-              {activeTab === 'logs' && <LearningLogs state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} logs={logs} assignment={currentAssignment!} onUpdateLogs={async (l: LearningLog[]) => { await supabase.from('learning_logs').insert(l); await fetchData(); }} />}
+              {activeTab === 'discipline' && <DisciplineManager state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={handleUpdateDisciplines} onUpdateRules={handleUpdateViolationRules} />}
+              {activeTab === 'logs' && <LearningLogs state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} logs={logs} assignment={currentAssignment!} onUpdateLogs={async (l: LearningLog[]) => { try { const { error } = await supabase.from('learning_logs').insert(l); if (error) throw error; await fetchData(); } catch(e) { handleSupabaseError(e, "Điểm danh"); } }} />}
             </>
           )}
         </div>
@@ -369,10 +397,18 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md">
           <div className="bg-white w-full max-w-5xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-8 py-5 border-b flex items-center justify-between">
-               <h3 className="font-black text-xl text-gray-800">Cấu hình</h3>
+               <h3 className="font-black text-xl text-gray-800">Cấu hình hệ thống</h3>
                <button onClick={() => { setIsSettingsOpen(false); fetchData(); }} className="p-2 hover:bg-gray-100 rounded-full"><X size={24}/></button>
             </div>
-            <div className="flex-1 p-8"><button onClick={handleAddYear} className="px-6 py-2 bg-indigo-600 text-white rounded-xl">Thêm niên học mới</button></div>
+            <div className="flex-1 p-8 space-y-4">
+              <div className="bg-gray-50 p-6 rounded-3xl border">
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">Tên niên học mới</label>
+                <div className="flex gap-2">
+                  <input type="text" value={newYearName} onChange={e => setNewYearName(e.target.value)} placeholder="VD: 2026-2027" className="flex-1 px-4 py-2 border rounded-xl" />
+                  <button onClick={handleAddYear} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold">Thêm</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
