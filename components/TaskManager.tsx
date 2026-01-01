@@ -20,7 +20,10 @@ import {
   Loader2,
   BookOpen,
   Users,
-  Check
+  Check,
+  Edit2,
+  Trash2,
+  Save
 } from 'lucide-react';
 import { AppState, Student, AssignmentTask, Teacher, Role } from '../types';
 
@@ -29,6 +32,7 @@ interface Props {
   students: Student[];
   tasks: AssignmentTask[];
   onUpdateTasks: (tasks: AssignmentTask[]) => Promise<void>;
+  onDeleteTask: (taskId: number) => Promise<void>;
 }
 
 const subjects = [
@@ -41,28 +45,36 @@ const subjects = [
   { id: 'SHL', name: 'Sinh hoạt lớp' },
 ];
 
-const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks }) => {
+const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, onDeleteTask }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTask, setSelectedTask] = useState<AssignmentTask | null>(null);
   
-  // State cho form nhiệm vụ mới
+  // State cho form
   const [newTask, setNewTask] = useState({ 
+    MaNhiemVu: 0,
     TieuDe: '', 
     MoTa: '', 
     HanChot: new Date().toISOString().split('T')[0],
     MaMonHoc: state.selectedSubject || 'SHL'
   });
   
-  // State lưu danh sách ID học sinh được chọn khi tạo nhiệm vụ
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
-  // Reset danh sách chọn khi mở modal
+  // Reset danh sách chọn khi mở modal thêm mới
   useEffect(() => {
-    if (isModalOpen) {
+    if (isModalOpen && modalMode === 'add') {
       setSelectedStudentIds(students.map(s => s.MaHS));
+      setNewTask({
+        MaNhiemVu: 0,
+        TieuDe: '',
+        MoTa: '',
+        HanChot: new Date().toISOString().split('T')[0],
+        MaMonHoc: state.selectedSubject || 'SHL'
+      });
     }
-  }, [isModalOpen, students]);
+  }, [isModalOpen, modalMode, students, state.selectedSubject]);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -73,7 +85,27 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
     ).sort((a, b) => b.MaNhiemVu - a.MaNhiemVu);
   }, [tasks, state.selectedClass, state.selectedSubject, state.currentRole]);
 
-  const handleCreateTask = async () => {
+  const handleOpenEditModal = (task: AssignmentTask) => {
+    setModalMode('edit');
+    setNewTask({
+      MaNhiemVu: task.MaNhiemVu,
+      TieuDe: task.TieuDe,
+      MoTa: task.MoTa,
+      HanChot: task.HanChot,
+      MaMonHoc: task.MaMonHoc
+    });
+    setSelectedStudentIds(task.DanhSachGiao || students.map(s => s.MaHS));
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteClick = async (taskId: number) => {
+    if (confirm("Bạn có chắc chắn muốn xóa nhiệm vụ này không? Hành động này không thể hoàn tác.")) {
+      await onDeleteTask(taskId);
+      if (selectedTask?.MaNhiemVu === taskId) setSelectedTask(null);
+    }
+  };
+
+  const handleSaveTask = async () => {
     if (!newTask.TieuDe.trim()) {
       alert("Vui lòng nhập tiêu đề nhiệm vụ!");
       return;
@@ -86,7 +118,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
     setIsSubmitting(true);
     try {
       const task: AssignmentTask = {
-        MaNhiemVu: Date.now(), 
+        MaNhiemVu: modalMode === 'add' ? Date.now() : newTask.MaNhiemVu, 
         TieuDe: newTask.TieuDe,
         MoTa: newTask.MoTa,
         MaLop: state.selectedClass,
@@ -94,30 +126,23 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
         MaGV: (state.currentUser as Teacher)?.MaGV || '',
         HanChot: newTask.HanChot,
         MaNienHoc: state.selectedYear,
-        DanhSachGiao: selectedStudentIds, // Chỉ giao cho những em này
-        DanhSachHoanThanh: [],
-        BaoCaoNhiemVu: {}
+        DanhSachGiao: selectedStudentIds,
+        // Giữ lại dữ liệu cũ khi sửa
+        DanhSachHoanThanh: modalMode === 'edit' ? (tasks.find(t => t.MaNhiemVu === newTask.MaNhiemVu)?.DanhSachHoanThanh || []) : [],
+        BaoCaoNhiemVu: modalMode === 'edit' ? (tasks.find(t => t.MaNhiemVu === newTask.MaNhiemVu)?.BaoCaoNhiemVu || {}) : {}
       };
 
       await onUpdateTasks([task]);
       
       setIsModalOpen(false);
-      setNewTask({ 
-        TieuDe: '', 
-        MoTa: '', 
-        HanChot: new Date().toISOString().split('T')[0],
-        MaMonHoc: state.selectedSubject || 'SHL'
-      });
-      alert("Đã giao nhiệm vụ thành công!");
+      alert(modalMode === 'add' ? "Đã giao nhiệm vụ thành công!" : "Đã cập nhật nhiệm vụ thành công!");
+      
+      // Cập nhật lại view chi tiết nếu đang xem cái vừa sửa
+      if (modalMode === 'edit' && selectedTask?.MaNhiemVu === task.MaNhiemVu) {
+        setSelectedTask(task);
+      }
     } catch (error: any) {
-      const errorDetails = [
-        "LỖI HỆ THỐNG:",
-        `Message: ${error.message || 'Không có'}`,
-        `Code: ${error.code || 'Không có mã lỗi'}`,
-        `Detail: ${error.details || 'Không có chi tiết'}`,
-        `Hint: ${error.hint || 'Hãy đảm bảo bạn đã chạy script SQL bổ sung cột DanhSachGiao.'}`
-      ].join('\n\n');
-      alert(errorDetails);
+      alert("Lỗi: " + error.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -157,11 +182,11 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
           <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg"><Send size={24} /></div>
           <div>
             <h2 className="text-2xl font-black text-gray-800 tracking-tight">Giao bài & Nhiệm vụ</h2>
-            <p className="text-sm text-gray-500 font-medium">Theo dõi tiến độ hoàn thành bài tập lớp {state.selectedClass}</p>
+            <p className="text-sm text-gray-500 font-medium">Lớp {state.selectedClass} • Quản lý học tập linh hoạt</p>
           </div>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)} 
+          onClick={() => { setModalMode('add'); setIsModalOpen(true); }} 
           className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2 active:scale-95"
         >
           <Plus size={20} /> Giao nhiệm vụ mới
@@ -223,18 +248,33 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
                     <ClipboardCheck size={20} className="text-indigo-600" />
                     <div>
                       <h3 className="font-black text-gray-800">{selectedTask.TieuDe}</h3>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">Môn: {subjects.find(s => s.id === selectedTask.MaMonHoc)?.name}</p>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase">Môn: {subjects.find(s => s.id === selectedTask.MaMonHoc)?.name} • Hạn: {selectedTask.HanChot}</p>
                     </div>
                  </div>
-                 <div className="text-right">
-                   <span className="text-xs font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase">
-                    {selectedTask.DanhSachHoanThanh.length}/{(selectedTask.DanhSachGiao?.length || students.length)} Đã nộp
-                   </span>
+                 <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleOpenEditModal(selectedTask)}
+                      className="p-2.5 bg-white border border-gray-200 text-indigo-600 rounded-xl hover:bg-indigo-50 transition-all shadow-sm"
+                      title="Chỉnh sửa nhiệm vụ"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteClick(selectedTask.MaNhiemVu)}
+                      className="p-2.5 bg-white border border-gray-200 text-rose-600 rounded-xl hover:bg-rose-50 transition-all shadow-sm"
+                      title="Xóa nhiệm vụ"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                  </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="p-4 bg-indigo-50/30 border-b">
+                 <p className="text-xs text-gray-600 leading-relaxed italic">"{selectedTask.MoTa || 'Không có mô tả chi tiết'}"</p>
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {students
                     .filter(s => !selectedTask.DanhSachGiao || selectedTask.DanhSachGiao.includes(s.MaHS))
                     .map(student => {
@@ -256,7 +296,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
                           </div>
                           
                           {reportLink && (
-                            <div className="mt-2 p-3 bg-white rounded-xl border border-indigo-100 shadow-sm animate-in fade-in zoom-in-95">
+                            <div className="mt-1 p-3 bg-white rounded-xl border border-indigo-100 shadow-sm animate-in fade-in zoom-in-95">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 overflow-hidden">
                                   <Paperclip size={14} className="text-indigo-600 shrink-0" />
@@ -267,7 +307,6 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
                                   target="_blank" 
                                   rel="noreferrer" 
                                   className="p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all flex items-center justify-center shrink-0"
-                                  title="Mở link báo cáo"
                                 >
                                   <ExternalLink size={14} />
                                 </a>
@@ -285,8 +324,8 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-gray-200 mb-6">
                  <Trophy size={40} />
                </div>
-               <h4 className="text-lg font-black text-gray-400">Chọn một nhiệm vụ bên trái để xem chi tiết tiến độ</h4>
-               <p className="text-xs text-gray-300 mt-2 max-w-xs">Hệ thống sẽ chỉ hiển thị những học sinh được giao nhiệm vụ cụ thể.</p>
+               <h4 className="text-lg font-black text-gray-400">Chọn nhiệm vụ để theo dõi hoặc chỉnh sửa</h4>
+               <p className="text-xs text-gray-300 mt-2 max-w-xs">Bạn có thể thay đổi danh sách học sinh, tiêu đề hoặc hạn chót bất cứ lúc nào.</p>
             </div>
           )}
         </div>
@@ -297,14 +336,17 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
           <div className="bg-white w-full max-w-4xl rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 max-h-[90vh]">
             <div className="p-6 border-b flex items-center justify-between bg-white shrink-0">
                <div className="flex items-center gap-3">
-                 <div className="p-2 bg-indigo-600 rounded-xl text-white"><Plus size={20}/></div>
-                 <h3 className="text-xl font-black text-gray-800">Giao nhiệm vụ mới</h3>
+                 <div className="p-2 bg-indigo-600 rounded-xl text-white">
+                   {modalMode === 'add' ? <Plus size={20}/> : <Edit2 size={20}/>}
+                 </div>
+                 <h3 className="text-xl font-black text-gray-800">
+                   {modalMode === 'add' ? 'Giao nhiệm vụ mới' : 'Chỉnh sửa nhiệm vụ'}
+                 </h3>
                </div>
                <button onClick={() => !isSubmitting && setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={20}/></button>
             </div>
             
             <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
-              {/* Cột trái: Thông tin nhiệm vụ */}
               <div className="lg:w-1/2 p-6 space-y-4 overflow-y-auto border-r border-gray-100">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase px-1">Tiêu đề nhiệm vụ</label>
@@ -351,12 +393,11 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
                     placeholder="Hướng dẫn học sinh các bước thực hiện..." 
                     value={newTask.MoTa} 
                     onChange={e => setNewTask({...newTask, MoTa: e.target.value})} 
-                    className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl h-32 text-sm outline-none focus:bg-white focus:border-indigo-400 transition-all"
+                    className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl h-48 text-sm outline-none focus:bg-white focus:border-indigo-400 transition-all"
                   ></textarea>
                 </div>
               </div>
 
-              {/* Cột phải: Chọn học sinh */}
               <div className="lg:w-1/2 p-6 flex flex-col overflow-hidden bg-gray-50/50">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -364,19 +405,9 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
                     <label className="text-[10px] font-black text-gray-500 uppercase">Đối tượng nhận ({selectedStudentIds.length}/{students.length})</label>
                   </div>
                   <div className="flex gap-2">
-                    <button 
-                      onClick={() => setSelectedStudentIds(students.map(s => s.MaHS))} 
-                      className="text-[10px] font-black text-indigo-600 uppercase hover:underline"
-                    >
-                      Tất cả
-                    </button>
+                    <button onClick={() => setSelectedStudentIds(students.map(s => s.MaHS))} className="text-[10px] font-black text-indigo-600 uppercase hover:underline">Tất cả</button>
                     <span className="text-gray-300">|</span>
-                    <button 
-                      onClick={() => setSelectedStudentIds([])} 
-                      className="text-[10px] font-black text-rose-600 uppercase hover:underline"
-                    >
-                      Bỏ hết
-                    </button>
+                    <button onClick={() => setSelectedStudentIds([])} className="text-[10px] font-black text-rose-600 uppercase hover:underline">Bỏ hết</button>
                   </div>
                 </div>
                 
@@ -407,22 +438,22 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
               <button 
                 disabled={isSubmitting}
                 onClick={() => setIsModalOpen(false)} 
-                className="flex-1 py-4 bg-white border border-gray-200 text-gray-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-100 transition-all disabled:opacity-50"
+                className="flex-1 py-4 bg-white border border-gray-200 text-gray-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-100 transition-all"
               >
                 Hủy
               </button>
               <button 
                 disabled={isSubmitting}
-                onClick={handleCreateTask} 
-                className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest disabled:opacity-70"
+                onClick={handleSaveTask} 
+                className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest"
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 size={18} className="animate-spin" /> Đang giao bài...
+                    <Loader2 size={18} className="animate-spin" /> Đang lưu...
                   </>
                 ) : (
                   <>
-                    <Send size={18} /> Giao bài ngay
+                    <Save size={18} /> {modalMode === 'add' ? 'Giao bài ngay' : 'Cập nhật thay đổi'}
                   </>
                 )}
               </button>
