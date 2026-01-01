@@ -77,6 +77,17 @@ const App: React.FC = () => {
       if (yrData?.length && state.selectedYear === 0) {
         setState(p => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
       }
+      
+      // Đồng bộ thông tin user hiện tại nếu có thay đổi (ví dụ: đổi pass)
+      if (state.currentUser) {
+        if ((state.currentUser as any).MaHS) {
+          const freshUser = stData?.find(s => s.MaHS === (state.currentUser as Student).MaHS);
+          if (freshUser) setState(p => ({ ...p, currentUser: freshUser }));
+        } else {
+          const freshUser = tcData?.find(t => t.MaGV === (state.currentUser as Teacher).MaGV);
+          if (freshUser) setState(p => ({ ...p, currentUser: freshUser }));
+        }
+      }
     } catch (err) {
       console.error("Lỗi đồng bộ:", err);
     } finally {
@@ -117,23 +128,23 @@ const App: React.FC = () => {
       if (s && (s.MatKhau || '123456') === pass) {
         setState(p => ({ ...p, currentUser: s, currentRole: Role.STUDENT, selectedClass: s.MaLopHienTai }));
         setIsLoggedIn(true);
-      } else alert("Sai thông tin!");
+      } else alert("Mã HS hoặc mật khẩu không chính xác!");
     } else {
       const t = teachers.find(x => x.MaGV === id);
       if (t && (t.MatKhau || '123456') === pass) {
         const myAs = assignments.filter(a => a.MaGV === id);
-        const cnAs = myAs.find(a => a.LoaiPhanCong === Role.CHU_NHIEM);
-        const initialRole = cnAs ? Role.CHU_NHIEM : Role.GIANG_DAY;
-        const initialClass = cnAs ? cnAs.MaLop : (myAs[0]?.MaLop || '');
+        const initialRole = myAs.some(a => a.LoaiPhanCong === Role.CHU_NHIEM) ? Role.CHU_NHIEM : Role.GIANG_DAY;
+        const initialClass = myAs.find(a => a.LoaiPhanCong === initialRole)?.MaLop || (myAs[0]?.MaLop || '');
         setState(p => ({ ...p, currentUser: t, currentRole: initialRole, selectedClass: initialClass }));
         setIsLoggedIn(true);
-      } else alert("Sai thông tin!");
+      } else alert("Mã GV hoặc mật khẩu không chính xác!");
     }
   };
 
   const handleUpdateTeacherPassword = async () => {
     const t = state.currentUser as Teacher;
     if (!t) return;
+    if (!passwordForm.old || !passwordForm.new || !passwordForm.confirm) { alert("Vui lòng nhập đủ thông tin!"); return; }
     if (passwordForm.new !== passwordForm.confirm) { alert("Xác nhận mật khẩu không khớp!"); return; }
     if (passwordForm.old !== (t.MatKhau || '123456')) { alert("Mật khẩu cũ không chính xác!"); return; }
     
@@ -144,16 +155,31 @@ const App: React.FC = () => {
       alert("Đã cập nhật mật khẩu thành công!");
       setIsPasswordModalOpen(false);
       setPasswordForm({ old: '', new: '', confirm: '' });
-      fetchData();
+      await fetchData();
     } catch (e: any) { alert(e.message); }
     finally { setIsLoading(false); }
   };
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>;
+  
   if (!isLoggedIn) return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
 
-  if (state.currentRole === Role.STUDENT) return <StudentPortal student={state.currentUser as Student} grades={grades} disciplines={disciplines} tasks={tasks} onLogout={() => setIsLoggedIn(false)} onToggleTask={async () => {}} onUpdateProfile={fetchData} />;
+  // TRANG CỦA HỌC SINH
+  if (state.currentRole === Role.STUDENT) {
+    return (
+      <StudentPortal 
+        student={state.currentUser as Student} 
+        grades={grades} 
+        disciplines={disciplines} 
+        tasks={tasks} 
+        onLogout={() => setIsLoggedIn(false)} 
+        onToggleTask={() => {}} 
+        onUpdateProfile={fetchData} 
+      />
+    );
+  }
 
+  // TRANG CỦA GIÁO VIÊN
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden text-[13px] font-normal text-slate-600">
       <aside className="w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm relative z-20">
