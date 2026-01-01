@@ -21,7 +21,6 @@ interface Props {
 type ProfileTab = 'SYLL' | 'GRADES' | 'DISCIPLINE' | 'LOGS';
 type GradeView = 'HK1' | 'HK2' | 'CANAM';
 
-// Define XCircle before its usage in statusConfig to avoid block-scoped variable error
 const XCircle = ({ size, className }: { size?: number, className?: string }) => <X size={size} className={className} />;
 
 const statusConfig: Record<AttendanceStatus, { label: string, color: string, icon: any, bg: string }> = {
@@ -85,7 +84,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
     resetForm();
   };
 
-  // Tính toán dữ liệu cho Tab Hồ sơ
   const studentGrades = useMemo(() => {
     if (!selectedStudentForProfile) return [];
     return grades.filter(g => g.MaHS === selectedStudentForProfile.MaHS && g.MaNienHoc === state.selectedYear);
@@ -133,14 +131,11 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
 
   const handleExportExcel = () => {
     if (!selectedStudentForProfile) return;
-    let csvContent = "\uFEFF"; // UTF-8 BOM để Excel đọc được tiếng Việt
-    
-    // Header thông tin chung
+    let csvContent = "\uFEFF"; 
     csvContent += `HỌ TÊN: ${selectedStudentForProfile.Hoten}, MÃ HS: ${selectedStudentForProfile.MaHS}, LỚP: ${state.selectedClass}\n`;
     csvContent += `CHẾ ĐỘ XEM: ${gradeView === 'CANAM' ? 'Cả Năm' : 'Học kỳ ' + gradeView.slice(-1)}\n\n`;
 
     if (gradeView === 'CANAM') {
-      // Trường hợp xuất Cả Năm
       csvContent += "Môn học,TB Học kỳ 1,TB Học kỳ 2,Trung bình Cả Năm\n";
       subjectsList.forEach(sub => {
         const h1 = getSubjectRow(sub.id, 1).avg;
@@ -149,7 +144,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
         csvContent += `${sub.name},${h1?.toFixed(1) || '-'},${h2?.toFixed(1) || '-'},${cn?.toFixed(1) || '-'}\n`;
       });
     } else {
-      // Trường hợp xuất HK1 hoặc HK2 (Chi tiết điểm thành phần)
       const semester = gradeView === 'HK1' ? 1 : 2;
       csvContent += "Môn học,TX1,TX2,TX3,TX4,TX5,GK,CK,TB Học Kỳ\n";
       subjectsList.forEach(sub => {
@@ -174,10 +168,46 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
     <div className="space-y-4 animate-in fade-in pb-20">
       <style>{`
         @media print {
+          /* Ẩn mọi thứ không cần thiết */
           body * { visibility: hidden; }
-          .modal-print-content, .modal-print-content * { visibility: visible; }
-          .modal-print-content { position: absolute; left: 0; top: 0; width: 100%; }
           .no-print { display: none !important; }
+          
+          /* Hiển thị modal và phá bỏ giới hạn chiều cao */
+          .modal-print-content, 
+          .modal-print-content * { 
+            visibility: visible !important; 
+          }
+          
+          .modal-print-content {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            display: block !important;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          
+          /* Cho phép container nội dung giãn nở tự nhiên */
+          .modal-print-content div {
+            overflow: visible !important;
+            max-height: none !important;
+          }
+          
+          /* Tăng độ tương phản chữ */
+          .modal-print-content * {
+            color: black !important;
+          }
+          
+          /* Tạo ngắt trang sạch sẽ */
+          table { page-break-inside: auto; width: 100% !important; border-collapse: collapse !important; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          
+          /* Viền bảng khi in */
+          th, td { border: 1px solid #e2e8f0 !important; }
         }
       `}</style>
 
@@ -338,11 +368,14 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                              </p>
                           </div>
 
-                          {/* Print Only Header */}
-                          <div className="hidden no-print:hidden print:block text-center mb-8 border-b pb-6 border-slate-200">
-                             <h2 className="text-xl font-black uppercase text-slate-900 mb-1">Báo cáo kết quả học tập</h2>
+                          {/* Header chỉ hiển thị khi IN */}
+                          <div className="hidden print:block text-center mb-8 border-b pb-6 border-slate-200">
+                             <h2 className="text-xl font-black uppercase text-slate-900 mb-1">Phiếu Báo Kết Quả Học Tập</h2>
                              <p className="text-sm font-bold text-slate-600">Học sinh: {selectedStudentForProfile.Hoten} - Lớp: {state.selectedClass}</p>
-                             <p className="text-xs text-slate-400 font-medium">Năm học: {state.selectedYear === 1 ? '2023-2024' : state.selectedYear === 2 ? '2024-2025' : '2025-2026'}</p>
+                             <p className="text-xs text-slate-400 font-medium">Niên khóa: {state.selectedYear === 1 ? '2023-2024' : state.selectedYear === 2 ? '2024-2025' : '2025-2026'}</p>
+                             <div className="mt-2 inline-block px-4 py-1 bg-slate-100 rounded-full text-[10px] font-black uppercase">
+                               {gradeView === 'CANAM' ? 'TỔNG HỢP CẢ NĂM' : `HỌC KỲ ${gradeView.slice(-1)}`}
+                             </div>
                           </div>
                           
                           <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
@@ -416,7 +449,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                              </div>
                           </div>
                           
-                          {/* Print Signature Section */}
+                          {/* Chữ ký khi in */}
                           <div className="hidden print:grid grid-cols-2 gap-20 mt-16 text-center">
                              <div className="space-y-20">
                                 <p className="text-xs font-bold uppercase">Phụ huynh học sinh</p>
@@ -508,7 +541,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                     )}
                  </div>
                ) : (
-                 /* Form Chỉnh sửa/Thêm mới SYLL */
                  <div className="space-y-6 animate-in fade-in duration-300">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                        <Field label="Mã Học Sinh" value={formStudent.MaHS} onChange={v => setFormStudent({...formStudent, MaHS: v})} />
