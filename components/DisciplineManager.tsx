@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { ShieldAlert, Plus, Calendar, AlertCircle, Settings, Trash2, Save, X, Edit3, Check, Trophy, Ban, User, Info } from 'lucide-react';
+import { ShieldAlert, Plus, Calendar, AlertCircle, Settings, Trash2, Save, X, Edit3, Check, Trophy, Ban, User, Info, Loader2 } from 'lucide-react';
 import { AppState, Student, Discipline, ViolationRule } from '../types';
 
 interface Props {
@@ -8,8 +8,8 @@ interface Props {
   students: Student[];
   disciplines: Discipline[];
   violationRules: ViolationRule[];
-  onUpdateDisciplines: (disciplines: Discipline[]) => void;
-  onUpdateRules: (rules: ViolationRule[]) => void;
+  onUpdateDisciplines: (disciplines: Discipline[]) => Promise<void>;
+  onUpdateRules: (rules: ViolationRule[]) => Promise<void>;
 }
 
 const actionTypes = [
@@ -20,6 +20,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
   const isChuNhiem = state.currentRole === 'ChuNhiem';
   const [activeView, setActiveView] = useState<'LIST' | 'RULES' | 'CONDUCT'>('LIST');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [ruleFormData, setRuleFormData] = useState<Partial<ViolationRule>>({});
@@ -47,8 +48,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
     });
   }, [students, disciplines, state.selectedYear]);
 
-  const handleAddDiscipline = () => {
-    // Kiểm tra kỹ dữ liệu trước khi lưu
+  const handleAddDiscipline = async () => {
     if (!newDiscipline.MaHS || newDiscipline.MaHS === "") { 
       alert("⚠️ Vui lòng CHỌN HỌC SINH từ danh sách!"); 
       return; 
@@ -64,8 +64,11 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
       return;
     }
     
+    // Sửa ID ở đây: dùng giây thay vì miligiây để không bị lỗi 22003 (Integer out of range)
+    const secureId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
+    
     const disciplineRecord: Discipline = {
-      MaKyLuat: Date.now(), 
+      MaKyLuat: secureId, 
       MaHS: newDiscipline.MaHS!, 
       NgayViPham: newDiscipline.NgayViPham!, 
       MaLoi: newDiscipline.MaLoi!, 
@@ -75,33 +78,51 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
       MaNienHoc: state.selectedYear
     };
 
-    onUpdateDisciplines([disciplineRecord]);
-    setIsModalOpen(false);
-    
-    // Reset form hoàn toàn
-    setNewDiscipline({ 
-      MaHS: '', 
-      NgayViPham: new Date().toISOString().split('T')[0], 
-      MaLoi: '', 
-      NoiDungChiTiet: '', 
-      HinhThucXL: 'Nhắc nhở' 
-    });
-  };
-
-  const handleSaveRule = () => {
-    if (!ruleFormData.TenLoi || ruleFormData.DiemTru === undefined) return;
-    if (editingRuleId === 'new') {
-      onUpdateRules([...violationRules, { MaLoi: Date.now().toString(), TenLoi: ruleFormData.TenLoi, DiemTru: Number(ruleFormData.DiemTru) }]);
-    } else {
-      onUpdateRules(violationRules.map(r => r.MaLoi === editingRuleId ? { ...r, TenLoi: ruleFormData.TenLoi!, DiemTru: Number(ruleFormData.DiemTru)! } : r));
+    setIsSubmitting(true);
+    try {
+      await onUpdateDisciplines([disciplineRecord]);
+      setIsModalOpen(false);
+      setNewDiscipline({ 
+        MaHS: '', 
+        NgayViPham: new Date().toISOString().split('T')[0], 
+        MaLoi: '', 
+        NoiDungChiTiet: '', 
+        HinhThucXL: 'Nhắc nhở' 
+      });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
     }
-    setEditingRuleId(null);
-    setRuleFormData({});
   };
 
-  const deleteRule = (maLoi: string) => {
+  const handleSaveRule = async () => {
+    if (!ruleFormData.TenLoi || ruleFormData.DiemTru === undefined) return;
+    setIsSubmitting(true);
+    try {
+      if (editingRuleId === 'new') {
+        const secureRuleId = "RL" + Math.floor(Date.now() / 1000);
+        await onUpdateRules([...violationRules, { MaLoi: secureRuleId, TenLoi: ruleFormData.TenLoi, DiemTru: Number(ruleFormData.DiemTru) }]);
+      } else {
+        await onUpdateRules(violationRules.map(r => r.MaLoi === editingRuleId ? { ...r, TenLoi: ruleFormData.TenLoi!, DiemTru: Number(ruleFormData.DiemTru)! } : r));
+      }
+      setEditingRuleId(null);
+      setRuleFormData({});
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const deleteRule = async (maLoi: string) => {
     if(confirm("Xóa lỗi này khỏi bộ quy tắc? Dữ liệu kỷ luật cũ vẫn sẽ được giữ nguyên điểm trừ tại thời điểm đó.")) {
-      onUpdateRules(violationRules.filter(r => r.MaLoi !== maLoi));
+      setIsSubmitting(true);
+      try {
+        await onUpdateRules(violationRules.filter(r => r.MaLoi !== maLoi));
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -140,7 +161,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
             <p className="font-bold text-gray-800">Ghi nhận vi phạm mới</p>
             <p className="text-xs text-gray-400 mt-1">Chọn lỗi từ bộ quy tắc của trường</p>
           </div>
-          {disciplines.length > 0 ? disciplines.sort((a,b) => b.MaKyLuat - a.MaKyLuat).map(item => {
+          {disciplines.length > 0 ? [...disciplines].sort((a,b) => b.MaKyLuat - a.MaKyLuat).map(item => {
             const student = students.find(s => s.MaHS === item.MaHS);
             const rule = violationRules.find(r => r.MaLoi === item.MaLoi);
             return (
@@ -178,7 +199,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
         <div className="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
             <div className="flex items-center gap-3"><Settings className="text-gray-400" /><h3 className="font-bold text-gray-800">Cấu hình Bộ quy tắc</h3></div>
-            <button onClick={() => { setEditingRuleId('new'); setRuleFormData({ TenLoi: '', DiemTru: 2 }); }} className="px-4 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 active:scale-95 transition-all"><Plus size={16} /> Thêm quy tắc</button>
+            <button disabled={isSubmitting} onClick={() => { setEditingRuleId('new'); setRuleFormData({ TenLoi: '', DiemTru: 2 }); }} className="px-4 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 active:scale-95 transition-all disabled:opacity-50"><Plus size={16} /> Thêm quy tắc</button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -188,26 +209,36 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
               <tbody className="divide-y divide-gray-50">
                 {editingRuleId === 'new' && (
                   <tr className="bg-indigo-50/30">
-                    <td className="px-6 py-4"><input autoFocus type="text" value={ruleFormData.TenLoi} onChange={e => setRuleFormData({...ruleFormData, TenLoi: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm font-bold" placeholder="Tên lỗi..." /></td>
-                    <td className="px-6 py-4"><input type="number" value={ruleFormData.DiemTru} onChange={e => setRuleFormData({...ruleFormData, DiemTru: parseInt(e.target.value) || 0})} className="w-24 px-3 py-2 border rounded-lg text-sm font-bold" /></td>
-                    <td className="px-6 py-4 text-right flex justify-end gap-2"><button onClick={handleSaveRule} className="p-2 bg-emerald-600 text-white rounded-lg"><Check size={16}/></button><button onClick={() => setEditingRuleId(null)} className="p-2 bg-gray-200 text-gray-500 rounded-lg"><X size={16}/></button></td>
+                    <td className="px-6 py-4"><input disabled={isSubmitting} autoFocus type="text" value={ruleFormData.TenLoi} onChange={e => setRuleFormData({...ruleFormData, TenLoi: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm font-bold" placeholder="Tên lỗi..." /></td>
+                    <td className="px-6 py-4"><input disabled={isSubmitting} type="number" value={ruleFormData.DiemTru} onChange={e => setRuleFormData({...ruleFormData, DiemTru: parseInt(e.target.value) || 0})} className="w-24 px-3 py-2 border rounded-lg text-sm font-bold" /></td>
+                    <td className="px-6 py-4 text-right flex justify-end gap-2">
+                      <button disabled={isSubmitting} onClick={handleSaveRule} className="p-2 bg-emerald-600 text-white rounded-lg">
+                        {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16}/>}
+                      </button>
+                      <button disabled={isSubmitting} onClick={() => setEditingRuleId(null)} className="p-2 bg-gray-200 text-gray-500 rounded-lg"><X size={16}/></button>
+                    </td>
                   </tr>
                 )}
                 {violationRules.map(rule => (
                   <tr key={rule.MaLoi} className="hover:bg-gray-50 transition-colors">
                     {editingRuleId === rule.MaLoi ? (
                       <>
-                        <td className="px-6 py-4"><input autoFocus type="text" value={ruleFormData.TenLoi} onChange={e => setRuleFormData({...ruleFormData, TenLoi: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm font-bold" /></td>
-                        <td className="px-6 py-4"><input type="number" value={ruleFormData.DiemTru} onChange={e => setRuleFormData({...ruleFormData, DiemTru: parseInt(e.target.value) || 0})} className="w-24 px-3 py-2 border rounded-lg text-sm font-bold" /></td>
-                        <td className="px-6 py-4 text-right flex justify-end gap-2"><button onClick={handleSaveRule} className="p-2 bg-emerald-600 text-white rounded-lg"><Check size={16}/></button><button onClick={() => setEditingRuleId(null)} className="p-2 bg-gray-200 text-gray-500 rounded-lg"><X size={16}/></button></td>
+                        <td className="px-6 py-4"><input disabled={isSubmitting} autoFocus type="text" value={ruleFormData.TenLoi} onChange={e => setRuleFormData({...ruleFormData, TenLoi: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm font-bold" /></td>
+                        <td className="px-6 py-4"><input disabled={isSubmitting} type="number" value={ruleFormData.DiemTru} onChange={e => setRuleFormData({...ruleFormData, DiemTru: parseInt(e.target.value) || 0})} className="w-24 px-3 py-2 border rounded-lg text-sm font-bold" /></td>
+                        <td className="px-6 py-4 text-right flex justify-end gap-2">
+                          <button disabled={isSubmitting} onClick={handleSaveRule} className="p-2 bg-emerald-600 text-white rounded-lg">
+                             {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16}/>}
+                          </button>
+                          <button disabled={isSubmitting} onClick={() => setEditingRuleId(null)} className="p-2 bg-gray-200 text-gray-500 rounded-lg"><X size={16}/></button>
+                        </td>
                       </>
                     ) : (
                       <>
                         <td className="px-6 py-4 text-sm font-bold text-gray-800">{rule.TenLoi}</td>
                         <td className="px-6 py-4"><span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-xs font-black">-{rule.DiemTru}đ</span></td>
                         <td className="px-6 py-4 text-right flex justify-end gap-1">
-                          <button onClick={() => { setEditingRuleId(rule.MaLoi); setRuleFormData(rule); }} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"><Edit3 size={16}/></button>
-                          <button onClick={() => deleteRule(rule.MaLoi)} className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={16}/></button>
+                          <button disabled={isSubmitting} onClick={() => { setEditingRuleId(rule.MaLoi); setRuleFormData(rule); }} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"><Edit3 size={16}/></button>
+                          <button disabled={isSubmitting} onClick={() => deleteRule(rule.MaLoi)} className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={16}/></button>
                         </td>
                       </>
                     )}
@@ -264,7 +295,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
                 <div className="p-2 bg-rose-600 rounded-xl text-white shadow-lg"><ShieldAlert size={20} /></div>
                 <h3 className="font-black text-xl text-gray-800 tracking-tight">Ghi nhận vi phạm</h3>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-all"><X size={24} className="text-gray-400" /></button>
+              <button disabled={isSubmitting} onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-all"><X size={24} className="text-gray-400" /></button>
             </div>
             
             <div className="p-6 space-y-5 overflow-y-auto flex-1 bg-gray-50/30">
@@ -279,6 +310,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
                     <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
                         <select 
+                            disabled={isSubmitting}
                             value={newDiscipline.MaHS} 
                             onChange={(e) => setNewDiscipline({...newDiscipline, MaHS: e.target.value})} 
                             className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-bold outline-none appearance-none focus:border-rose-400 transition-all"
@@ -293,6 +325,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
                     <div className="relative">
                         <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
                         <input 
+                            disabled={isSubmitting}
                             type="date" 
                             value={newDiscipline.NgayViPham} 
                             onChange={(e) => setNewDiscipline({...newDiscipline, NgayViPham: e.target.value})} 
@@ -307,6 +340,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
                 <div className="relative">
                     <Ban className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
                     <select 
+                        disabled={isSubmitting}
                         value={newDiscipline.MaLoi} 
                         onChange={(e) => setNewDiscipline({...newDiscipline, MaLoi: e.target.value})} 
                         className="w-full pl-10 pr-4 py-3 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl text-sm font-black outline-none appearance-none focus:border-rose-400 transition-all"
@@ -322,6 +356,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
                 <div className="flex flex-wrap gap-1.5">
                     {actionTypes.map(type => (
                         <button 
+                            disabled={isSubmitting}
                             key={type} 
                             onClick={() => setNewDiscipline({...newDiscipline, HinhThucXL: type})} 
                             className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all ${newDiscipline.HinhThucXL === type ? 'bg-gray-900 text-white border-gray-900 shadow-md scale-105' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}
@@ -335,6 +370,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
               <div className="space-y-1.5 pb-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Chi tiết sự việc</label>
                 <textarea 
+                    disabled={isSubmitting}
                     value={newDiscipline.NoiDungChiTiet} 
                     onChange={(e) => setNewDiscipline({...newDiscipline, NoiDungChiTiet: e.target.value})} 
                     className="w-full px-5 py-4 bg-white border border-gray-200 rounded-2xl text-sm min-h-[120px] outline-none focus:border-rose-400 transition-all shadow-inner" 
@@ -344,9 +380,10 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
             </div>
 
             <div className="p-6 bg-white border-t flex gap-3 shrink-0">
-              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-white border border-gray-200 text-gray-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 transition-all">Hủy bỏ</button>
-              <button onClick={handleAddDiscipline} className="flex-[2] py-4 bg-rose-600 text-white rounded-2xl font-black shadow-xl shadow-rose-100 active:scale-95 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
-                <Save size={18} /> Lưu vi phạm Cloud
+              <button disabled={isSubmitting} onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-white border border-gray-200 text-gray-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 transition-all">Hủy bỏ</button>
+              <button disabled={isSubmitting} onClick={handleAddDiscipline} className="flex-[2] py-4 bg-rose-600 text-white rounded-2xl font-black shadow-xl shadow-rose-100 active:scale-95 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
+                {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                {isSubmitting ? "Đang lưu..." : "Lưu vi phạm Cloud"}
               </button>
             </div>
           </div>
