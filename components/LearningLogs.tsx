@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  ClipboardList, Plus, User, MessageSquare, CheckCircle2, XCircle, Clock, Check, Calendar, Search, Users, AlertTriangle, Save, ChevronRight, Info, UserPlus, Trash2, Loader2
+  ClipboardList, Plus, User, MessageSquare, CheckCircle2, XCircle, Clock, Check, Calendar, Search, Users, AlertTriangle, Save, ChevronRight, Info, UserPlus, Trash2, Loader2, Edit3, X
 } from 'lucide-react';
 import { AppState, Student, LearningLog, Assignment, AttendanceStatus } from '../types';
 
@@ -10,7 +10,8 @@ interface Props {
   students: Student[];
   logs: LearningLog[];
   assignment: Assignment;
-  onUpdateLogs: (newLogs: LearningLog[]) => void;
+  onUpdateLogs: (newLogs: LearningLog[]) => Promise<void>;
+  onDeleteLog: (id: number) => Promise<void>;
 }
 
 const statusConfig: Record<AttendanceStatus, { label: string, color: string, icon: any, bg: string }> = {
@@ -27,7 +28,7 @@ interface PendingLog {
   note: string;
 }
 
-const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUpdateLogs }) => {
+const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUpdateLogs, onDeleteLog }) => {
   const [activeTab, setActiveTab] = useState<'history' | 'rollcall'>('history');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,6 +41,10 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
   
   // Danh sách học sinh đang đợi để lưu
   const [pendingLogs, setPendingLogs] = useState<PendingLog[]>([]);
+
+  // States cho việc chỉnh sửa nhật ký cũ
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingLog, setEditingLog] = useState<LearningLog | null>(null);
 
   const filteredLogs = useMemo(() => {
     return logs.filter(l => l.MaPhanCong === assignment?.MaPhanCong)
@@ -113,6 +118,37 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
     }
   };
 
+  const handleDelete = async (id: number) => {
+    if (!confirm("Bạn có chắc chắn muốn xóa bản ghi nhật ký này không?")) return;
+    setIsSubmitting(true);
+    try {
+      await onDeleteLog(id);
+    } catch (e: any) {
+      alert("Lỗi khi xóa: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenEdit = (log: LearningLog) => {
+    setEditingLog({ ...log });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingLog) return;
+    setIsSubmitting(true);
+    try {
+      await onUpdateLogs([editingLog]);
+      setIsEditModalOpen(false);
+      setEditingLog(null);
+    } catch (e: any) {
+      alert("Lỗi khi cập nhật: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-4 animate-in fade-in pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -131,11 +167,10 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
 
       {activeTab === 'rollcall' ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Form thêm học sinh */}
           <div className="lg:col-span-1 space-y-4">
             <div className="bg-white p-6 rounded-[28px] border border-slate-200 shadow-sm space-y-5">
                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                 <UserPlus size={16} className="text-indigo-600" /> Chọn học sinh cần lưu ý
+                 <UserPlus size={16} className="text-indigo-600" /> Chọn học sinh lẻ
                </h3>
                
                <div className="space-y-1.5 relative">
@@ -184,12 +219,12 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
                </div>
 
                <div className="space-y-1.5">
-                  <label className="text-[9px] font-bold text-slate-400 uppercase px-1 tracking-widest">Ghi chú (Đặc biệt: Tai nạn, đánh nhau...)</label>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase px-1 tracking-widest">Ghi chú (Đặc biệt: Phạt, Đánh nhau, Tai nạn...)</label>
                   <textarea 
                     value={currentNote} 
                     onChange={e => setCurrentNote(e.target.value)}
                     className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-normal min-h-[100px] outline-none focus:bg-white focus:border-indigo-300 transition-all shadow-sm"
-                    placeholder="Nhập chi tiết trường hợp cần ghi chép..."
+                    placeholder="VD: Tiết 3 bị giáo viên phạt, do nói chuyện riêng..."
                   ></textarea>
                </div>
 
@@ -203,7 +238,6 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
             </div>
           </div>
 
-          {/* Danh sách đang đợi */}
           <div className="lg:col-span-2 space-y-4">
              <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[500px]">
                 <div className="p-4 bg-slate-50/50 border-b flex items-center justify-between">
@@ -233,7 +267,7 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
                                  <h4 className="text-xs font-bold text-slate-800 truncate uppercase">{log.Hoten}</h4>
                                  <button onClick={() => removePendingLog(log.MaHS)} className="p-1 text-slate-300 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-all"><Trash2 size={16}/></button>
                               </div>
-                              <p className="text-[11px] text-slate-500 font-normal italic leading-relaxed line-clamp-2">"{log.note || 'Không có ghi chú thêm'}"</p>
+                              <p className="text-[11px] text-slate-700 font-medium leading-relaxed">"{log.note || 'Không có ghi chú thêm'}"</p>
                            </div>
                         </div>
                       );
@@ -255,64 +289,121 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
                         {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                         {isSubmitting ? "Đang lưu lên Cloud..." : `Lưu tất cả ${pendingLogs.length} bản ghi Cloud`}
                      </button>
-                     <p className="mt-3 text-[9px] font-bold text-slate-400 uppercase tracking-tight flex items-center gap-1">
-                        <Info size={12} /> Dữ liệu sẽ được lưu trữ vĩnh viễn và hiển thị trong hồ sơ học sinh
-                     </p>
                   </div>
                 )}
              </div>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="xl:col-span-2 space-y-3">
-            {filteredLogs.length > 0 ? filteredLogs.map(log => {
-              const student = students.find(s => s.MaHS === log.MaHS);
-              const conf = statusConfig[log.TrangThai];
-              const StatusIcon = conf.icon;
-              return (
-                <div key={log.MaTheoDoi} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center gap-4 hover:border-indigo-100 transition-colors group">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${conf.bg} ${conf.color} border border-slate-100 group-hover:shadow-sm transition-all`}>
-                    <StatusIcon size={24} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <h4 className="font-bold text-slate-800 text-xs uppercase tracking-tight">{student?.Hoten || 'Học sinh đã xóa'}</h4>
-                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 rounded-lg text-[10px] text-slate-400 font-bold border border-slate-100">
+        <div className="space-y-4">
+          {filteredLogs.length > 0 ? filteredLogs.map(log => {
+            const student = students.find(s => s.MaHS === log.MaHS);
+            const conf = statusConfig[log.TrangThai];
+            const StatusIcon = conf.icon;
+            return (
+              <div key={log.MaTheoDoi} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-start gap-6 hover:border-indigo-100 transition-all group relative">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${conf.bg} ${conf.color} border border-slate-100 group-hover:shadow-indigo-50 group-hover:shadow-lg transition-all`}>
+                  <StatusIcon size={28} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+                    <div className="flex items-center gap-3">
+                      <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">{student?.Hoten || 'Học sinh đã xóa'}</h4>
+                      <span className="text-[10px] font-bold text-slate-300 bg-slate-50 px-2 py-0.5 rounded uppercase">{log.MaHS}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-xl text-[10px] text-slate-500 font-bold border border-slate-200">
                         <Calendar size={12} /> {log.NgayGhiChep}
                       </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <button onClick={() => handleOpenEdit(log)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="Chỉnh sửa"><Edit3 size={16} /></button>
+                        <button onClick={() => handleDelete(log.MaTheoDoi)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors" title="Xóa bản ghi"><Trash2 size={16} /></button>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-500 font-normal italic leading-relaxed">"{log.NhanXet || 'Bình thường'}"</p>
+                  </div>
+                  <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100 group-hover:bg-white group-hover:border-indigo-50 transition-all">
+                     <p className="text-sm text-slate-700 font-semibold leading-relaxed whitespace-pre-wrap">
+                       {log.NhanXet || 'Không có nội dung nhận xét'}
+                     </p>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                     <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg uppercase tracking-widest border ${conf.color} ${conf.bg} border-current opacity-70`}>{conf.label}</span>
                   </div>
                 </div>
-              );
-            }) : (
-              <div className="py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100 text-center flex flex-col items-center justify-center opacity-40">
-                 <ClipboardList size={48} className="text-slate-200 mb-3" />
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chưa có lịch sử ghi chép tiết học</p>
               </div>
-            )}
-          </div>
-          
-          <div className="space-y-4">
-             <div className="bg-indigo-600 rounded-[32px] p-6 text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
-                <div className="relative z-10">
-                   <h3 className="font-black text-sm uppercase tracking-widest mb-2">Thống kê tiết học</h3>
-                   <div className="space-y-4 mt-4">
-                      <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                         <span className="text-[10px] font-bold uppercase opacity-70">Tổng ghi chép</span>
-                         <span className="text-xl font-black">{filteredLogs.length}</span>
-                      </div>
-                      <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                         <span className="text-[10px] font-bold uppercase opacity-70">Vắng không phép</span>
-                         <span className="text-xl font-black text-rose-300">{filteredLogs.filter(l => l.TrangThai === 'VANG_KP').length}</span>
-                      </div>
-                   </div>
-                </div>
-                <div className="absolute bottom-0 right-0 opacity-10 -mr-4 -mb-4">
-                   <ClipboardList size={120} />
-                </div>
-             </div>
+            );
+          }) : (
+            <div className="py-20 bg-white rounded-[40px] border-2 border-dashed border-slate-100 text-center flex flex-col items-center justify-center opacity-40">
+               <ClipboardList size={64} className="text-slate-200 mb-4" />
+               <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Chưa có lịch sử ghi chép tiết học</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal Chỉnh sửa Nhật ký */}
+      {isEditModalOpen && editingLog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="p-6 border-b flex items-center justify-between bg-slate-50/50">
+               <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg"><Edit3 size={20} /></div>
+                  <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight">Cập nhật nhật ký tiết học</h3>
+               </div>
+               <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20}/></button>
+            </div>
+            <div className="p-8 space-y-6">
+               <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Học sinh</p>
+                    <p className="text-sm font-black text-slate-800 uppercase">{students.find(s => s.MaHS === editingLog.MaHS)?.Hoten}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ngày ghi</p>
+                    <p className="text-sm font-bold text-indigo-600">{editingLog.NgayGhiChep}</p>
+                  </div>
+               </div>
+
+               <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase px-1 tracking-widest">Trạng thái tiết học</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(Object.keys(statusConfig) as AttendanceStatus[]).map(status => {
+                      const conf = statusConfig[status];
+                      const Icon = conf.icon;
+                      return (
+                        <button 
+                          key={status} 
+                          onClick={() => setEditingLog({...editingLog, TrangThai: status})}
+                          className={`flex items-center gap-2 p-3 rounded-2xl border text-[11px] font-bold uppercase transition-all ${editingLog.TrangThai === status ? `${conf.bg} ${conf.color} border-indigo-300 shadow-sm` : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'}`}
+                        >
+                          <Icon size={16} /> {conf.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+               </div>
+
+               <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase px-1 tracking-widest">Nội dung ghi chú chi tiết</label>
+                  <textarea 
+                    value={editingLog.NhanXet} 
+                    onChange={e => setEditingLog({...editingLog, NhanXet: e.target.value})}
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium min-h-[140px] outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner"
+                    placeholder="VD: Tiết 3 bị giáo viên phạt, do nói chuyện riêng..."
+                  ></textarea>
+               </div>
+            </div>
+            <div className="p-6 bg-slate-50 border-t flex gap-3">
+               <button onClick={() => setIsEditModalOpen(false)} className="flex-1 py-3.5 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest">Hủy bỏ</button>
+               <button 
+                onClick={handleSaveEdit}
+                disabled={isSubmitting}
+                className="flex-[2] py-3.5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+               >
+                  {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                  Cập nhật thay đổi
+               </button>
+            </div>
           </div>
         </div>
       )}
