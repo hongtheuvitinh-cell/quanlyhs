@@ -78,7 +78,7 @@ const App: React.FC = () => {
         setState(p => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
       }
       
-      // Đồng bộ thông tin user hiện tại nếu có thay đổi (ví dụ: đổi pass)
+      // Đồng bộ thông tin user hiện tại nếu có thay đổi
       if (state.currentUser) {
         if ((state.currentUser as any).MaHS) {
           const freshUser = stData?.find(s => s.MaHS === (state.currentUser as Student).MaHS);
@@ -173,7 +173,7 @@ const App: React.FC = () => {
         disciplines={disciplines} 
         tasks={tasks} 
         onLogout={() => setIsLoggedIn(false)} 
-        onToggleTask={() => {}} 
+        onToggleTask={(taskId: number, link?: string) => { console.log('Toggled task:', taskId, link); }} 
         onUpdateProfile={fetchData} 
       />
     );
