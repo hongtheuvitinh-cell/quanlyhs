@@ -14,6 +14,7 @@ import LearningLogs from './components/LearningLogs';
 import TaskManager from './components/TaskManager';
 import SystemManager from './components/SystemManager';
 import Login from './components/Login';
+import StudentPortal from './components/StudentPortal';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -115,17 +116,21 @@ const App: React.FC = () => {
     if (role === Role.STUDENT) {
       const s = students.find(x => x.MaHS === id);
       if (s && (s.MatKhau || '123456') === pass) {
-        setState(p => ({ ...p, currentUser: s, currentRole: Role.STUDENT, selectedClass: s.MaLopHienTai }));
+        setState(p => ({ ...p, currentUser: s, currentRole: Role.STUDENT, selectedClass: s.MaLopHienTai, selectedYear: s.MaNienHoc }));
         setIsLoggedIn(true);
-      } else alert("Sai thông tin!");
+      } else alert("Sai thông tin đăng nhập học sinh!");
     } else {
       const t = teachers.find(x => x.MaGV === id);
       if (t && (t.MatKhau || '123456') === pass) {
         const myAs = assignments.filter(a => a.MaGV === id);
+        if (myAs.length === 0) {
+          alert("Giáo viên chưa được phân công lớp nào!");
+          return;
+        }
         const initialRole = myAs.some(a => a.LoaiPhanCong === Role.CHU_NHIEM) ? Role.CHU_NHIEM : Role.GIANG_DAY;
-        setState(p => ({ ...p, currentUser: t, currentRole: initialRole, selectedClass: myAs[0]?.MaLop || '' }));
+        setState(p => ({ ...p, currentUser: t, currentRole: initialRole, selectedClass: myAs[0]?.MaLop || '', selectedYear: myAs[0]?.MaNienHoc || state.selectedYear }));
         setIsLoggedIn(true);
-      } else alert("Sai thông tin!");
+      } else alert("Sai thông tin đăng nhập giáo viên!");
     }
   };
 
@@ -144,9 +149,53 @@ const App: React.FC = () => {
     finally { setIsLoading(false); }
   };
 
+  const handleToggleTask = async (taskId: number, link?: string) => {
+    const student = state.currentUser as Student;
+    if (!student) return;
+    const task = tasks.find(t => t.MaNhiemVu === taskId);
+    if (!task) return;
+
+    let newDoneList = [...task.DanhSachHoanThanh];
+    let newReports = { ...task.BaoCaoNhiemVu };
+
+    if (newDoneList.includes(student.MaHS)) {
+      newDoneList = newDoneList.filter(id => id !== student.MaHS);
+      delete newReports[student.MaHS];
+    } else {
+      newDoneList.push(student.MaHS);
+      if (link) newReports[student.MaHS] = link;
+    }
+
+    try {
+      await supabase.from('tasks').update({ 
+        DanhSachHoanThanh: newDoneList,
+        BaoCaoNhiemVu: newReports
+      }).eq('MaNhiemVu', taskId);
+      fetchData();
+    } catch (e) {
+      alert("Lỗi cập nhật bài tập");
+    }
+  };
+
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>;
   if (!isLoggedIn) return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
 
+  // NẾU LÀ HỌC SINH -> HIỂN THỊ STUDENT PORTAL
+  if (state.currentRole === Role.STUDENT) {
+    return (
+      <StudentPortal 
+        student={state.currentUser as Student}
+        grades={grades}
+        disciplines={disciplines}
+        tasks={tasks.filter(t => t.MaLop === state.selectedClass && t.DanhSachGiao.includes((state.currentUser as Student).MaHS))}
+        onLogout={() => setIsLoggedIn(false)}
+        onToggleTask={handleToggleTask}
+        onUpdateProfile={() => fetchData()}
+      />
+    );
+  }
+
+  // NẾU LÀ GIÁO VIÊN -> HIỂN THỊ GIAO DIỆN QUẢN LÝ
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden text-[13px] font-normal text-slate-600">
       <aside className="w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm relative z-20">
