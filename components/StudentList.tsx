@@ -46,16 +46,19 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     s.MaHS.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const getSpecificGrade = (maHS: string, maMon: string, semester: number, type: string) => {
+    const g = grades.find(g => g.MaHS === maHS && g.MaMonHoc === maMon && g.HocKy === semester && g.MaNienHoc === state.selectedYear && g.LoaiDiem === type);
+    return g ? g.DiemSo : null;
+  };
+
   const calculateSubjectAvg = (maHS: string, maMon: string, semester: number | 'CN') => {
-    const filterGrades = (s: number) => grades.filter(g => g.MaHS === maHS && g.MaMonHoc === maMon && g.HocKy === s && g.MaNienHoc === state.selectedYear);
-    
     if (semester === 'CN') {
       const hk1 = calculateSubjectAvg(maHS, maMon, 1);
       const hk2 = calculateSubjectAvg(maHS, maMon, 2);
       return (hk1 !== null && hk2 !== null) ? (hk1 + hk2 * 2) / 3 : null;
     }
 
-    const sGrades = filterGrades(semester as number);
+    const sGrades = grades.filter(g => g.MaHS === maHS && g.MaMonHoc === maMon && g.HocKy === semester && g.MaNienHoc === state.selectedYear);
     if (sGrades.length === 0) return null;
     const dgtx = sGrades.filter(g => g.LoaiDiem.startsWith('ĐGTX')).map(g => g.DiemSo);
     const ggk = sGrades.find(g => g.LoaiDiem === 'ĐGGK')?.DiemSo;
@@ -111,29 +114,36 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     }
   };
 
-  const downloadTemplate = () => {
-    const headers = "MaHS,Hoten,NgaySinh,GioiTinh(1:Nam/0:Nu),SDT_LinkHe,DiaChi,TenCha,NgheNghiepCha,TenMe,NgheNghiepMe,Email,GhiChuKhac\n";
-    const blob = new Blob([headers], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "Mau_Danh_Sach_Hoc_Sinh.csv";
-    link.click();
-  };
-
   const exportStudentReport = (student: Student, type: 1 | 2 | 'CN') => {
     const typeName = type === 'CN' ? 'Cả năm' : `Học kỳ ${type}`;
     let csvContent = `BÁO CÁO HỌC TẬP (${typeName}) - ${student.Hoten} (${student.MaHS})\n`;
-    csvContent += "Môn học,Điểm trung bình\n";
-    subjectsList.forEach(sub => {
-      const score = calculateSubjectAvg(student.MaHS, sub.id, type);
-      csvContent += `${sub.name},${score?.toFixed(1) || '-'}\n`;
-    });
+    if (type !== 'CN') {
+      csvContent += "Môn học,TX1,TX2,TX3,TX4,TX5,GK,CK,TB\n";
+      subjectsList.forEach(sub => {
+        const tx1 = getSpecificGrade(student.MaHS, sub.id, type as number, 'ĐGTX1');
+        const tx2 = getSpecificGrade(student.MaHS, sub.id, type as number, 'ĐGTX2');
+        const tx3 = getSpecificGrade(student.MaHS, sub.id, type as number, 'ĐGTX3');
+        const tx4 = getSpecificGrade(student.MaHS, sub.id, type as number, 'ĐGTX4');
+        const tx5 = getSpecificGrade(student.MaHS, sub.id, type as number, 'ĐGTX5');
+        const gk = getSpecificGrade(student.MaHS, sub.id, type as number, 'ĐGGK');
+        const ck = getSpecificGrade(student.MaHS, sub.id, type as number, 'ĐGCK');
+        const tb = calculateSubjectAvg(student.MaHS, sub.id, type);
+        csvContent += `${sub.name},${tx1 || ''},${tx2 || ''},${tx3 || ''},${tx4 || ''},${tx5 || ''},${gk || ''},${ck || ''},${tb?.toFixed(1) || ''}\n`;
+      });
+    } else {
+      csvContent += "Môn học,HK1,HK2,Cả năm\n";
+      subjectsList.forEach(sub => {
+        const hk1 = calculateSubjectAvg(student.MaHS, sub.id, 1);
+        const hk2 = calculateSubjectAvg(student.MaHS, sub.id, 2);
+        const cn = calculateSubjectAvg(student.MaHS, sub.id, 'CN');
+        csvContent += `${sub.name},${hk1?.toFixed(1) || ''},${hk2?.toFixed(1) || ''},${cn?.toFixed(1) || ''}\n`;
+      });
+    }
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Diem_${typeName}_${student.MaHS}.csv`;
+    link.download = `KetQua_${typeName}_${student.MaHS}.csv`;
     link.click();
   };
 
@@ -174,12 +184,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
               onChange={(e) => setSearchTerm(e.target.value)} 
             />
           </div>
-          
-          <div className="h-8 w-px bg-slate-100 mx-1 hidden sm:block"></div>
-          
-          <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-100 transition-all border border-slate-200" title="Tải file mẫu Excel">
-            <Download size={16}/> Mẫu
-          </button>
           
           <label className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl cursor-pointer hover:bg-indigo-100 transition-all border border-indigo-100 text-[10px] font-bold uppercase tracking-widest" title="AI quét danh sách từ ảnh/PDF">
              {isAiLoading ? <Loader2 size={16} className="animate-spin"/> : <Camera size={16} />}
@@ -242,18 +246,18 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
       {/* HỒ SƠ CHI TIẾT 4 TAB */}
       {selectedStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-5xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[92vh]">
+          <div className="bg-white w-full max-w-6xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[92vh]">
              {/* Header Modal */}
-             <div className="p-5 border-b flex items-center justify-between bg-white shrink-0">
+             <div className="p-4 border-b flex items-center justify-between bg-white shrink-0">
                 <div className="flex items-center gap-4">
-                   <div className="p-2 bg-indigo-600 rounded-2xl text-white shadow-lg"><Info size={20} /></div>
+                   <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg"><Info size={20} /></div>
                    <div>
                      <h3 className="font-black text-slate-800 text-sm uppercase tracking-tight">Hồ sơ điện tử học sinh</h3>
                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{selectedStudent.Hoten} • ID: {selectedStudent.MaHS}</p>
                    </div>
                 </div>
                 <div className="flex items-center gap-2">
-                   <button onClick={() => setSelectedStudent(null)} className="p-2.5 hover:bg-slate-100 rounded-full transition-colors"><X size={24} className="text-slate-400"/></button>
+                   <button onClick={() => setSelectedStudent(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={20} className="text-slate-400"/></button>
                 </div>
              </div>
 
@@ -273,11 +277,10 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                 </button>
              </div>
              
-             {/* Content Area */}
-             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-white">
+             {/* Content Area - Cố định chiều cao min để tránh nhẩy trang */}
+             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-white min-h-[500px]">
                 {activeInfoTab === 'SYLL' && (
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in slide-in-from-left-4">
-                     {/* Cột trái: Ảnh 2x3 Gọn gàng */}
                      <div className="lg:col-span-3 space-y-4">
                         <div className="aspect-[2/3] w-24 mx-auto bg-slate-50 rounded-2xl border border-slate-200 p-1 shadow-sm overflow-hidden flex items-center justify-center shrink-0">
                            {selectedStudent.Anh ? (
@@ -289,13 +292,12 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                              </div>
                            )}
                         </div>
-                        
                         <div className="bg-indigo-50 p-4 rounded-[28px] border border-indigo-100">
                            <h4 className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-2">AI Phân tích</h4>
                            <button 
                              onClick={() => handleAnalyze(selectedStudent)}
                              disabled={isAnalyzing}
-                             className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl flex items-center justify-center gap-2 text-[9px] font-black uppercase transition-all shadow-md"
+                             className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl flex items-center justify-center gap-2 text-[9px] font-black uppercase transition-all"
                            >
                               {isAnalyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                               Đánh giá HS
@@ -304,18 +306,15 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                         </div>
                      </div>
 
-                     {/* Cột phải: Thông tin */}
                      <div className="lg:col-span-9 space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                            <InfoField label="Ngày sinh" value={selectedStudent.NgaySinh} />
                            <InfoField label="Giới tính" value={selectedStudent.GioiTinh ? 'Nam' : 'Nữ'} />
                            <InfoField label="Điện thoại" value={selectedStudent.SDT_LinkHe} />
-                           <InfoField label="Địa chỉ" value={selectedStudent.DiaChi} colSpan={2} />
                            <InfoField label="Email" value={selectedStudent.Email} />
+                           <InfoField label="Địa chỉ" value={selectedStudent.DiaChi} colSpan={2} />
                         </div>
-
                         <div className="h-px bg-slate-50"></div>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                            <div className="bg-slate-50/50 p-4 rounded-3xl border border-slate-100">
                               <p className="text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Phụ huynh (Cha)</p>
@@ -328,7 +327,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                               <p className="text-[10px] text-slate-500 font-medium mt-0.5 italic">{selectedStudent.NgheNghiepMe}</p>
                            </div>
                         </div>
-
                         <div className="p-5 bg-slate-900 rounded-[28px] text-white/90 italic text-[11px] leading-relaxed">
                            <span className="text-indigo-400 font-black uppercase text-[9px] not-italic block mb-1">Ghi chú từ GVCN:</span>
                            "{selectedStudent.GhiChuKhac || 'Chưa có ghi chú đặc biệt.'}"
@@ -339,8 +337,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
 
                 {activeInfoTab === 'GRADES' && (
                   <div className="space-y-6 animate-in slide-in-from-right-4">
-                     {/* Sub Tab Điểm */}
-                     <div className="flex items-center justify-between bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+                     <div className="flex items-center justify-between bg-slate-50 p-1 rounded-2xl border border-slate-100">
                         <div className="flex gap-1">
                            {[1, 2, 'CN'].map(tab => (
                              <button 
@@ -360,21 +357,53 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                         </button>
                      </div>
 
-                     <div className="overflow-hidden border border-slate-100 rounded-[32px] shadow-sm">
+                     <div className="overflow-hidden border border-slate-100 rounded-[32px] shadow-sm bg-white">
                         <table className="w-full text-left">
                            <thead className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                               <tr>
-                                <th className="px-8 py-4">Tên môn học</th>
-                                <th className="px-8 py-4 text-right text-indigo-600">Điểm Trung bình</th>
+                                <th className="px-6 py-4">Môn học</th>
+                                {gradeSubTab === 'CN' ? (
+                                  <>
+                                    <th className="px-4 py-4 text-center">Học kỳ 1</th>
+                                    <th className="px-4 py-4 text-center">Học kỳ 2</th>
+                                  </>
+                                ) : (
+                                  <>
+                                    <th className="px-2 py-4 text-center">TX1</th>
+                                    <th className="px-2 py-4 text-center">TX2</th>
+                                    <th className="px-2 py-4 text-center">TX3</th>
+                                    <th className="px-2 py-4 text-center">TX4</th>
+                                    <th className="px-2 py-4 text-center">TX5</th>
+                                    <th className="px-3 py-4 text-center bg-slate-100/50">KTGK</th>
+                                    <th className="px-3 py-4 text-center bg-slate-100/50">KTCK</th>
+                                  </>
+                                )}
+                                <th className="px-6 py-4 text-right text-indigo-600">TB</th>
                               </tr>
                            </thead>
                            <tbody className="divide-y divide-slate-50">
                               {subjectsList.map(sub => {
-                                 const score = calculateSubjectAvg(selectedStudent.MaHS, sub.id, gradeSubTab);
+                                 const tb = calculateSubjectAvg(selectedStudent.MaHS, sub.id, gradeSubTab);
                                  return (
                                    <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors">
-                                      <td className="px-8 py-4 font-bold text-slate-800 text-xs">{sub.name}</td>
-                                      <td className="px-8 py-4 text-right font-black text-indigo-600 bg-indigo-50/20">{score?.toFixed(1) || '--'}</td>
+                                      <td className="px-6 py-4 font-bold text-slate-800 text-xs">{sub.name}</td>
+                                      {gradeSubTab === 'CN' ? (
+                                        <>
+                                          <td className="px-4 py-4 text-center text-slate-500 font-bold">{calculateSubjectAvg(selectedStudent.MaHS, sub.id, 1)?.toFixed(1) || '--'}</td>
+                                          <td className="px-4 py-4 text-center text-slate-500 font-bold">{calculateSubjectAvg(selectedStudent.MaHS, sub.id, 2)?.toFixed(1) || '--'}</td>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <td className="px-2 py-4 text-center text-[11px]">{getSpecificGrade(selectedStudent.MaHS, sub.id, gradeSubTab as number, 'ĐGTX1') || '-'}</td>
+                                          <td className="px-2 py-4 text-center text-[11px]">{getSpecificGrade(selectedStudent.MaHS, sub.id, gradeSubTab as number, 'ĐGTX2') || '-'}</td>
+                                          <td className="px-2 py-4 text-center text-[11px]">{getSpecificGrade(selectedStudent.MaHS, sub.id, gradeSubTab as number, 'ĐGTX3') || '-'}</td>
+                                          <td className="px-2 py-4 text-center text-[11px]">{getSpecificGrade(selectedStudent.MaHS, sub.id, gradeSubTab as number, 'ĐGTX4') || '-'}</td>
+                                          <td className="px-2 py-4 text-center text-[11px]">{getSpecificGrade(selectedStudent.MaHS, sub.id, gradeSubTab as number, 'ĐGTX5') || '-'}</td>
+                                          <td className="px-3 py-4 text-center bg-slate-100/30 font-bold">{getSpecificGrade(selectedStudent.MaHS, sub.id, gradeSubTab as number, 'ĐGGK') || '-'}</td>
+                                          <td className="px-3 py-4 text-center bg-slate-100/30 font-bold">{getSpecificGrade(selectedStudent.MaHS, sub.id, gradeSubTab as number, 'ĐGCK') || '-'}</td>
+                                        </>
+                                      )}
+                                      <td className="px-6 py-4 text-right font-black text-indigo-600 bg-indigo-50/20">{tb?.toFixed(1) || '--'}</td>
                                    </tr>
                                  );
                               })}
@@ -438,15 +467,15 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
              </div>
              
              {/* Footer Modal */}
-             <div className="p-5 bg-slate-50 border-t flex justify-end gap-3 shrink-0">
-                <button onClick={() => setSelectedStudent(null)} className="px-8 py-3 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Đóng hồ sơ</button>
-                <button onClick={() => { setFormData(selectedStudent); setIsFormOpen(true); }} className="px-10 py-3 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-2 text-[10px] uppercase tracking-widest"><Edit2 size={16}/> Sửa thông tin</button>
+             <div className="p-4 bg-slate-50 border-t flex justify-end gap-3 shrink-0">
+                <button onClick={() => setSelectedStudent(null)} className="px-8 py-2.5 bg-white border border-slate-200 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Đóng</button>
+                <button onClick={() => { setFormData(selectedStudent); setIsFormOpen(true); }} className="px-10 py-2.5 bg-indigo-600 text-white rounded-xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-2 text-[10px] uppercase tracking-widest"><Edit2 size={16}/> Sửa thông tin</button>
              </div>
           </div>
         </div>
       )}
 
-      {/* MODAL THÊM / SỬA HỌC SINH - THIẾT KẾ LẠI RỘNG RÃI */}
+      {/* MODAL THÊM / SỬA HỌC SINH */}
       {isFormOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[92vh]">
@@ -460,7 +489,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
             
             <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-50/20 space-y-8">
                <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                  {/* Cột trái: Ảnh thẻ 2x3 */}
                   <div className="lg:col-span-3">
                     <div className="space-y-4">
                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Ảnh hồ sơ (2x3)</label>
@@ -479,12 +507,11 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                     </div>
                   </div>
 
-                  {/* Cột phải: Form nhập liệu rải rộng */}
                   <div className="lg:col-span-9 space-y-8">
                      <section className="space-y-4">
                         <div className="flex items-center gap-2 border-b border-indigo-100 pb-2">
                            <User size={14} className="text-indigo-500" />
-                           <h5 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Thông tin cá nhân & Liên lạc</h5>
+                           <h5 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Thông tin & Gia đình</h5>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                            <InputField label="Mã Học Sinh" value={formData.MaHS} onChange={v => setFormData({...formData, MaHS: v})} placeholder="HS001" required colSpan={1} />
@@ -497,36 +524,29 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                                 <button onClick={() => setFormData({...formData, GioiTinh: false})} className={`flex-1 rounded-xl text-[10px] font-black uppercase transition-all ${!formData.GioiTinh ? 'bg-pink-500 text-white shadow-md' : 'text-slate-400 hover:bg-pink-50'}`}>Nữ</button>
                               </div>
                            </div>
-                           <InputField label="Số điện thoại liên hệ" value={formData.SDT_LinkHe} onChange={v => setFormData({...formData, SDT_LinkHe: v})} placeholder="090..." colSpan={2} />
-                           <InputField label="Email (nếu có)" value={formData.Email} onChange={v => setFormData({...formData, Email: v})} placeholder="abc@gmail.com" colSpan={2} />
-                           <InputField label="Địa chỉ thường trú" value={formData.DiaChi} onChange={v => setFormData({...formData, DiaChi: v})} placeholder="Số nhà, đường, xã/phường, quận/huyện..." colSpan={4} />
-                        </div>
-                     </section>
-
-                     <section className="space-y-4">
-                        <div className="flex items-center gap-2 border-b border-emerald-100 pb-2">
-                           <Users size={14} className="text-emerald-500" />
-                           <h5 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Gia đình & Phụ huynh</h5>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                           <InputField label="Họ tên Cha" value={formData.TenCha} onChange={v => setFormData({...formData, TenCha: v})} placeholder="Nhập họ tên cha" />
-                           <InputField label="Nghề nghiệp Cha" value={formData.NgheNghiepCha} onChange={v => setFormData({...formData, NgheNghiepCha: v})} placeholder="VD: Công chức, Kỹ sư..." />
-                           <InputField label="Họ tên Mẹ" value={formData.TenMe} onChange={v => setFormData({...formData, TenMe: v})} placeholder="Nhập họ tên mẹ" />
-                           <InputField label="Nghề nghiệp Mẹ" value={formData.NgheNghiepMe} onChange={v => setFormData({...formData, NgheNghiepMe: v})} placeholder="VD: Nội trợ, Kinh doanh..." />
+                           <InputField label="Số điện thoại" value={formData.SDT_LinkHe} onChange={v => setFormData({...formData, SDT_LinkHe: v})} placeholder="090..." colSpan={2} />
+                           <InputField label="Email" value={formData.Email} onChange={v => setFormData({...formData, Email: v})} placeholder="abc@gmail.com" colSpan={2} />
+                           <InputField label="Địa chỉ" value={formData.DiaChi} onChange={v => setFormData({...formData, DiaChi: v})} placeholder="Địa chỉ thường trú..." colSpan={4} />
+                           
+                           {/* Dồn thông tin Cha Mẹ lên sát */}
+                           <InputField label="Họ tên Cha" value={formData.TenCha} onChange={v => setFormData({...formData, TenCha: v})} placeholder="Tên cha" colSpan={2} />
+                           <InputField label="Nghề nghiệp Cha" value={formData.NgheNghiepCha} onChange={v => setFormData({...formData, NgheNghiepCha: v})} placeholder="Nghề nghiệp" colSpan={2} />
+                           <InputField label="Họ tên Mẹ" value={formData.TenMe} onChange={v => setFormData({...formData, TenMe: v})} placeholder="Tên mẹ" colSpan={2} />
+                           <InputField label="Nghề nghiệp Mẹ" value={formData.NgheNghiepMe} onChange={v => setFormData({...formData, NgheNghiepMe: v})} placeholder="Nghề nghiệp" colSpan={2} />
                         </div>
                      </section>
 
                      <section className="space-y-4">
                         <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
                            <FileText size={14} className="text-slate-400" />
-                           <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ghi chú & Lưu ý đặc biệt</h5>
+                           <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ghi chú & Lưu ý</h5>
                         </div>
                         <div className="space-y-1.5">
                            <textarea 
                              value={formData.GhiChuKhac} 
                              onChange={e => setFormData({...formData, GhiChuKhac: e.target.value})} 
                              className="w-full p-5 bg-white border border-slate-200 rounded-[32px] text-[12px] font-medium outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all min-h-[160px]" 
-                             placeholder="Các lưu ý về hoàn cảnh gia đình, sức khỏe, cá tính riêng hoặc những vấn đề giáo viên cần quan tâm đặc biệt ở học sinh này..."
+                             placeholder="Các lưu ý đặc biệt..."
                            ></textarea>
                         </div>
                      </section>
@@ -535,8 +555,8 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
             </div>
             
             <div className="p-6 bg-white border-t flex justify-end gap-3 shrink-0">
-               <button onClick={() => setIsFormOpen(false)} className="px-10 py-3.5 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">Hủy bỏ</button>
-               <button onClick={handleSaveStudent} className="px-14 py-3.5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all text-[10px] uppercase tracking-widest flex items-center gap-2"><Save size={18}/> {formData.MaHS ? 'Cập nhật thay đổi' : 'Lưu hồ sơ mới'}</button>
+               <button onClick={() => setIsFormOpen(false)} className="px-10 py-3.5 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">Hủy</button>
+               <button onClick={handleSaveStudent} className="px-14 py-3.5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all text-[10px] uppercase tracking-widest flex items-center gap-2"><Save size={18}/> {formData.MaHS ? 'Cập nhật' : 'Lưu hồ sơ'}</button>
             </div>
           </div>
         </div>
