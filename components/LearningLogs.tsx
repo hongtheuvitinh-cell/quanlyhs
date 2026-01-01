@@ -78,8 +78,11 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
   };
 
   const saveRollCall = () => {
-    const newLogs: LearningLog[] = students.map(s => ({
-      MaTheoDoi: Date.now() + Math.random(),
+    // Sửa ID ở đây: dùng giây thay vì miligiây để không bị lỗi out of range integer
+    const baseId = Math.floor(Date.now() / 1000);
+    
+    const newLogs: LearningLog[] = students.map((s, index) => ({
+      MaTheoDoi: baseId + index + Math.floor(Math.random() * 1000),
       MaHS: s.MaHS,
       MaPhanCong: assignment.MaPhanCong,
       NgayGhiChep: selectedDate,
