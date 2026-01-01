@@ -13,7 +13,7 @@ interface Props {
   tasks: AssignmentTask[];
   onLogout: () => void;
   onToggleTask: (taskId: number, link?: string) => void;
-  onUpdateProfile: () => void;
+  onUpdateProfile: () => Promise<void> | void;
 }
 
 const subjectsList = [
@@ -22,9 +22,7 @@ const subjectsList = [
 ];
 
 const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, onLogout, onToggleTask, onUpdateProfile }) => {
-  const today = new Date().toISOString().split('T')[0];
   const [activePortalTab, setActivePortalTab] = useState<'study' | 'security'>('study');
-  const [taskLinks, setTaskLinks] = useState<Record<number, string>>({});
   const [passwordForm, setPasswordForm] = useState({ old: '', new: '', confirm: '' });
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -63,7 +61,8 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
   }, [disciplines, student.MaHS]);
 
   const handleUpdatePassword = async () => {
-    if (passwordForm.new !== passwordForm.confirm) { alert("Xác nhận mật khẩu không khớp!"); return; }
+    if (!passwordForm.old || !passwordForm.new || !passwordForm.confirm) { alert("Vui lòng điền đầy đủ thông tin!"); return; }
+    if (passwordForm.new !== passwordForm.confirm) { alert("Xác nhận mật khẩu mới không khớp!"); return; }
     if (passwordForm.old !== (student.MatKhau || '123456')) { alert("Mật khẩu cũ không chính xác!"); return; }
     
     setIsUpdating(true);
@@ -72,9 +71,12 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
       if (error) throw error;
       alert("Cập nhật mật khẩu thành công!");
       setPasswordForm({ old: '', new: '', confirm: '' });
-      onUpdateProfile();
-    } catch (e: any) { alert(e.message); }
-    finally { setIsUpdating(false); }
+      await onUpdateProfile();
+    } catch (e: any) { 
+      alert("Lỗi: " + e.message); 
+    } finally { 
+      setIsUpdating(false); 
+    }
   };
 
   return (
@@ -148,7 +150,6 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                   {tasks.length > 0 ? tasks.map(task => {
                      const isDone = task.DanhSachHoanThanh.includes(student.MaHS);
-                     const existingLink = task.BaoCaoNhiemVu?.[student.MaHS] || '';
                      return (
                        <div key={task.MaNhiemVu} className={`p-5 rounded-3xl border transition-all ${isDone ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-gray-100 shadow-sm'}`}>
                           <div className="flex justify-between items-start mb-2">
