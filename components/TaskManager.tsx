@@ -67,7 +67,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
     setIsSubmitting(true);
     try {
       const task: AssignmentTask = {
-        MaNhiemVu: Date.now(), // Số này rất lớn, CSDL cần kiểu bigint
+        MaNhiemVu: Date.now(), 
         TieuDe: newTask.TieuDe,
         MoTa: newTask.MoTa,
         MaLop: state.selectedClass,
@@ -79,6 +79,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
         BaoCaoNhiemVu: {}
       };
 
+      console.log("Đang gửi dữ liệu:", task);
       await onUpdateTasks([task]);
       
       setIsModalOpen(false);
@@ -90,16 +91,18 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
       });
       alert("Đã giao nhiệm vụ thành công!");
     } catch (error: any) {
-      console.error("Lỗi chi tiết từ Supabase:", error);
-      // Hiển thị đầy đủ thông tin lỗi để xử lý
-      const errorMsg = [
+      console.error("Lỗi bắt được tại TaskManager:", error);
+      
+      // Phân tích lỗi Supabase chi tiết hơn
+      const errorDetails = [
         "LỖI HỆ THỐNG:",
-        `Thông điệp: ${error.message || 'Không có'}`,
-        `Chi tiết: ${error.details || 'Không có'}`,
-        `Gợi ý: ${error.hint || 'Hãy kiểm tra kiểu dữ liệu MaNhiemVu (phải là bigint)'}`
+        `Message: ${error.message || 'Không có'}`,
+        `Code: ${error.code || 'Không có mã lỗi'}`,
+        `Detail: ${error.details || 'Không có chi tiết'}`,
+        `Hint: ${error.hint || 'Hãy đảm bảo bạn đã chạy script SQL sửa bảng tasks.'}`
       ].join('\n\n');
       
-      alert(errorMsg);
+      alert(errorDetails);
     } finally {
       setIsSubmitting(false);
     }
@@ -120,7 +123,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
     try {
       await onUpdateTasks([updatedTask]);
     } catch (error: any) {
-      alert("Lỗi cập nhật: " + error.message);
+      alert("Lỗi cập nhật: " + (error.message || "Không xác định"));
     }
   };
 
