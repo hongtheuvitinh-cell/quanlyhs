@@ -117,8 +117,11 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
 
     setIsSubmitting(true);
     try {
+      // Sử dụng giây thay vì miligiây để không bị lỗi out of range integer
+      const secureTaskId = modalMode === 'add' ? Math.floor(Date.now() / 1000) : newTask.MaNhiemVu;
+
       const task: AssignmentTask = {
-        MaNhiemVu: modalMode === 'add' ? Date.now() : newTask.MaNhiemVu, 
+        MaNhiemVu: secureTaskId, 
         TieuDe: newTask.TieuDe,
         MoTa: newTask.MoTa,
         MaLop: state.selectedClass,
