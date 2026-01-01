@@ -227,7 +227,16 @@ const App: React.FC = () => {
           {activeTab === 'students' && <StudentList state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} logs={logs} disciplines={disciplines} onAddStudent={s => supabase.from('students').insert([s]).then(fetchData)} onAddStudents={s => supabase.from('students').insert(s).then(fetchData)} onUpdateStudent={s => supabase.from('students').update(s).eq('MaHS', s.MaHS).then(fetchData)} onDeleteStudent={id => supabase.from('students').delete().eq('MaHS', id).then(fetchData)} />}
           {activeTab === 'grades' && <GradeBoard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={g => fetchData()} />}
           {activeTab === 'tasks' && <TaskManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={t => fetchData()} onDeleteTask={id => fetchData()} />}
-          {activeTab === 'logs' && <LearningLogs state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} logs={logs} assignment={currentAssignment!} onUpdateLogs={l => supabase.from('learning_logs').insert(l).then(fetchData)} />}
+          {activeTab === 'logs' && (
+            <LearningLogs 
+              state={state} 
+              students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
+              logs={logs} 
+              assignment={currentAssignment!} 
+              onUpdateLogs={l => supabase.from('learning_logs').upsert(l).then(fetchData)} 
+              onDeleteLog={id => supabase.from('learning_logs').delete().eq('MaTheoDoi', id).then(fetchData)}
+            />
+          )}
         </div>
       </main>
     </div>
