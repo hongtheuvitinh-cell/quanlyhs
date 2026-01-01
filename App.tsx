@@ -74,18 +74,8 @@ const App: React.FC = () => {
       if (tkData) setTasks(tkData);
       if (rlData) setViolationRules(rlData);
 
-      if (yrData?.length && (state.selectedYear === 0)) {
-        setState((p: AppState) => ({ ...p, selectedYear: (yrData[0] as AcademicYear).MaNienHoc }));
-      }
-      
-      if (state.currentUser) {
-        if ((state.currentUser as any).MaHS) {
-          const freshUser = (stData as Student[])?.find((s: Student) => s.MaHS === (state.currentUser as Student).MaHS);
-          if (freshUser) setState((p: AppState) => ({ ...p, currentUser: freshUser }));
-        } else {
-          const freshUser = (tcData as Teacher[])?.find((t: Teacher) => t.MaGV === (state.currentUser as Teacher).MaGV);
-          if (freshUser) setState((p: AppState) => ({ ...p, currentUser: freshUser }));
-        }
+      if (yrData?.length && state.selectedYear === 0) {
+        setState(p => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
       }
     } catch (err) {
       console.error("Lỗi đồng bộ:", err);
@@ -99,42 +89,32 @@ const App: React.FC = () => {
   const filteredClasses = useMemo(() => {
     if (!state.currentUser || (state.currentUser as any).MaHS) return [];
     const teacherID = (state.currentUser as Teacher).MaGV;
-    const myAssignments = assignments.filter((a: Assignment) => a.MaGV === teacherID && a.MaNienHoc === state.selectedYear);
+    const myAssignments = assignments.filter(a => a.MaGV === teacherID && a.MaNienHoc === state.selectedYear);
     const assignedClassIds = myAssignments
-      .filter((a: Assignment) => a.LoaiPhanCong === state.currentRole)
-      .map((a: Assignment) => a.MaLop);
-    return classes.filter((c: Class) => assignedClassIds.includes(c.MaLop));
+      .filter(a => a.LoaiPhanCong === state.currentRole)
+      .map(a => a.MaLop);
+    return classes.filter(c => assignedClassIds.includes(c.MaLop));
   }, [classes, assignments, state.currentUser, state.currentRole, state.selectedYear]);
 
   useEffect(() => {
-    if (filteredClasses.length > 0 && (!state.selectedClass || !filteredClasses.some((c: Class) => c.MaLop === state.selectedClass))) {
-      setState((p: AppState) => ({ ...p, selectedClass: filteredClasses[0].MaLop }));
+    if (filteredClasses.length > 0 && (!state.selectedClass || !filteredClasses.some(c => c.MaLop === state.selectedClass))) {
+      setState(p => ({ ...p, selectedClass: filteredClasses[0].MaLop }));
     }
   }, [filteredClasses, state.selectedClass]);
 
-  const currentAssignment = useMemo(() => {
-    if (!state.currentUser || (state.currentUser as any).MaHS) return null;
-    const teacherID = (state.currentUser as Teacher).MaGV;
-    return assignments.find((a: Assignment) => 
-      a.MaGV === teacherID && a.MaLop === state.selectedClass && a.MaNienHoc === state.selectedYear &&
-      a.LoaiPhanCong === state.currentRole
-    );
-  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole]);
-
   const handleLogin = (role: Role, id: string, pass: string) => {
     if (role === Role.STUDENT) {
-      const s = students.find((x: Student) => x.MaHS === id);
+      const s = students.find(x => x.MaHS === id);
       if (s && (s.MatKhau || '123456') === pass) {
-        setState((p: AppState) => ({ ...p, currentUser: s, currentRole: Role.STUDENT, selectedClass: s.MaLopHienTai }));
+        setState(p => ({ ...p, currentUser: s, currentRole: Role.STUDENT, selectedClass: s.MaLopHienTai }));
         setIsLoggedIn(true);
       } else alert("Mã HS hoặc mật khẩu không chính xác!");
     } else {
-      const t = teachers.find((x: Teacher) => x.MaGV === id);
+      const t = teachers.find(x => x.MaGV === id);
       if (t && (t.MatKhau || '123456') === pass) {
-        const myAs = assignments.filter((a: Assignment) => a.MaGV === id);
-        const initialRole = myAs.some((a: Assignment) => a.LoaiPhanCong === Role.CHU_NHIEM) ? Role.CHU_NHIEM : Role.GIANG_DAY;
-        const initialClass = myAs.find((a: Assignment) => a.LoaiPhanCong === initialRole)?.MaLop || (myAs[0]?.MaLop || '');
-        setState((p: AppState) => ({ ...p, currentUser: t, currentRole: initialRole, selectedClass: initialClass }));
+        const myAs = assignments.filter(a => a.MaGV === id);
+        const initialRole = myAs.some(a => a.LoaiPhanCong === Role.CHU_NHIEM) ? Role.CHU_NHIEM : Role.GIANG_DAY;
+        setState(p => ({ ...p, currentUser: t, currentRole: initialRole, selectedClass: myAs[0]?.MaLop || '' }));
         setIsLoggedIn(true);
       } else alert("Mã GV hoặc mật khẩu không chính xác!");
     }
@@ -143,45 +123,27 @@ const App: React.FC = () => {
   const handleUpdateTeacherPassword = async () => {
     const t = state.currentUser as Teacher;
     if (!t) return;
-    if (!passwordForm.old || !passwordForm.new || !passwordForm.confirm) { alert("Vui lòng nhập đủ thông tin!"); return; }
-    if (passwordForm.new !== passwordForm.confirm) { alert("Xác nhận mật khẩu không khớp!"); return; }
-    if (passwordForm.old !== (t.MatKhau || '123456')) { alert("Mật khẩu cũ không chính xác!"); return; }
+    if (passwordForm.new !== passwordForm.confirm) { alert("Mật khẩu không khớp!"); return; }
+    if (passwordForm.old !== (t.MatKhau || '123456')) { alert("Mật khẩu cũ sai!"); return; }
     
     setIsLoading(true);
     try {
-      const { error } = await supabase.from('teachers').update({ MatKhau: passwordForm.new }).eq('MaGV', t.MaGV);
-      if (error) throw error;
-      alert("Đã cập nhật mật khẩu thành công!");
+      await supabase.from('teachers').update({ MatKhau: passwordForm.new }).eq('MaGV', t.MaGV);
+      alert("Đã đổi mật khẩu!");
       setIsPasswordModalOpen(false);
-      setPasswordForm({ old: '', new: '', confirm: '' });
-      await fetchData();
+      fetchData();
     } catch (e: any) { alert(e.message); }
     finally { setIsLoading(false); }
   };
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>;
-  
   if (!isLoggedIn) return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
-
-  if (state.currentRole === Role.STUDENT) {
-    return (
-      <StudentPortal 
-        student={state.currentUser as Student} 
-        grades={grades} 
-        disciplines={disciplines} 
-        tasks={tasks} 
-        onLogout={() => setIsLoggedIn(false)} 
-        onToggleTask={(taskId: any, link?: any) => { console.log(taskId, link); }} 
-        onUpdateProfile={() => fetchData()} 
-      />
-    );
-  }
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden text-[13px] font-normal text-slate-600">
       <aside className="w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm relative z-20">
         <div className="p-5 flex items-center gap-2.5 border-b border-slate-50">
-          <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-indigo-100 shadow-lg"><GraduationCap size={18} /></div>
+          <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg"><GraduationCap size={18} /></div>
           <h1 className="font-bold text-base text-slate-800 tracking-tight">EduManager</h1>
         </div>
         <div className="p-4">
@@ -189,39 +151,31 @@ const App: React.FC = () => {
               <p className="text-[9px] font-bold uppercase text-slate-400 mb-2 px-1 tracking-widest">Chế độ làm việc</p>
               <div className="flex p-1 bg-white rounded-xl border border-slate-100">
                 <button 
-                  onClick={() => setState((p: AppState) => ({...p, currentRole: Role.CHU_NHIEM}))}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all ${state.currentRole === Role.CHU_NHIEM ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  <UserCheck size={11}/> CN
-                </button>
+                  onClick={() => setState(p => ({...p, currentRole: Role.CHU_NHIEM}))}
+                  className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase ${state.currentRole === Role.CHU_NHIEM ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}
+                >CN</button>
                 <button 
-                  onClick={() => setState((p: AppState) => ({...p, currentRole: Role.GIANG_DAY}))}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all ${state.currentRole === Role.GIANG_DAY ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  <BookOpen size={11}/> GD
-                </button>
+                  onClick={() => setState(p => ({...p, currentRole: Role.GIANG_DAY}))}
+                  className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase ${state.currentRole === Role.GIANG_DAY ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}
+                >GD</button>
               </div>
            </div>
         </div>
-        <nav className="flex-1 px-3 space-y-0.5 pt-2 overflow-y-auto custom-scrollbar">
-          <p className="text-[9px] font-bold uppercase text-slate-400 mb-2 px-2 tracking-widest mt-4">Nghiệp vụ</p>
+        <nav className="flex-1 px-3 space-y-1 pt-2 overflow-y-auto custom-scrollbar">
           {[
             { id: 'dashboard', label: 'Bàn làm việc', icon: LayoutDashboard },
             { id: 'students', label: 'Học sinh & SYLL', icon: Users },
             { id: 'grades', label: 'Bảng điểm môn', icon: GraduationCap },
             { id: 'tasks', label: 'Giao bài tập', icon: Send },
-            { id: 'discipline', label: 'Kỷ luật rèn luyện', icon: ShieldAlert },
-            { id: 'logs', label: 'Nhật ký tiết học', icon: ClipboardList },
+            { id: 'discipline', label: 'Kỷ luật', icon: ShieldAlert },
+            { id: 'logs', label: 'Nhật ký', icon: ClipboardList },
           ].map((item: any) => (
             <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-bold transition-all ${activeTab === item.id ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'}`}>
               <item.icon size={16} /> <span className="flex-1 text-left">{item.label}</span>
-              {activeTab === item.id && <ChevronRight size={12} />}
             </button>
           ))}
-          <p className="text-[9px] font-bold uppercase text-slate-400 mb-2 px-2 tracking-widest mt-8">Quản trị</p>
-          <button onClick={() => setActiveTab('system')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-bold transition-all ${activeTab === 'system' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
-            <Settings size={16} /> <span className="flex-1 text-left">Cấu hình hệ thống</span>
-            {activeTab === 'system' && <ChevronRight size={12} />}
+          <button onClick={() => setActiveTab('system')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-bold mt-4 ${activeTab === 'system' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
+            <Settings size={16} /> <span>Hệ thống</span>
           </button>
         </nav>
         <div className="p-4 mt-auto border-t border-slate-50">
@@ -230,80 +184,47 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 bg-white">
-        <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 relative z-10">
-          <div className="flex items-center gap-8">
+        <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Niên học:</span>
-              <select value={state.selectedYear} onChange={(e: any) => setState((p: AppState) => ({...p, selectedYear: parseInt(e.target.value)}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{years.map((y: AcademicYear) => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}</select>
+              <span className="text-[10px] font-black text-slate-400 uppercase">Niên học:</span>
+              <select value={state.selectedYear} onChange={(e: any) => setState(p => ({...p, selectedYear: parseInt(e.target.value)}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}</select>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lớp:</span>
-              <select value={state.selectedClass} onChange={(e: any) => setState((p: AppState) => ({...p, selectedClass: e.target.value}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{filteredClasses.map((c: Class) => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}</select>
+              <span className="text-[10px] font-black text-slate-400 uppercase">Lớp:</span>
+              <select value={state.selectedClass} onChange={(e: any) => setState(p => ({...p, selectedClass: e.target.value}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{filteredClasses.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}</select>
             </div>
           </div>
-          <div className="flex items-center gap-4 cursor-pointer hover:bg-slate-50 p-1 px-3 rounded-xl transition-all" onClick={() => setIsPasswordModalOpen(true)}>
+          <div className="flex items-center gap-4 cursor-pointer p-1 px-3 rounded-xl hover:bg-slate-50" onClick={() => setIsPasswordModalOpen(true)}>
              <div className="text-right">
-                <p className="text-[11px] font-bold text-slate-800 leading-none mb-1">{(state.currentUser as Teacher)?.Hoten}</p>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Giáo viên {state.currentRole === Role.CHU_NHIEM ? 'Chủ nhiệm' : 'Giảng dạy'}</p>
+                <p className="text-[11px] font-bold text-slate-800">{(state.currentUser as Teacher)?.Hoten}</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase">Giáo viên</p>
              </div>
              <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold border border-indigo-100">{(state.currentUser as Teacher)?.Hoten?.charAt(0)}</div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/30">
-          {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} />}
+        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+          {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} />}
           {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={() => fetchData()} />}
-          {activeTab === 'discipline' && (
-            <DisciplineManager 
-              state={state} 
-              students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} 
-              disciplines={disciplines.filter((d: Discipline) => students.filter((s: Student) => s.MaLopHienTai === state.selectedClass).some((s: Student) => s.MaHS === d.MaHS))} 
-              violationRules={violationRules} 
-              onUpdateDisciplines={(l: Discipline[]) => supabase.from('disciplines').upsert(l).then(() => fetchData())} 
-              onDeleteDiscipline={(id: number) => supabase.from('disciplines').delete().eq('MaKyLuat', id).then(() => fetchData())}
-              onUpdateRules={(r: ViolationRule[]) => supabase.from('violation_rules').upsert(r).then(() => fetchData())} 
-            />
-          )}
-          {activeTab === 'students' && <StudentList state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} grades={grades} logs={logs} disciplines={disciplines} onAddStudent={(s: Student) => supabase.from('students').insert([s]).then(() => fetchData())} onAddStudents={(s: Student[]) => supabase.from('students').insert(s).then(() => fetchData())} onUpdateStudent={(s: Student) => supabase.from('students').update(s).eq('MaHS', s.MaHS).then(() => fetchData())} onDeleteStudent={(id: string) => supabase.from('students').delete().eq('MaHS', id).then(() => fetchData())} />}
-          {activeTab === 'grades' && <GradeBoard state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={() => fetchData()} />}
-          {activeTab === 'tasks' && <TaskManager state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={() => fetchData()} onDeleteTask={() => fetchData()} />}
-          {activeTab === 'logs' && (
-            <LearningLogs 
-              state={state} 
-              students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} 
-              logs={logs} 
-              assignment={currentAssignment!} 
-              onUpdateLogs={(l: LearningLog[]) => supabase.from('learning_logs').upsert(l).then(() => fetchData())} 
-              onDeleteLog={(id: number) => supabase.from('learning_logs').delete().eq('MaTheoDoi', id).then(() => fetchData())}
-            />
-          )}
+          {activeTab === 'students' && <StudentList state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateStudent={() => {}} onDeleteStudent={() => {}} />}
+          {activeTab === 'grades' && <GradeBoard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={() => fetchData()} />}
+          {activeTab === 'tasks' && <TaskManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={() => fetchData()} onDeleteTask={() => fetchData()} />}
         </div>
       </main>
 
       {isPasswordModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95">
-             <div className="p-6 border-b flex items-center justify-between">
-                <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight flex items-center gap-2"><Lock size={18} className="text-indigo-600"/> Đổi mật khẩu Giáo viên</h3>
-                <button onClick={() => setIsPasswordModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={20}/></button>
+          <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl p-6">
+             <h3 className="font-black text-sm text-slate-800 uppercase mb-4">Đổi mật khẩu Giáo viên</h3>
+             <div className="space-y-3">
+                <input type="password" placeholder="Mật khẩu cũ" value={passwordForm.old} onChange={(e: any) => setPasswordForm({...passwordForm, old: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none" />
+                <input type="password" placeholder="Mật khẩu mới" value={passwordForm.new} onChange={(e: any) => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none" />
+                <input type="password" placeholder="Xác nhận" value={passwordForm.confirm} onChange={(e: any) => setPasswordForm({...passwordForm, confirm: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none" />
              </div>
-             <div className="p-6 space-y-4">
-                <div className="space-y-1">
-                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Mật khẩu cũ</label>
-                   <input type="password" value={passwordForm.old} onChange={(e: any) => setPasswordForm({...passwordForm, old: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:bg-white focus:border-indigo-400" />
-                </div>
-                <div className="space-y-1">
-                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Mật khẩu mới</label>
-                   <input type="password" value={passwordForm.new} onChange={(e: any) => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:bg-white focus:border-indigo-400" />
-                </div>
-                <div className="space-y-1">
-                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Xác nhận mật khẩu mới</label>
-                   <input type="password" value={passwordForm.confirm} onChange={(e: any) => setPasswordForm({...passwordForm, confirm: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:bg-white focus:border-indigo-400" />
-                </div>
-             </div>
-             <div className="p-4 bg-slate-50 border-t flex gap-3">
-                <button onClick={() => setIsPasswordModalOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest">Hủy</button>
-                <button onClick={handleUpdateTeacherPassword} className="flex-[2] py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2"><Save size={16}/> Cập nhật</button>
+             <div className="mt-6 flex gap-3">
+                <button onClick={() => setIsPasswordModalOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase">Hủy</button>
+                <button onClick={handleUpdateTeacherPassword} className="flex-[2] py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg">Cập nhật</button>
              </div>
           </div>
         </div>
