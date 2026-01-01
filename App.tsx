@@ -191,6 +191,18 @@ const App: React.FC = () => {
     } catch (error: any) { alert(`Lỗi: ${error.message}`); }
   };
 
+  const handleUpdateTasks = async (newTasks: AssignmentTask[]) => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { error } = await supabase.from('tasks').upsert(newTasks);
+      if (error) throw error;
+      await fetchData();
+    } catch (error: any) {
+      console.error("Lỗi cập nhật nhiệm vụ:", error);
+      throw error;
+    }
+  };
+
   const handleAddYear = async () => {
     if (!newYearName.trim() || !isSupabaseConfigured) return;
     const { error } = await supabase.from('academic_years').insert([{ TenNienHoc: newYearName }]);
@@ -235,8 +247,7 @@ const App: React.FC = () => {
               [studentId]: link || ''
             }
           };
-          await supabase.from('tasks').upsert(updatedTask);
-          await fetchData();
+          await handleUpdateTasks([updatedTask]);
         }}
       />
     );
@@ -334,7 +345,7 @@ const App: React.FC = () => {
                 />
               )}
               {activeTab === 'grades' && <GradeBoard state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={handleUpdateGrades} />}
-              {activeTab === 'tasks' && <TaskManager state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={async (t: AssignmentTask[]) => { await supabase.from('tasks').upsert(t); await fetchData(); }} />}
+              {activeTab === 'tasks' && <TaskManager state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={handleUpdateTasks} />}
               {activeTab === 'discipline' && <DisciplineManager state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={async (d: Discipline[]) => { await supabase.from('disciplines').insert(d); await fetchData(); }} onUpdateRules={async (r: ViolationRule[]) => { await supabase.from('violation_rules').upsert(r); await fetchData(); }} />}
               {activeTab === 'logs' && <LearningLogs state={state} students={students.filter((s: Student) => s.MaLopHienTai === state.selectedClass)} logs={logs} assignment={currentAssignment!} onUpdateLogs={async (l: LearningLog[]) => { await supabase.from('learning_logs').insert(l); await fetchData(); }} />}
             </>
