@@ -80,7 +80,8 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
       if (error) throw error;
       alert("Cập nhật mật khẩu thành công!");
       setPasswordForm({ old: '', new: '', confirm: '' });
-      await onUpdateProfile();
+      const result = onUpdateProfile();
+      if (result instanceof Promise) await result;
     } catch (e: any) { 
       alert("Lỗi: " + e.message); 
     } finally { 
