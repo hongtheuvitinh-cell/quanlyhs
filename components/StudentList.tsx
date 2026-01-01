@@ -115,8 +115,9 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
   };
 
   const downloadTemplate = () => {
+    const BOM = "\uFEFF";
     const headers = "MaHS,Hoten,NgaySinh,GioiTinh(1:Nam/0:Nu),SDT_LinkHe,DiaChi,TenCha,NgheNghiepCha,TenMe,NgheNghiepMe,Email,GhiChuKhac\n";
-    const blob = new Blob([headers], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([BOM + headers], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -125,6 +126,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
   };
 
   const exportStudentReport = (student: Student, type: 1 | 2 | 'CN') => {
+    const BOM = "\uFEFF";
     const typeName = type === 'CN' ? 'Cả năm' : `Học kỳ ${type}`;
     let csvContent = `BÁO CÁO HỌC TẬP (${typeName}) - ${student.Hoten} (${student.MaHS})\n`;
     if (type !== 'CN') {
@@ -149,7 +151,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
         csvContent += `${sub.name},${hk1?.toFixed(1) || ''},${hk2?.toFixed(1) || ''},${cn?.toFixed(1) || ''}\n`;
       });
     }
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -448,7 +450,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                              </div>
                            );
                         }) : (
-                          <div className="col-span-2 py-16 text-center bg-slate-50 rounded-[32px] border-2 border-dashed border-slate-100">
+                          <div className="col-2 py-16 text-center bg-slate-50 rounded-[32px] border-2 border-dashed border-slate-100">
                              <CheckCircle size={32} className="text-emerald-200 mx-auto mb-2" />
                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Học sinh chưa có vi phạm</p>
                           </div>
