@@ -132,9 +132,10 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   };
 
   const downloadGradeTemplate = () => {
+    const BOM = "\uFEFF";
     const headers = "MaHS,Hoten,LoaiDiem(ĐGTX1-5/ĐGGK/ĐGCK),DiemSo\n";
     const data = students.map(s => `${s.MaHS},${s.Hoten},ĐGTX1,`).join('\n');
-    const blob = new Blob([headers + data], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([BOM + headers + data], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
