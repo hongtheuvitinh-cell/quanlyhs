@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { GraduationCap, Users, UserCircle, Key, ArrowRight, ShieldCheck, X, ChevronRight, Eye, EyeOff, Lock, Shield } from 'lucide-react';
+import { Key, ArrowRight, Eye, EyeOff, Lock, Shield } from 'lucide-react';
 import { Role, Teacher, Student } from '../types';
 
 interface Props {
@@ -15,7 +15,6 @@ const Login: React.FC<Props> = ({ onLogin, teachers, students }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [showHelper, setShowHelper] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,12 +23,6 @@ const Login: React.FC<Props> = ({ onLogin, teachers, students }) => {
       return;
     }
     onLogin(role, id, password);
-  };
-
-  const handleSelectAccount = (val: string) => {
-    setId(val);
-    setShowHelper(false);
-    setError('');
   };
 
   return (
@@ -46,7 +39,7 @@ const Login: React.FC<Props> = ({ onLogin, teachers, students }) => {
               <Shield size={20} />
               <h1 className="text-xl font-black tracking-tight uppercase italic">EduManager</h1>
             </div>
-            <p className="text-indigo-100 font-bold text-[9px] uppercase tracking-widest opacity-70 text-center md:text-left">Hệ thống quản lý thông minh</p>
+            <p className="text-indigo-100 font-bold text-[9px] uppercase tracking-widest opacity-70">Hệ thống quản lý thông minh</p>
           </div>
         </div>
 
@@ -71,10 +64,7 @@ const Login: React.FC<Props> = ({ onLogin, teachers, students }) => {
 
             <div className="space-y-3">
               <div className="space-y-1">
-                <div className="flex justify-between items-center px-1">
-                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Mã định danh</label>
-                  <button type="button" onClick={() => setShowHelper(true)} className="text-indigo-600 font-black text-[9px] uppercase hover:underline">Tra cứu</button>
-                </div>
+                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">Mã định danh</label>
                 <div className="relative">
                   <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
                   <input
@@ -117,37 +107,6 @@ const Login: React.FC<Props> = ({ onLogin, teachers, students }) => {
           <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Mật khẩu mặc định: <span className="text-indigo-600">123456</span></p>
         </div>
       </div>
-
-      {showHelper && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-[340px] rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
-            <div className="p-5 border-b flex items-center justify-between">
-              <h3 className="font-black text-sm uppercase">Danh sách ID</h3>
-              <button onClick={() => setShowHelper(false)} className="p-1 hover:bg-gray-100 rounded-full"><X size={20}/></button>
-            </div>
-            <div className="p-4 overflow-y-auto space-y-4 bg-gray-50/50">
-              <div className="space-y-2">
-                <p className="text-[9px] font-black text-indigo-500 uppercase px-1">Giáo viên</p>
-                {teachers.map(t => (
-                  <button key={t.MaGV} onClick={() => handleSelectAccount(t.MaGV)} className="w-full flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl hover:bg-indigo-50 transition-all text-left">
-                    <div><p className="text-xs font-black">{t.Hoten}</p><p className="text-[9px] text-gray-400">{t.MaGV}</p></div>
-                    <ChevronRight size={14} className="text-gray-300" />
-                  </button>
-                ))}
-              </div>
-              <div className="space-y-2">
-                <p className="text-[9px] font-black text-emerald-500 uppercase px-1">Học sinh</p>
-                {students.map(s => (
-                  <button key={s.MaHS} onClick={() => handleSelectAccount(s.MaHS)} className="w-full flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl hover:bg-emerald-50 transition-all text-left">
-                    <div><p className="text-xs font-black">{s.Hoten}</p><p className="text-[9px] text-gray-400">{s.MaHS}</p></div>
-                    <ChevronRight size={14} className="text-gray-300" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
