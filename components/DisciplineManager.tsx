@@ -276,51 +276,51 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95">
-            <div className="p-6 border-b flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 my-auto">
+            <div className="px-6 py-4 border-b flex items-center justify-between shrink-0">
               <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight">{modalMode === 'add' ? 'Ghi nhận vi phạm mới' : 'Cập nhật vi phạm'}</h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={24} className="text-slate-400" /></button>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={20} className="text-slate-400" /></button>
             </div>
-            <div className="p-8 space-y-6 bg-slate-50/20">
-              <div className="grid grid-cols-2 gap-5">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Học sinh vi phạm</label>
-                  <select disabled={modalMode === 'edit'} value={formDiscipline.MaHS} onChange={e => setFormDiscipline({...formDiscipline, MaHS: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:border-rose-400 transition-all">
+            <div className="px-6 py-4 space-y-4 bg-slate-50/20 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Học sinh</label>
+                  <select disabled={modalMode === 'edit'} value={formDiscipline.MaHS} onChange={e => setFormDiscipline({...formDiscipline, MaHS: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-rose-400 transition-all">
                     <option value="">-- Chọn --</option>
                     {students.map(s => <option key={s.MaHS} value={s.MaHS}>{s.Hoten} ({s.MaHS})</option>)}
                   </select>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Ngày xảy ra</label>
-                  <input type="date" value={formDiscipline.NgayViPham} onChange={e => setFormDiscipline({...formDiscipline, NgayViPham: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:border-rose-400 transition-all" />
+                  <input type="date" value={formDiscipline.NgayViPham} onChange={e => setFormDiscipline({...formDiscipline, NgayViPham: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-rose-400 transition-all" />
                 </div>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Loại lỗi vi phạm</label>
-                <select disabled={modalMode === 'edit'} value={formDiscipline.MaLoi} onChange={e => setFormDiscipline({...formDiscipline, MaLoi: e.target.value})} className="w-full p-3 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl text-xs font-black outline-none shadow-sm">
+                <select disabled={modalMode === 'edit'} value={formDiscipline.MaLoi} onChange={e => setFormDiscipline({...formDiscipline, MaLoi: e.target.value})} className="w-full p-2.5 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-xs font-black outline-none shadow-sm">
                   <option value="">-- Chọn lỗi quy định --</option>
                   {violationRules.map(r => <option key={r.MaLoi} value={r.MaLoi}>{r.TenLoi} (-{r.DiemTru}đ)</option>)}
                 </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Hình thức xử lý dự kiến</label>
-                <div className="flex flex-wrap gap-2">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Hình thức xử lý</label>
+                <div className="flex flex-wrap gap-1.5">
                   {actionTypes.map(type => (
-                    <button key={type} onClick={() => setFormDiscipline({...formDiscipline, HinhThucXL: type})} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase border transition-all ${formDiscipline.HinhThucXL === type ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300'}`}>{type}</button>
+                    <button key={type} onClick={() => setFormDiscipline({...formDiscipline, HinhThucXL: type})} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border transition-all ${formDiscipline.HinhThucXL === type ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300'}`}>{type}</button>
                   ))}
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Mô tả tình tiết cụ thể</label>
-                <textarea value={formDiscipline.NoiDungChiTiet} onChange={e => setFormDiscipline({...formDiscipline, NoiDungChiTiet: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-[28px] text-xs font-medium min-h-[100px] outline-none focus:border-rose-400 transition-all" placeholder="Ghi chú chi tiết về sự việc..."></textarea>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Mô tả tình tiết</label>
+                <textarea value={formDiscipline.NoiDungChiTiet} onChange={e => setFormDiscipline({...formDiscipline, NoiDungChiTiet: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium min-h-[80px] outline-none focus:border-rose-400 transition-all shadow-inner" placeholder="Ghi chú chi tiết..."></textarea>
               </div>
             </div>
-            <div className="p-6 border-t bg-slate-50 flex gap-3">
-              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-3.5 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Hủy bỏ</button>
-              <button disabled={isSubmitting} onClick={handleSaveDiscipline} className="flex-[2] py-3.5 bg-rose-600 text-white rounded-2xl font-black shadow-xl shadow-rose-100 hover:bg-rose-700 flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest transition-all">
+            <div className="px-6 py-4 border-t bg-slate-50 flex gap-3 shrink-0">
+              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Hủy</button>
+              <button disabled={isSubmitting} onClick={handleSaveDiscipline} className="flex-[2] py-2.5 bg-rose-600 text-white rounded-2xl font-black shadow-lg shadow-rose-100 hover:bg-rose-700 flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest transition-all">
                 {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                {modalMode === 'add' ? "Lưu vi phạm" : "Cập nhật thay đổi"}
+                Lưu vi phạm
               </button>
             </div>
           </div>
