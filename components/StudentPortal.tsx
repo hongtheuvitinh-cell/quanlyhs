@@ -12,7 +12,7 @@ interface Props {
   disciplines: Discipline[];
   tasks: AssignmentTask[];
   onLogout: () => void;
-  onToggleTask: (taskId: number, link?: string) => void;
+  onToggleTask: (taskId: number, link?: string) => void | Promise<void>;
   onUpdateProfile: () => Promise<void> | void;
 }
 
@@ -61,9 +61,18 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
   }, [disciplines, student.MaHS]);
 
   const handleUpdatePassword = async () => {
-    if (!passwordForm.old || !passwordForm.new || !passwordForm.confirm) { alert("Vui lòng điền đầy đủ thông tin!"); return; }
-    if (passwordForm.new !== passwordForm.confirm) { alert("Xác nhận mật khẩu mới không khớp!"); return; }
-    if (passwordForm.old !== (student.MatKhau || '123456')) { alert("Mật khẩu cũ không chính xác!"); return; }
+    if (!passwordForm.old || !passwordForm.new || !passwordForm.confirm) {
+      alert("Vui lòng điền đầy đủ thông tin!");
+      return;
+    }
+    if (passwordForm.new !== passwordForm.confirm) {
+      alert("Xác nhận mật khẩu mới không khớp!");
+      return;
+    }
+    if (passwordForm.old !== (student.MatKhau || '123456')) {
+      alert("Mật khẩu cũ không chính xác!");
+      return;
+    }
     
     setIsUpdating(true);
     try {
