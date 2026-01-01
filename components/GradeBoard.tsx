@@ -1,7 +1,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { 
-  Search, Sparkles, GraduationCap, BookOpen, BrainCircuit, Table, ListChecks, Save, CheckCircle2, Loader2, AlertCircle
+  Search, Sparkles, GraduationCap, BookOpen, BrainCircuit, Table, ListChecks, Save, CheckCircle2, Loader2, AlertCircle, Settings2
 } from 'lucide-react';
 import { AppState, Student, Grade, Role } from '../types';
 import { parseGradesFromImage } from '../services/geminiService';
@@ -31,6 +31,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const [selectedSubject, setSelectedSubject] = useState(isGiangDay ? (state.selectedSubject || 'TOAN') : 'TOAN');
   const [selectedHK, setSelectedHK] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [txCount, setTxCount] = useState(4); // Số lượng cột ĐGTX
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -49,6 +50,9 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       setSelectedSubject(state.selectedSubject);
     }
   }, [state.selectedSubject, isGiangDay]);
+
+  const txColumns = Array.from({ length: Math.max(1, txCount) }, (_, i) => `ĐGTX${i + 1}`);
+  const allColumns = [...txColumns, 'ĐGGK', 'ĐGCK'];
 
   const handleAiFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -99,17 +103,9 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     } catch (error) { setIsAiProcessing(false); } finally { if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
 
-  /**
-   * Logic nhập điểm thông minh: 
-   * - Hỗ trợ nhập số thập phân chuẩn.
-   * - Nếu nhập 2 chữ số (VD: 67) mà không có dấu chấm, tự hiểu là 6.7.
-   */
   const handleInputChange = (studentId: string, type: string, rawValue: string) => {
-    // Cho phép nhập số thập phân trực tiếp
     let val = rawValue === '' ? 0 : parseFloat(rawValue);
-    
-    // THÔNG MINH: Nếu nhập số nguyên từ 11 đến 100 (VD: 67, 85, 100) -> Tự chia 10
-    // Riêng số 10 thì giữ nguyên.
+    // Logic nhập thông minh: 67 -> 6.7
     if (!rawValue.includes('.') && val > 10 && val <= 100) {
        val = val / 10;
     }
@@ -171,32 +167,40 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   return (
     <div className="space-y-4 pb-32 animate-in fade-in duration-500">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 rounded-3xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-indigo-600 rounded-xl text-white shadow-lg"><GraduationCap size={20} /></div>
+          <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg"><GraduationCap size={18} /></div>
           <div>
-            <h2 className="text-xl font-black text-gray-800 tracking-tight">Sổ điểm lớp {state.selectedClass}</h2>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Niên học {state.selectedYear} • Học kỳ {selectedHK}</p>
+            <h2 className="text-lg font-black text-gray-800 tracking-tight leading-none mb-1">Bảng điểm lớp {state.selectedClass}</h2>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Niên học {state.selectedYear} • HK {selectedHK}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex p-1 bg-gray-100 rounded-xl mr-2">
-            <button onClick={() => setViewMode('DETAIL')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2 ${viewMode === 'DETAIL' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400'}`}><ListChecks size={14} /> Chi tiết</button>
-            <button onClick={() => setViewMode('SUMMARY')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2 ${viewMode === 'SUMMARY' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400'}`}><Table size={14} /> Tổng hợp</button>
+            <button onClick={() => setViewMode('DETAIL')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-1.5 ${viewMode === 'DETAIL' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400'}`}><ListChecks size={12} /> Chi tiết</button>
+            <button onClick={() => setViewMode('SUMMARY')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-1.5 ${viewMode === 'SUMMARY' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400'}`}><Table size={12} /> Tổng hợp</button>
           </div>
-          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl text-[10px] font-black hover:bg-indigo-100 transition-all uppercase"><Sparkles size={14} /> Quét điểm AI</button>
+          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl text-[10px] font-black hover:bg-indigo-100 transition-all uppercase"><Sparkles size={12} /> AI</button>
           <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleAiFileUpload} />
         </div>
       </div>
 
       <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[250px]"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Tìm tên..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-transparent rounded-xl outline-none text-sm font-medium focus:bg-white focus:border-indigo-100 transition-all" /></div>
+        <div className="relative flex-1 min-w-[200px]"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} /><input type="text" placeholder="Tìm tên..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-1.5 bg-gray-50 border border-transparent rounded-xl outline-none text-xs font-medium focus:bg-white transition-all" /></div>
+        
         {viewMode === 'DETAIL' && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-xl border border-gray-100"><BookOpen size={14} className="text-indigo-600" />
-            <select disabled={isGiangDay} value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="text-xs font-black bg-transparent outline-none cursor-pointer">{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-          </div>
+          <>
+            <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 rounded-xl border border-gray-100"><BookOpen size={12} className="text-indigo-600" />
+              <select disabled={isGiangDay} value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="text-[10px] font-black bg-transparent outline-none cursor-pointer">{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 rounded-xl border border-amber-100">
+               <span className="text-[9px] font-black text-amber-600 uppercase">Số cột TX:</span>
+               <input type="number" min="1" max="10" value={txCount} onChange={(e) => setTxCount(parseInt(e.target.value) || 1)} className="w-8 h-6 text-center bg-white border border-amber-200 rounded font-black text-xs outline-none" />
+            </div>
+          </>
         )}
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl ml-auto">
           {[1, 2].map(hk => (<button key={hk} onClick={() => setSelectedHK(hk)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${selectedHK === hk ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400'}`}>HK {hk}</button>))}
         </div>
       </div>
@@ -206,11 +210,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
           {viewMode === 'DETAIL' ? (
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-gray-50 text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-200">
-                  <th className="px-4 py-3 border-r border-gray-200 w-12 text-center">STT</th>
-                  <th className="px-4 py-3 border-r border-gray-200">Họ và Tên</th>
-                  {['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'].map(h => <th key={h} className="px-2 py-3 border-r border-gray-200 text-center w-16">{h}</th>)}
-                  <th className="px-4 py-3 text-center bg-indigo-50/50 text-indigo-600 font-black w-24">TB Môn</th>
+                <tr className="bg-gray-50 text-[9px] font-black text-gray-500 uppercase border-b border-gray-200">
+                  <th className="px-4 py-2.5 border-r border-gray-200 w-10 text-center">STT</th>
+                  <th className="px-4 py-2.5 border-r border-gray-200">Học sinh</th>
+                  {allColumns.map(h => <th key={h} className="px-1 py-2.5 border-r border-gray-200 text-center w-14">{h}</th>)}
+                  <th className="px-4 py-2.5 text-center bg-indigo-50/50 text-indigo-600 font-black w-20">TB Môn</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -219,9 +223,9 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                   const tb = calculateSubjectAvg(s.MaHS, selectedSubject, selectedHK);
                   return (
                     <tr key={s.MaHS} className="hover:bg-indigo-50/10 transition-colors group">
-                      <td className="px-4 py-1.5 border-r border-gray-100 text-center font-medium text-gray-400">{idx + 1}</td>
-                      <td className="px-4 py-1.5 border-r border-gray-100 font-black text-gray-800 text-sm">{s.Hoten}</td>
-                      {['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'].map(type => {
+                      <td className="px-4 py-1.5 border-r border-gray-100 text-center font-medium text-gray-400 text-xs">{idx + 1}</td>
+                      <td className="px-4 py-1.5 border-r border-gray-100 font-black text-gray-800 text-xs">{s.Hoten}</td>
+                      {allColumns.map(type => {
                         const gradeObj = sGrades.find(g => g.LoaiDiem === type);
                         return (
                           <td key={type} className="px-1 py-1 border-r border-gray-100 text-center">
@@ -229,13 +233,13 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                               type="number" step="0.1" min="0" max="10"
                               value={gradeObj?.DiemSo ?? ''} 
                               onChange={(e) => handleInputChange(s.MaHS, type, e.target.value)}
-                              placeholder="0"
-                              className="w-10 h-7 text-center font-bold text-sm bg-gray-50/50 border border-gray-100 rounded focus:bg-white focus:border-indigo-400 outline-none transition-all"
+                              placeholder="-"
+                              className="w-10 h-7 text-center font-bold text-xs bg-gray-50/50 border border-gray-100 rounded focus:bg-white focus:border-indigo-400 outline-none transition-all"
                             />
                           </td>
                         );
                       })}
-                      <td className="px-4 py-1.5 text-center bg-indigo-50/20 font-black text-indigo-600 text-sm">{tb?.toFixed(1) || '--'}</td>
+                      <td className="px-4 py-1.5 text-center bg-indigo-50/20 font-black text-indigo-600 text-xs">{tb?.toFixed(1) || '--'}</td>
                     </tr>
                   );
                 })}
@@ -244,11 +248,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
           ) : (
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-gray-50 text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-200">
-                  <th className="px-4 py-3 border-r border-gray-200 sticky left-0 bg-gray-50 z-10 w-48">Học sinh</th>
-                  {subjects.map(sub => <th key={sub.id} className="px-2 py-3 border-r border-gray-200 text-center text-[9px] w-14">{sub.name}</th>)}
-                  <th className="px-4 py-3 border-r border-gray-200 text-center bg-emerald-50 text-emerald-700 font-black w-20">TB HK</th>
-                  <th className="px-4 py-3 text-center bg-gray-900 text-white font-black w-24">Xếp loại</th>
+                <tr className="bg-gray-50 text-[9px] font-black text-gray-500 uppercase border-b border-gray-200">
+                  <th className="px-4 py-2.5 border-r border-gray-200 sticky left-0 bg-gray-50 z-10 w-40">Học sinh</th>
+                  {subjects.map(sub => <th key={sub.id} className="px-1 py-2.5 border-r border-gray-200 text-center text-[8px] w-12">{sub.name}</th>)}
+                  <th className="px-4 py-2.5 border-r border-gray-200 text-center bg-emerald-50 text-emerald-700 font-black w-20">TB HK</th>
+                  <th className="px-4 py-2.5 text-center bg-gray-900 text-white font-black w-20">Xếp loại</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -259,12 +263,12 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                   const rank = semAvg ? getRank(semAvg) : null;
                   return (
                     <tr key={s.MaHS} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-1.5 border-r border-gray-100 font-black text-gray-800 text-sm sticky left-0 bg-white z-10">{s.Hoten}</td>
+                      <td className="px-4 py-1 border-r border-gray-100 font-black text-gray-800 text-[11px] sticky left-0 bg-white z-10">{s.Hoten}</td>
                       {subjectAvgs.map((avg, i) => (
-                        <td key={i} className="px-2 py-1.5 border-r border-gray-100 text-center text-xs font-bold text-gray-600">{avg?.toFixed(1) || '-'}</td>
+                        <td key={i} className="px-1 py-1 border-r border-gray-100 text-center text-[11px] font-bold text-gray-600">{avg?.toFixed(1) || '-'}</td>
                       ))}
-                      <td className="px-4 py-1.5 border-r border-gray-100 text-center bg-emerald-50/10 font-black text-emerald-600 text-sm">{semAvg?.toFixed(1) || '--'}</td>
-                      <td className="px-4 py-1.5 text-center">{rank && (<span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${rank.color}`}>{rank.label}</span>)}</td>
+                      <td className="px-4 py-1 border-r border-gray-100 text-center bg-emerald-50/10 font-black text-emerald-600 text-[11px]">{semAvg?.toFixed(1) || '--'}</td>
+                      <td className="px-4 py-1 text-center">{rank && (<span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${rank.color}`}>{rank.label}</span>)}</td>
                     </tr>
                   );
                 })}
@@ -275,23 +279,26 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       </div>
 
       {hasChanges && !isSaving && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10">
-          <div className="bg-gray-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md">
-            <div className="text-left"><p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Đã thay đổi điểm</p><p className="text-xs font-bold">Lưu thay đổi lên máy chủ Cloud?</p></div>
-            <button onClick={handleSaveChanges} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95"><Save size={14} /> Đồng bộ ngay</button>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5">
+          <div className="bg-gray-900 text-white px-5 py-2.5 rounded-2xl shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md">
+            <div className="text-left"><p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest leading-none">Dữ liệu mới</p><p className="text-[10px] font-bold">Lưu thay đổi?</p></div>
+            <button onClick={handleSaveChanges} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-black text-[10px] uppercase shadow-lg transition-all active:scale-95"><Save size={14} /> Đồng bộ</button>
           </div>
         </div>
       )}
 
       {isAiProcessing && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-md animate-in fade-in">
-          <div className="bg-white p-10 rounded-[40px] shadow-2xl flex flex-col items-center border border-indigo-100 text-center max-w-sm"><div className="relative mb-6"><div className="h-16 w-16 border-[5px] border-indigo-50 border-t-indigo-600 rounded-full animate-spin"></div><div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"><BrainCircuit className="text-indigo-600" size={24} /></div></div><h3 className="font-black text-lg text-gray-800 mb-2">AI đang phân tích...</h3><p className="text-gray-400 text-xs font-medium leading-relaxed italic">Vui lòng chờ trong giây lát.</p></div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white p-8 rounded-[32px] shadow-2xl flex flex-col items-center border border-indigo-100 text-center">
+            <div className="h-12 w-12 border-4 border-indigo-50 border-t-indigo-600 rounded-full animate-spin mb-3"></div>
+            <p className="font-black text-sm text-gray-800 italic">AI đang quét điểm...</p>
+          </div>
         </div>
       )}
 
       {isSaving && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white px-8 py-6 rounded-3xl shadow-2xl flex flex-col items-center border border-gray-100"><Loader2 className="text-indigo-600 animate-spin mb-3" size={32} /><h3 className="font-black text-sm text-gray-800 uppercase tracking-widest">Đang đồng bộ Cloud...</h3></div>
+          <div className="bg-white px-8 py-5 rounded-2xl shadow-2xl flex flex-col items-center border border-gray-100"><Loader2 className="text-indigo-600 animate-spin mb-2" size={24} /><h3 className="font-black text-[10px] text-gray-800 uppercase tracking-widest">Đang đồng bộ...</h3></div>
         </div>
       )}
     </div>
