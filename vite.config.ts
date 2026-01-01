@@ -4,7 +4,8 @@ import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
+  // Use a type cast to satisfy TypeScript when accessing Node process.cwd() in Vite config
+  const env = loadEnv(mode, (process as any).cwd(), '');
 
   return {
     plugins: [react()],
