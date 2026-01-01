@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Users, GraduationCap, ClipboardList, ShieldAlert, LayoutDashboard, LogOut,
-  Send, Plus, Loader2, BookOpen, UserCheck, Settings, Database, ChevronRight
+  Send, Plus, Loader2, BookOpen, UserCheck, Settings, Database, ChevronRight, Lock, Shield, X, Save
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './services/supabaseClient';
 import { Role, AppState, Student, Grade, Assignment, LearningLog, Discipline, AcademicYear, Class, ViolationRule, AssignmentTask, Teacher } from './types';
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'grades' | 'discipline' | 'logs' | 'tasks' | 'system'>('dashboard');
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -39,6 +40,8 @@ const App: React.FC = () => {
     selectedYear: 0,
     selectedSubject: null
   });
+
+  const [passwordForm, setPasswordForm] = useState({ old: '', new: '', confirm: '' });
 
   const fetchData = async () => {
     if (!isSupabaseConfigured) { setIsLoading(false); return; }
@@ -128,10 +131,28 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateTeacherPassword = async () => {
+    const t = state.currentUser as Teacher;
+    if (!t) return;
+    if (passwordForm.new !== passwordForm.confirm) { alert("Xác nhận mật khẩu không khớp!"); return; }
+    if (passwordForm.old !== (t.MatKhau || '123456')) { alert("Mật khẩu cũ không chính xác!"); return; }
+    
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.from('teachers').update({ MatKhau: passwordForm.new }).eq('MaGV', t.MaGV);
+      if (error) throw error;
+      alert("Đã cập nhật mật khẩu thành công!");
+      setIsPasswordModalOpen(false);
+      setPasswordForm({ old: '', new: '', confirm: '' });
+      fetchData();
+    } catch (e: any) { alert(e.message); }
+    finally { setIsLoading(false); }
+  };
+
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>;
   if (!isLoggedIn) return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
 
-  if (state.currentRole === Role.STUDENT) return <StudentPortal student={state.currentUser as Student} grades={grades} disciplines={disciplines} tasks={tasks} onLogout={() => setIsLoggedIn(false)} onToggleTask={async () => {}} />;
+  if (state.currentRole === Role.STUDENT) return <StudentPortal student={state.currentUser as Student} grades={grades} disciplines={disciplines} tasks={tasks} onLogout={() => setIsLoggedIn(false)} onToggleTask={async () => {}} onUpdateProfile={fetchData} />;
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden text-[13px] font-normal text-slate-600">
@@ -201,7 +222,7 @@ const App: React.FC = () => {
               <select value={state.selectedClass} onChange={e => setState(p => ({...p, selectedClass: e.target.value}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{filteredClasses.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}</select>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 cursor-pointer hover:bg-slate-50 p-1 px-3 rounded-xl transition-all" onClick={() => setIsPasswordModalOpen(true)}>
              <div className="text-right">
                 <p className="text-[11px] font-bold text-slate-800 leading-none mb-1">{(state.currentUser as Teacher)?.Hoten}</p>
                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Giáo viên {state.currentRole === Role.CHU_NHIEM ? 'Chủ nhiệm' : 'Giảng dạy'}</p>
@@ -239,6 +260,35 @@ const App: React.FC = () => {
           )}
         </div>
       </main>
+
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95">
+             <div className="p-6 border-b flex items-center justify-between">
+                <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight flex items-center gap-2"><Lock size={18} className="text-indigo-600"/> Đổi mật khẩu Giáo viên</h3>
+                <button onClick={() => setIsPasswordModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={20}/></button>
+             </div>
+             <div className="p-6 space-y-4">
+                <div className="space-y-1">
+                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Mật khẩu cũ</label>
+                   <input type="password" value={passwordForm.old} onChange={e => setPasswordForm({...passwordForm, old: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:bg-white focus:border-indigo-400" />
+                </div>
+                <div className="space-y-1">
+                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Mật khẩu mới</label>
+                   <input type="password" value={passwordForm.new} onChange={e => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:bg-white focus:border-indigo-400" />
+                </div>
+                <div className="space-y-1">
+                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Xác nhận mật khẩu mới</label>
+                   <input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm({...passwordForm, confirm: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:bg-white focus:border-indigo-400" />
+                </div>
+             </div>
+             <div className="p-4 bg-slate-50 border-t flex gap-3">
+                <button onClick={() => setIsPasswordModalOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest">Hủy</button>
+                <button onClick={handleUpdateTeacherPassword} className="flex-[2] py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2"><Save size={16}/> Cập nhật</button>
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
