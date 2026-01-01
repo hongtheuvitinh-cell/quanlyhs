@@ -72,6 +72,7 @@ export interface AssignmentTask {
   MaGV: string;
   HanChot: string;
   MaNienHoc: number;
+  DanhSachGiao: string[]; // Danh sách MaHS được giao nhiệm vụ
   DanhSachHoanThanh: string[]; 
   BaoCaoNhiemVu?: Record<string, string>; // MaHS -> Link sản phẩm
 }
