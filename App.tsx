@@ -14,7 +14,6 @@ import LearningLogs from './components/LearningLogs';
 import TaskManager from './components/TaskManager';
 import SystemManager from './components/SystemManager';
 import Login from './components/Login';
-import StudentPortal from './components/StudentPortal';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -221,7 +220,10 @@ const App: React.FC = () => {
               state={state} 
               students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
               grades={grades} 
-              onUpdateStudent={(s) => supabase.from('students').update(s).eq('MaHS', s.MaHS).then(() => fetchData())} 
+              disciplines={disciplines}
+              logs={logs}
+              violationRules={violationRules}
+              onUpdateStudent={(s) => supabase.from('students').upsert(s).then(() => fetchData())} 
               onDeleteStudent={(id) => supabase.from('students').delete().eq('MaHS', id).then(() => fetchData())} 
             />
           )}
