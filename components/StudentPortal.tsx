@@ -12,8 +12,8 @@ interface Props {
   disciplines: Discipline[];
   tasks: AssignmentTask[];
   onLogout: () => void;
-  onToggleTask: (taskId: number, link?: string) => void | Promise<void>;
-  onUpdateProfile: () => Promise<void> | void;
+  onToggleTask: (taskId: any, link?: any) => any;
+  onUpdateProfile: () => any;
 }
 
 const subjectsList = [
@@ -27,18 +27,18 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
   const [isUpdating, setIsUpdating] = useState(false);
 
   const calculateSubjectAvg = (mSubject: string, semester: number) => {
-    const sGrades = grades.filter(g => g.MaHS === student.MaHS && g.MaMonHoc === mSubject && g.HocKy === semester);
-    const dgtx = sGrades.filter(g => g.LoaiDiem.startsWith('ĐGTX')).map(g => g.DiemSo);
-    const ggk = sGrades.find(g => g.LoaiDiem === 'ĐGGK')?.DiemSo;
-    const gck = sGrades.find(g => g.LoaiDiem === 'ĐGCK')?.DiemSo;
+    const sGrades = grades.filter((g: Grade) => g.MaHS === student.MaHS && g.MaMonHoc === mSubject && g.HocKy === semester);
+    const dgtx = sGrades.filter((g: Grade) => g.LoaiDiem.startsWith('ĐGTX')).map((g: Grade) => g.DiemSo);
+    const ggk = sGrades.find((g: Grade) => g.LoaiDiem === 'ĐGGK')?.DiemSo;
+    const gck = sGrades.find((g: Grade) => g.LoaiDiem === 'ĐGCK')?.DiemSo;
     if (dgtx.length > 0 && ggk !== undefined && gck !== undefined) {
-      return (dgtx.reduce((a, b) => a + b, 0) + ggk * 2 + gck * 3) / (dgtx.length + 5);
+      return (dgtx.reduce((a: number, b: number) => a + b, 0) + ggk * 2 + gck * 3) / (dgtx.length + 5);
     }
     return null;
   };
 
   const gradeTableData = useMemo(() => {
-    return subjectsList.map(sub => {
+    return subjectsList.map((sub: any) => {
       const tb1 = calculateSubjectAvg(sub.id, 1);
       const tb2 = calculateSubjectAvg(sub.id, 2);
       return {
@@ -51,12 +51,12 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
   }, [grades, student.MaHS]);
 
   const finalAvg = useMemo(() => {
-    const valid = gradeTableData.filter(d => d.cn !== null).map(d => d.cn as number);
-    return valid.length > 0 ? (valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(1) : '--';
+    const valid = gradeTableData.filter((d: any) => d.cn !== null).map((d: any) => d.cn as number);
+    return valid.length > 0 ? (valid.reduce((a: number, b: number) => a + b, 0) / valid.length).toFixed(1) : '--';
   }, [gradeTableData]);
 
   const conductScore = useMemo(() => {
-    const totalDeduction = disciplines.filter(d => d.MaHS === student.MaHS).reduce((sum, d) => sum + (d.DiemTruTaiThoiDiemDo || 0), 0);
+    const totalDeduction = disciplines.filter((d: Discipline) => d.MaHS === student.MaHS).reduce((sum: number, d: Discipline) => sum + (d.DiemTruTaiThoiDiemDo || 0), 0);
     return 100 - totalDeduction;
   }, [disciplines, student.MaHS]);
 
@@ -80,8 +80,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
       if (error) throw error;
       alert("Cập nhật mật khẩu thành công!");
       setPasswordForm({ old: '', new: '', confirm: '' });
-      const result = onUpdateProfile();
-      if (result instanceof Promise) await result;
+      await onUpdateProfile();
     } catch (e: any) { 
       alert("Lỗi: " + e.message); 
     } finally { 
@@ -136,7 +135,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
                 <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col gap-1">
                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Số lỗi vi phạm</p>
                    <div className="flex items-baseline gap-1">
-                      <h4 className="text-3xl font-black text-rose-600">{disciplines.filter(d => d.MaHS === student.MaHS).length}</h4>
+                      <h4 className="text-3xl font-black text-rose-600">{disciplines.filter((d: Discipline) => d.MaHS === student.MaHS).length}</h4>
                       <AlertCircle size={16} className="text-rose-300" />
                    </div>
                 </div>
@@ -147,7 +146,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
                  <table className="w-full text-left">
                    <thead><tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest"><th className="px-8 py-4">Môn học</th><th className="px-6 py-4 text-center">HK1</th><th className="px-6 py-4 text-center">HK2</th><th className="px-8 py-4 text-right text-indigo-600">Cả năm</th></tr></thead>
                    <tbody className="divide-y divide-gray-50">
-                      {gradeTableData.map(row => (
+                      {gradeTableData.map((row: any) => (
                         <tr key={row.name} className="hover:bg-gray-50/50"><td className="px-8 py-4 font-bold text-gray-800 text-xs">{row.name}</td><td className="px-6 py-4 text-center text-gray-500 font-bold">{row.hk1?.toFixed(1) || '--'}</td><td className="px-6 py-4 text-center text-gray-500 font-bold">{row.hk2?.toFixed(1) || '--'}</td><td className="px-8 py-4 text-right font-black text-indigo-600">{row.cn?.toFixed(1) || '--'}</td></tr>
                       ))}
                    </tbody>
@@ -158,7 +157,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
             <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden flex flex-col">
                <div className="p-8 border-b bg-indigo-50/30 flex items-center justify-between shrink-0"><h3 className="font-black text-gray-800 text-sm uppercase tracking-tight">Việc cần làm</h3></div>
                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                  {tasks.length > 0 ? tasks.map(task => {
+                  {tasks.length > 0 ? tasks.map((task: AssignmentTask) => {
                      const isDone = task.DanhSachHoanThanh.includes(student.MaHS);
                      return (
                        <div key={task.MaNhiemVu} className={`p-5 rounded-3xl border transition-all ${isDone ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-gray-100 shadow-sm'}`}>
@@ -186,15 +185,15 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
              <div className="p-8 space-y-6">
                 <div className="space-y-1">
                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Mật khẩu hiện tại</label>
-                   <input type="password" value={passwordForm.old} onChange={e => setPasswordForm({...passwordForm, old: e.target.value})} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-indigo-400 font-bold text-sm" />
+                   <input type="password" value={passwordForm.old} onChange={(e: any) => setPasswordForm({...passwordForm, old: e.target.value})} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-indigo-400 font-bold text-sm" />
                 </div>
                 <div className="space-y-1">
                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Mật khẩu mới</label>
-                   <input type="password" value={passwordForm.new} onChange={e => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-indigo-400 font-bold text-sm" />
+                   <input type="password" value={passwordForm.new} onChange={(e: any) => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-indigo-400 font-bold text-sm" />
                 </div>
                 <div className="space-y-1">
                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Xác nhận mật khẩu mới</label>
-                   <input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm({...passwordForm, confirm: e.target.value})} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-indigo-400 font-bold text-sm" />
+                   <input type="password" value={passwordForm.confirm} onChange={(e: any) => setPasswordForm({...passwordForm, confirm: e.target.value})} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-indigo-400 font-bold text-sm" />
                 </div>
                 <div className="pt-4 flex gap-4">
                    <button onClick={() => setActivePortalTab('study')} className="flex-1 py-4 bg-gray-100 text-gray-500 rounded-2xl font-black text-[11px] uppercase tracking-widest">Quay lại</button>
