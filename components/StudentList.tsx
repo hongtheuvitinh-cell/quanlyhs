@@ -114,6 +114,16 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     }
   };
 
+  const downloadTemplate = () => {
+    const headers = "MaHS,Hoten,NgaySinh,GioiTinh(1:Nam/0:Nu),SDT_LinkHe,DiaChi,TenCha,NgheNghiepCha,TenMe,NgheNghiepMe,Email,GhiChuKhac\n";
+    const blob = new Blob([headers], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Mau_Danh_Sach_HS_Lop_${state.selectedClass}.csv`;
+    link.click();
+  };
+
   const exportStudentReport = (student: Student, type: 1 | 2 | 'CN') => {
     const typeName = type === 'CN' ? 'Cả năm' : `Học kỳ ${type}`;
     let csvContent = `BÁO CÁO HỌC TẬP (${typeName}) - ${student.Hoten} (${student.MaHS})\n`;
@@ -185,10 +195,14 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
             />
           </div>
           
+          <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl text-[10px] font-bold uppercase border border-slate-200 hover:bg-slate-100 transition-all">
+            <Download size={14}/> Mẫu HS
+          </button>
+          
           <label className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl cursor-pointer hover:bg-indigo-100 transition-all border border-indigo-100 text-[10px] font-bold uppercase tracking-widest" title="AI quét danh sách từ ảnh/PDF">
              {isAiLoading ? <Loader2 size={16} className="animate-spin"/> : <Camera size={16} />}
-             Quét AI
-             <input type="file" className="hidden" accept="image/*" onChange={handleAiImport} />
+             Quét AI HS
+             <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleAiImport} />
           </label>
           
           <button onClick={() => { setFormData({}); setIsFormOpen(true); }} className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all text-[10px] font-bold uppercase tracking-widest active:scale-95">
@@ -277,7 +291,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                 </button>
              </div>
              
-             {/* Content Area - Cố định chiều cao min để tránh nhẩy trang */}
+             {/* Content Area */}
              <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-white min-h-[500px]">
                 {activeInfoTab === 'SYLL' && (
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in slide-in-from-left-4">
@@ -528,7 +542,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                            <InputField label="Email" value={formData.Email} onChange={v => setFormData({...formData, Email: v})} placeholder="abc@gmail.com" colSpan={2} />
                            <InputField label="Địa chỉ" value={formData.DiaChi} onChange={v => setFormData({...formData, DiaChi: v})} placeholder="Địa chỉ thường trú..." colSpan={4} />
                            
-                           {/* Dồn thông tin Cha Mẹ lên sát */}
                            <InputField label="Họ tên Cha" value={formData.TenCha} onChange={v => setFormData({...formData, TenCha: v})} placeholder="Tên cha" colSpan={2} />
                            <InputField label="Nghề nghiệp Cha" value={formData.NgheNghiepCha} onChange={v => setFormData({...formData, NgheNghiepCha: v})} placeholder="Nghề nghiệp" colSpan={2} />
                            <InputField label="Họ tên Mẹ" value={formData.TenMe} onChange={v => setFormData({...formData, TenMe: v})} placeholder="Tên mẹ" colSpan={2} />
