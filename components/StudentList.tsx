@@ -125,10 +125,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
     return { tx, gk, ck, avg };
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   const handleExportExcel = () => {
     if (!selectedStudentForProfile) return;
     let csvContent = "\uFEFF"; 
@@ -166,52 +162,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
 
   return (
     <div className="space-y-4 animate-in fade-in pb-20">
-      <style>{`
-        @media print {
-          /* Ẩn mọi thứ không cần thiết */
-          body * { visibility: hidden; }
-          .no-print { display: none !important; }
-          
-          /* Hiển thị modal và phá bỏ giới hạn chiều cao */
-          .modal-print-content, 
-          .modal-print-content * { 
-            visibility: visible !important; 
-          }
-          
-          .modal-print-content {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
-            display: block !important;
-            box-shadow: none !important;
-            border: none !important;
-          }
-          
-          /* Cho phép container nội dung giãn nở tự nhiên */
-          .modal-print-content div {
-            overflow: visible !important;
-            max-height: none !important;
-          }
-          
-          /* Tăng độ tương phản chữ */
-          .modal-print-content * {
-            color: black !important;
-          }
-          
-          /* Tạo ngắt trang sạch sẽ */
-          table { page-break-inside: auto; width: 100% !important; border-collapse: collapse !important; }
-          tr { page-break-inside: avoid; page-break-after: auto; }
-          
-          /* Viền bảng khi in */
-          th, td { border: 1px solid #e2e8f0 !important; }
-        }
-      `}</style>
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm no-print">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Users className="text-indigo-600" size={18} /> Quản lý Học sinh & SYLL</h2>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -224,7 +175,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 no-print">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {filteredStudents.map((student) => (
           <div key={student.MaHS} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm hover:border-indigo-200 transition-all group relative">
             <div className="flex items-start gap-3">
@@ -260,10 +211,10 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in no-print">
-          <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in-95 modal-print-content">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in-95">
             {/* Header Modal */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 no-print">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
                <div className="flex items-center gap-3">
                  <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-100">
                     {modalMode === 'profile' ? <Award size={18}/> : <Edit2 size={18}/>}
@@ -280,7 +231,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
 
             {/* Tab Navigation (Only for Profile Mode) */}
             {modalMode === 'profile' && (
-              <div className="px-6 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0 no-print">
+              <div className="px-6 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
                   <button onClick={() => setActiveProfileTab('SYLL')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeProfileTab === 'SYLL' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
                     <User size={14}/> SYLL
@@ -298,8 +249,9 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
 
                 {activeProfileTab === 'GRADES' && (
                   <div className="flex items-center gap-2">
-                    <button onClick={handlePrint} className="p-2 text-slate-500 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200" title="In phiếu điểm"><Printer size={18}/></button>
-                    <button onClick={handleExportExcel} className="p-2 text-emerald-600 hover:bg-white rounded-xl transition-all border border-transparent hover:border-emerald-100" title="Xuất file Excel"><FileSpreadsheet size={18}/></button>
+                    <button onClick={handleExportExcel} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase flex items-center gap-2 shadow-sm hover:bg-emerald-700 transition-all">
+                      <FileSpreadsheet size={14}/> Xuất Excel
+                    </button>
                   </div>
                 )}
               </div>
@@ -356,7 +308,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
 
                     {activeProfileTab === 'GRADES' && (
                        <div className="space-y-6">
-                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                              <div className="flex p-1 bg-white rounded-2xl border border-slate-200 shadow-sm w-fit">
                                 <button onClick={() => setGradeView('HK1')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${gradeView === 'HK1' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>HK 1</button>
                                 <button onClick={() => setGradeView('HK2')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${gradeView === 'HK2' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>HK 2</button>
@@ -368,16 +320,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                              </p>
                           </div>
 
-                          {/* Header chỉ hiển thị khi IN */}
-                          <div className="hidden print:block text-center mb-8 border-b pb-6 border-slate-200">
-                             <h2 className="text-xl font-black uppercase text-slate-900 mb-1">Phiếu Báo Kết Quả Học Tập</h2>
-                             <p className="text-sm font-bold text-slate-600">Học sinh: {selectedStudentForProfile.Hoten} - Lớp: {state.selectedClass}</p>
-                             <p className="text-xs text-slate-400 font-medium">Niên khóa: {state.selectedYear === 1 ? '2023-2024' : state.selectedYear === 2 ? '2024-2025' : '2025-2026'}</p>
-                             <div className="mt-2 inline-block px-4 py-1 bg-slate-100 rounded-full text-[10px] font-black uppercase">
-                               {gradeView === 'CANAM' ? 'TỔNG HỢP CẢ NĂM' : `HỌC KỲ ${gradeView.slice(-1)}`}
-                             </div>
-                          </div>
-                          
                           <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
                              <div className="overflow-x-auto custom-scrollbar">
                                 <table className="w-full text-left border-collapse min-w-[700px]">
@@ -446,18 +388,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                                       })}
                                    </tbody>
                                 </table>
-                             </div>
-                          </div>
-                          
-                          {/* Chữ ký khi in */}
-                          <div className="hidden print:grid grid-cols-2 gap-20 mt-16 text-center">
-                             <div className="space-y-20">
-                                <p className="text-xs font-bold uppercase">Phụ huynh học sinh</p>
-                                <p className="text-xs text-slate-300 italic">(Ký và ghi rõ họ tên)</p>
-                             </div>
-                             <div className="space-y-20">
-                                <p className="text-xs font-bold uppercase">Giáo viên chủ nhiệm</p>
-                                <p className="text-xs text-slate-800 font-black">{(state.currentUser as any)?.Hoten || '................................'}</p>
                              </div>
                           </div>
                        </div>
@@ -541,6 +471,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                     )}
                  </div>
                ) : (
+                 /* Form Chỉnh sửa/Thêm mới SYLL */
                  <div className="space-y-6 animate-in fade-in duration-300">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                        <Field label="Mã Học Sinh" value={formStudent.MaHS} onChange={v => setFormStudent({...formStudent, MaHS: v})} />
@@ -580,7 +511,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
             </div>
 
             {/* Footer Modal */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0 no-print">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
                <button onClick={resetForm} className="px-6 py-2 bg-white border border-slate-200 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Đóng</button>
                {modalMode !== 'profile' && (
                   <button onClick={handleSave} className="px-8 py-2 bg-indigo-600 text-white rounded-xl font-black shadow-lg shadow-indigo-100 text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all">
