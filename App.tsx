@@ -102,13 +102,23 @@ const App: React.FC = () => {
     }
   }, [filteredClasses, state.selectedClass]);
 
+  const currentAssignment = useMemo(() => {
+    if (!state.currentUser || (state.currentUser as any).MaHS) return null;
+    return assignments.find(a => 
+      a.MaGV === (state.currentUser as Teacher).MaGV && 
+      a.MaLop === state.selectedClass && 
+      a.MaNienHoc === state.selectedYear &&
+      a.LoaiPhanCong === state.currentRole
+    );
+  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole]);
+
   const handleLogin = (role: Role, id: string, pass: string) => {
     if (role === Role.STUDENT) {
       const s = students.find(x => x.MaHS === id);
       if (s && (s.MatKhau || '123456') === pass) {
         setState(p => ({ ...p, currentUser: s, currentRole: Role.STUDENT, selectedClass: s.MaLopHienTai }));
         setIsLoggedIn(true);
-      } else alert("Mã HS hoặc mật khẩu không chính xác!");
+      } else alert("Sai thông tin!");
     } else {
       const t = teachers.find(x => x.MaGV === id);
       if (t && (t.MatKhau || '123456') === pass) {
@@ -116,7 +126,7 @@ const App: React.FC = () => {
         const initialRole = myAs.some(a => a.LoaiPhanCong === Role.CHU_NHIEM) ? Role.CHU_NHIEM : Role.GIANG_DAY;
         setState(p => ({ ...p, currentUser: t, currentRole: initialRole, selectedClass: myAs[0]?.MaLop || '' }));
         setIsLoggedIn(true);
-      } else alert("Mã GV hoặc mật khẩu không chính xác!");
+      } else alert("Sai thông tin!");
     }
   };
 
@@ -125,7 +135,6 @@ const App: React.FC = () => {
     if (!t) return;
     if (passwordForm.new !== passwordForm.confirm) { alert("Mật khẩu không khớp!"); return; }
     if (passwordForm.old !== (t.MatKhau || '123456')) { alert("Mật khẩu cũ sai!"); return; }
-    
     setIsLoading(true);
     try {
       await supabase.from('teachers').update({ MatKhau: passwordForm.new }).eq('MaGV', t.MaGV);
@@ -148,7 +157,7 @@ const App: React.FC = () => {
         </div>
         <div className="p-4">
            <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100">
-              <p className="text-[9px] font-bold uppercase text-slate-400 mb-2 px-1 tracking-widest">Chế độ làm việc</p>
+              <p className="text-[9px] font-bold uppercase text-slate-400 mb-2 px-1 tracking-widest text-center">Chế độ làm việc</p>
               <div className="flex p-1 bg-white rounded-xl border border-slate-100">
                 <button 
                   onClick={() => setState(p => ({...p, currentRole: Role.CHU_NHIEM}))}
@@ -175,7 +184,7 @@ const App: React.FC = () => {
             </button>
           ))}
           <button onClick={() => setActiveTab('system')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-bold mt-4 ${activeTab === 'system' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
-            <Settings size={16} /> <span>Hệ thống</span>
+            <Settings size={16} /> <span>Cấu hình hệ thống</span>
           </button>
         </nav>
         <div className="p-4 mt-auto border-t border-slate-50">
@@ -207,9 +216,38 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
           {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} />}
           {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={() => fetchData()} />}
-          {activeTab === 'students' && <StudentList state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateStudent={() => {}} onDeleteStudent={() => {}} />}
+          {activeTab === 'students' && (
+            <StudentList 
+              state={state} 
+              students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
+              grades={grades} 
+              onUpdateStudent={(s) => supabase.from('students').update(s).eq('MaHS', s.MaHS).then(() => fetchData())} 
+              onDeleteStudent={(id) => supabase.from('students').delete().eq('MaHS', id).then(() => fetchData())} 
+            />
+          )}
           {activeTab === 'grades' && <GradeBoard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={() => fetchData()} />}
           {activeTab === 'tasks' && <TaskManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={() => fetchData()} onDeleteTask={() => fetchData()} />}
+          {activeTab === 'discipline' && (
+            <DisciplineManager 
+              state={state} 
+              students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
+              disciplines={disciplines} 
+              violationRules={violationRules} 
+              onUpdateDisciplines={(d) => supabase.from('disciplines').upsert(d).then(() => fetchData())} 
+              onDeleteDiscipline={(id) => supabase.from('disciplines').delete().eq('MaKyLuat', id).then(() => fetchData())} 
+              onUpdateRules={(r) => supabase.from('violation_rules').upsert(r).then(() => fetchData())} 
+            />
+          )}
+          {activeTab === 'logs' && currentAssignment && (
+            <LearningLogs 
+              state={state} 
+              students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
+              logs={logs} 
+              assignment={currentAssignment} 
+              onUpdateLogs={(l) => supabase.from('learning_logs').upsert(l).then(() => fetchData())} 
+              onDeleteLog={(id) => supabase.from('learning_logs').delete().eq('MaTheoDoi', id).then(() => fetchData())} 
+            />
+          )}
         </div>
       </main>
 
