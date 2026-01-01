@@ -81,10 +81,10 @@ const App: React.FC = () => {
       // Đồng bộ thông tin user hiện tại nếu có thay đổi
       if (state.currentUser) {
         if ((state.currentUser as any).MaHS) {
-          const freshUser = stData?.find(s => s.MaHS === (state.currentUser as Student).MaHS);
+          const freshUser = (stData as Student[])?.find((s: Student) => s.MaHS === (state.currentUser as Student).MaHS);
           if (freshUser) setState(p => ({ ...p, currentUser: freshUser }));
         } else {
-          const freshUser = tcData?.find(t => t.MaGV === (state.currentUser as Teacher).MaGV);
+          const freshUser = (tcData as Teacher[])?.find((t: Teacher) => t.MaGV === (state.currentUser as Teacher).MaGV);
           if (freshUser) setState(p => ({ ...p, currentUser: freshUser }));
         }
       }
@@ -124,13 +124,13 @@ const App: React.FC = () => {
 
   const handleLogin = (role: Role, id: string, pass: string) => {
     if (role === Role.STUDENT) {
-      const s = students.find(x => x.MaHS === id);
+      const s = students.find((x: Student) => x.MaHS === id);
       if (s && (s.MatKhau || '123456') === pass) {
         setState(p => ({ ...p, currentUser: s, currentRole: Role.STUDENT, selectedClass: s.MaLopHienTai }));
         setIsLoggedIn(true);
       } else alert("Mã HS hoặc mật khẩu không chính xác!");
     } else {
-      const t = teachers.find(x => x.MaGV === id);
+      const t = teachers.find((x: Teacher) => x.MaGV === id);
       if (t && (t.MatKhau || '123456') === pass) {
         const myAs = assignments.filter(a => a.MaGV === id);
         const initialRole = myAs.some(a => a.LoaiPhanCong === Role.CHU_NHIEM) ? Role.CHU_NHIEM : Role.GIANG_DAY;
@@ -173,7 +173,7 @@ const App: React.FC = () => {
         disciplines={disciplines} 
         tasks={tasks} 
         onLogout={() => setIsLoggedIn(false)} 
-        onToggleTask={(taskId: number, link?: string) => { console.log('Toggled task:', taskId, link); }} 
+        onToggleTask={(taskId: number, link?: string) => { console.log(taskId, link); }} 
         onUpdateProfile={fetchData} 
       />
     );
