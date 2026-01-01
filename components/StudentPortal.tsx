@@ -27,7 +27,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
   const [isUpdating, setIsUpdating] = useState(false);
 
   const calculateSubjectAvg = (mSubject: string, semester: number) => {
-    const sGrades = grades.filter((g: Grade) => g.MaHS === student.MaHS && g.MaMonHoc === mSubject && g.HocKy === semester);
+    const sGrades = (grades || []).filter((g: Grade) => g.MaHS === student.MaHS && g.MaMonHoc === mSubject && g.HocKy === semester);
     const dgtx = sGrades.filter((g: Grade) => g.LoaiDiem.startsWith('ĐGTX')).map((g: Grade) => g.DiemSo);
     const ggk = sGrades.find((g: Grade) => g.LoaiDiem === 'ĐGGK')?.DiemSo;
     const gck = sGrades.find((g: Grade) => g.LoaiDiem === 'ĐGCK')?.DiemSo;
@@ -56,7 +56,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
   }, [gradeTableData]);
 
   const conductScore = useMemo(() => {
-    const totalDeduction = disciplines.filter((d: Discipline) => d.MaHS === student.MaHS).reduce((sum: number, d: Discipline) => sum + (d.DiemTruTaiThoiDiemDo || 0), 0);
+    const totalDeduction = (disciplines || []).filter((d: Discipline) => d.MaHS === student.MaHS).reduce((sum: number, d: Discipline) => sum + (d.DiemTruTaiThoiDiemDo || 0), 0);
     return 100 - totalDeduction;
   }, [disciplines, student.MaHS]);
 
@@ -112,7 +112,6 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
           </div>
         </div>
       </header>
-
       <main className="flex-1 max-w-7xl mx-auto w-full p-8">
         {activePortalTab === 'study' ? (
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 animate-in fade-in duration-500">
@@ -135,30 +134,28 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
                 <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100 flex flex-col gap-1">
                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Số lỗi vi phạm</p>
                    <div className="flex items-baseline gap-1">
-                      <h4 className="text-3xl font-black text-rose-600">{disciplines.filter((d: Discipline) => d.MaHS === student.MaHS).length}</h4>
+                      <h4 className="text-3xl font-black text-rose-600">{(disciplines || []).filter((d: Discipline) => d.MaHS === student.MaHS).length}</h4>
                       <AlertCircle size={16} className="text-rose-300" />
                    </div>
                 </div>
               </div>
-
               <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
                  <div className="p-8 border-b border-gray-50 flex items-center justify-between"><h3 className="font-black text-gray-800 text-sm uppercase tracking-tight">Kết quả học tập điện tử</h3></div>
                  <table className="w-full text-left">
                    <thead><tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest"><th className="px-8 py-4">Môn học</th><th className="px-6 py-4 text-center">HK1</th><th className="px-6 py-4 text-center">HK2</th><th className="px-8 py-4 text-right text-indigo-600">Cả năm</th></tr></thead>
                    <tbody className="divide-y divide-gray-50">
-                      {gradeTableData.map((row: any) => (
+                      {(gradeTableData || []).map((row: any) => (
                         <tr key={row.name} className="hover:bg-gray-50/50"><td className="px-8 py-4 font-bold text-gray-800 text-xs">{row.name}</td><td className="px-6 py-4 text-center text-gray-500 font-bold">{row.hk1?.toFixed(1) || '--'}</td><td className="px-6 py-4 text-center text-gray-500 font-bold">{row.hk2?.toFixed(1) || '--'}</td><td className="px-8 py-4 text-right font-black text-indigo-600">{row.cn?.toFixed(1) || '--'}</td></tr>
                       ))}
                    </tbody>
                  </table>
               </div>
             </div>
-
             <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden flex flex-col">
                <div className="p-8 border-b bg-indigo-50/30 flex items-center justify-between shrink-0"><h3 className="font-black text-gray-800 text-sm uppercase tracking-tight">Việc cần làm</h3></div>
                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                   {tasks.length > 0 ? tasks.map((task: AssignmentTask) => {
-                     const isDone = task.DanhSachHoanThanh.includes(student.MaHS);
+                     const isDone = (task.DanhSachHoanThanh || []).includes(student.MaHS);
                      return (
                        <div key={task.MaNhiemVu} className={`p-5 rounded-3xl border transition-all ${isDone ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-gray-100 shadow-sm'}`}>
                           <div className="flex justify-between items-start mb-2">
