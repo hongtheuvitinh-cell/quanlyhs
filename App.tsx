@@ -192,14 +192,17 @@ const App: React.FC = () => {
   };
 
   const handleUpdateTasks = async (newTasks: AssignmentTask[]) => {
-    if (!isSupabaseConfigured) return;
+    if (!isSupabaseConfigured) {
+       throw new Error("Cloud chưa được cấu hình (Thiếu API Key hoặc URL Supabase)");
+    }
     try {
+      // Sử dụng upsert để thêm mới hoặc cập nhật dựa trên MaNhiemVu
       const { error } = await supabase.from('tasks').upsert(newTasks);
       if (error) throw error;
-      await fetchData();
+      await fetchData(); // Tải lại dữ liệu để đảm bảo giao diện đồng bộ
     } catch (error: any) {
-      console.error("Lỗi cập nhật nhiệm vụ:", error);
-      throw error;
+      console.error("Lỗi cập nhật nhiệm vụ (App.tsx):", error);
+      throw error; // Ném lỗi để TaskManager bắt được message
     }
   };
 
