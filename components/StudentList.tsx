@@ -2,10 +2,9 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { 
   Search, X, User, Users, Sparkles, Edit2, Trash2, Save, Award, Phone, MapPin, Calendar, BrainCircuit, CheckCircle2, ChevronRight, Mail, Briefcase, Heart, 
-  TrendingUp, ShieldAlert, ClipboardList, Info, Star, AlertTriangle, Clock
+  TrendingUp, ShieldAlert, ClipboardList, Info, Star, AlertTriangle, Clock, Printer, FileSpreadsheet, Download
 } from 'lucide-react';
 import { AppState, Student, Grade, LearningLog, Discipline, AttendanceStatus } from '../types';
-import { analyzeStudentPerformance, parseStudentListFromImage } from '../services/geminiService';
 
 interface Props {
   state: AppState;
@@ -20,6 +19,7 @@ interface Props {
 }
 
 type ProfileTab = 'SYLL' | 'GRADES' | 'DISCIPLINE' | 'LOGS';
+type GradeView = 'HK1' | 'HK2' | 'CANAM';
 
 // Define XCircle before its usage in statusConfig to avoid block-scoped variable error
 const XCircle = ({ size, className }: { size?: number, className?: string }) => <X size={size} className={className} />;
@@ -42,6 +42,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'ai' | 'profile'>('add');
   const [activeProfileTab, setActiveProfileTab] = useState<ProfileTab>('SYLL');
+  const [gradeView, setGradeView] = useState<GradeView>('HK1');
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<Student | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,6 +61,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
     setIsModalOpen(false);
     setModalMode('add');
     setActiveProfileTab('SYLL');
+    setGradeView('HK1');
     setSelectedStudentForProfile(null);
     setFormStudent({
       MaHS: '', Hoten: '', NgaySinh: '2008-01-01', GioiTinh: true,
@@ -101,7 +103,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
 
   const conductData = useMemo(() => {
     if (!selectedStudentForProfile) return { score: 100, classification: 'Tốt', color: 'emerald' };
-    const totalDeduction = studentDisciplines.reduce((sum, d) => sum + (d.DiemTruTaiThoiDiemDo || 0), 0);
+    const totalDeduction = studentDisciplines.reduce((sum, d) => sum + (Number(d.DiemTruTaiThoiDiemDo) || 0), 0);
     const score = Math.max(0, 100 - totalDeduction);
     let classification = "Yếu"; let color = "rose";
     if (score >= 80) { classification = "Tốt"; color = "emerald"; }
@@ -110,14 +112,12 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
     return { score, classification, color };
   }, [studentDisciplines, selectedStudentForProfile]);
 
-  // Hàm tính điểm trung bình cho từng môn trong tab GRADES
   const getSubjectRow = (subjectId: string, semester: number) => {
     const sGrades = studentGrades.filter(g => g.MaMonHoc === subjectId && g.HocKy === semester);
     const tx = [1, 2, 3, 4, 5].map(i => sGrades.find(g => g.LoaiDiem === `ĐGTX${i}`)?.DiemSo);
     const gk = sGrades.find(g => g.LoaiDiem === 'ĐGGK')?.DiemSo;
     const ck = sGrades.find(g => g.LoaiDiem === 'ĐGCK')?.DiemSo;
     
-    // Tính TBHK
     let avg = null;
     const txValues = tx.filter(v => v !== undefined) as number[];
     if (txValues.length > 0 && gk !== undefined && ck !== undefined) {
@@ -127,9 +127,46 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
     return { tx, gk, ck, avg };
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExportExcel = () => {
+    if (!selectedStudentForProfile) return;
+    let csvContent = "\uFEFF"; // UTF-8 BOM
+    csvContent += `HỌ TÊN: ${selectedStudentForProfile.Hoten}, MÃ HS: ${selectedStudentForProfile.MaHS}, LỚP: ${state.selectedClass}\n`;
+    csvContent += "Môn học,TB HK1,TB HK2,Cả Năm\n";
+    
+    subjectsList.forEach(sub => {
+      const h1 = getSubjectRow(sub.id, 1).avg;
+      const h2 = getSubjectRow(sub.id, 2).avg;
+      const cn = (h1 !== null && h2 !== null) ? (h1 + h2 * 2) / 3 : null;
+      csvContent += `${sub.name},${h1?.toFixed(1) || '-'},${h2?.toFixed(1) || '-'},${cn?.toFixed(1) || '-'}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `BangDiem_${selectedStudentForProfile.MaHS}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-4 animate-in fade-in pb-20">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .modal-print-content, .modal-print-content * { visibility: visible; }
+          .modal-print-content { position: absolute; left: 0; top: 0; width: 100%; }
+          .no-print { display: none !important; }
+        }
+      `}</style>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm no-print">
         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Users className="text-indigo-600" size={18} /> Quản lý Học sinh & SYLL</h2>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -142,7 +179,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 no-print">
         {filteredStudents.map((student) => (
           <div key={student.MaHS} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm hover:border-indigo-200 transition-all group relative">
             <div className="flex items-start gap-3">
@@ -178,10 +215,10 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in no-print">
+          <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in-95 modal-print-content">
             {/* Header Modal */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 no-print">
                <div className="flex items-center gap-3">
                  <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-100">
                     {modalMode === 'profile' ? <Award size={18}/> : <Edit2 size={18}/>}
@@ -198,19 +235,28 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
 
             {/* Tab Navigation (Only for Profile Mode) */}
             {modalMode === 'profile' && (
-              <div className="px-6 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar">
-                <button onClick={() => setActiveProfileTab('SYLL')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeProfileTab === 'SYLL' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-                  <User size={14}/> SYLL
-                </button>
-                <button onClick={() => setActiveProfileTab('GRADES')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeProfileTab === 'GRADES' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-                  <TrendingUp size={14}/> Học tập
-                </button>
-                <button onClick={() => setActiveProfileTab('DISCIPLINE')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeProfileTab === 'DISCIPLINE' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-                  <ShieldAlert size={14}/> Rèn luyện
-                </button>
-                <button onClick={() => setActiveProfileTab('LOGS')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeProfileTab === 'LOGS' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-                  <ClipboardList size={14}/> Nhật ký
-                </button>
+              <div className="px-6 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0 no-print">
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                  <button onClick={() => setActiveProfileTab('SYLL')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeProfileTab === 'SYLL' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <User size={14}/> SYLL
+                  </button>
+                  <button onClick={() => setActiveProfileTab('GRADES')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeProfileTab === 'GRADES' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <TrendingUp size={14}/> Học tập
+                  </button>
+                  <button onClick={() => setActiveProfileTab('DISCIPLINE')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeProfileTab === 'DISCIPLINE' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <ShieldAlert size={14}/> Rèn luyện
+                  </button>
+                  <button onClick={() => setActiveProfileTab('LOGS')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${activeProfileTab === 'LOGS' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <ClipboardList size={14}/> Nhật ký
+                  </button>
+                </div>
+
+                {activeProfileTab === 'GRADES' && (
+                  <div className="flex items-center gap-2">
+                    <button onClick={handlePrint} className="p-2 text-slate-500 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200" title="In phiếu điểm"><Printer size={18}/></button>
+                    <button onClick={handleExportExcel} className="p-2 text-emerald-600 hover:bg-white rounded-xl transition-all border border-transparent hover:border-emerald-100" title="Xuất file Excel"><FileSpreadsheet size={18}/></button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -264,70 +310,108 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                     )}
 
                     {activeProfileTab === 'GRADES' && (
-                       <div className="space-y-8">
-                          {[1, 2].map(semester => {
-                            const semDataExists = studentGrades.some(g => g.HocKy === semester);
-                            return (
-                              <div key={semester} className="space-y-3">
-                                <div className="flex items-center gap-3 px-2">
-                                   <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-[10px]">HK{semester}</div>
-                                   <h4 className="font-black text-slate-800 text-[11px] uppercase tracking-widest">Kết quả học tập Học kỳ {semester}</h4>
-                                </div>
-                                
-                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                                   <div className="overflow-x-auto custom-scrollbar">
-                                      <table className="w-full text-left border-collapse min-w-[700px]">
-                                         <thead>
-                                            <tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                                               <th className="px-5 py-4 w-32">Môn học</th>
-                                               {[1, 2, 3, 4, 5].map(i => <th key={i} className="px-2 py-4 text-center">TX{i}</th>)}
-                                               <th className="px-3 py-4 text-center bg-slate-100/30">GK</th>
-                                               <th className="px-3 py-4 text-center bg-slate-100/30">CK</th>
-                                               <th className="px-5 py-4 text-right bg-indigo-50 text-indigo-600 w-24">TBHK</th>
-                                            </tr>
-                                         </thead>
-                                         <tbody className="divide-y divide-slate-50">
-                                            {subjectsList.map(sub => {
-                                               const { tx, gk, ck, avg } = getSubjectRow(sub.id, semester);
-                                               const hasGrades = tx.some(v => v !== undefined) || gk !== undefined || ck !== undefined;
-                                               if (!hasGrades && !semDataExists) return null;
-                                               
-                                               return (
-                                                  <tr key={sub.id} className="hover:bg-indigo-50/10 transition-colors">
-                                                     <td className="px-5 py-3 font-bold text-slate-700 text-[11px] uppercase">{sub.name}</td>
-                                                     {tx.map((val, i) => (
-                                                        <td key={i} className="px-2 py-3 text-center text-[11px] font-medium text-slate-400">
-                                                           {val !== undefined ? val.toFixed(1) : '-'}
-                                                        </td>
-                                                     ))}
-                                                     <td className="px-3 py-3 text-center bg-slate-50/30 text-[11px] font-bold text-slate-600">
-                                                        {gk !== undefined ? gk.toFixed(1) : '-'}
-                                                     </td>
-                                                     <td className="px-3 py-3 text-center bg-slate-50/30 text-[11px] font-bold text-slate-600">
-                                                        {ck !== undefined ? ck.toFixed(1) : '-'}
-                                                     </td>
-                                                     <td className="px-5 py-3 text-right bg-indigo-50/30">
-                                                        <span className={`font-black text-xs ${avg && avg >= 8 ? 'text-emerald-600' : avg && avg < 5 ? 'text-rose-600' : 'text-indigo-600'}`}>
-                                                           {avg !== null ? avg.toFixed(1) : '--'}
-                                                        </span>
-                                                     </td>
-                                                  </tr>
-                                               );
-                                            })}
-                                            {!semDataExists && (
-                                              <tr>
-                                                <td colSpan={9} className="py-10 text-center text-slate-300 font-bold uppercase text-[9px] tracking-widest italic">
-                                                  Chưa có dữ liệu điểm học kỳ {semester}
-                                                </td>
+                       <div className="space-y-6">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
+                             <div className="flex p-1 bg-white rounded-2xl border border-slate-200 shadow-sm w-fit">
+                                <button onClick={() => setGradeView('HK1')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${gradeView === 'HK1' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>HK 1</button>
+                                <button onClick={() => setGradeView('HK2')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${gradeView === 'HK2' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>HK 2</button>
+                                <button onClick={() => setGradeView('CANAM')} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${gradeView === 'CANAM' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Cả Năm</button>
+                             </div>
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+                                <Info size={14} className="text-indigo-500" /> 
+                                {gradeView === 'CANAM' ? 'Bảng tổng hợp học lực toàn niên khóa' : `Chi tiết điểm thành phần Học kỳ ${gradeView.slice(-1)}`}
+                             </p>
+                          </div>
+
+                          {/* Print Only Header */}
+                          <div className="hidden no-print:hidden print:block text-center mb-8 border-b pb-6 border-slate-200">
+                             <h2 className="text-xl font-black uppercase text-slate-900 mb-1">Báo cáo kết quả học tập</h2>
+                             <p className="text-sm font-bold text-slate-600">Học sinh: {selectedStudentForProfile.Hoten} - Lớp: {state.selectedClass}</p>
+                             <p className="text-xs text-slate-400 font-medium">Năm học: {state.selectedYear === 1 ? '2023-2024' : state.selectedYear === 2 ? '2024-2025' : '2025-2026'}</p>
+                          </div>
+                          
+                          <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
+                             <div className="overflow-x-auto custom-scrollbar">
+                                <table className="w-full text-left border-collapse min-w-[700px]">
+                                   <thead>
+                                      <tr className="bg-slate-50 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100">
+                                         <th className="px-6 py-5 w-40">Môn học</th>
+                                         {gradeView !== 'CANAM' ? (
+                                           <>
+                                              {[1, 2, 3, 4, 5].map(i => <th key={i} className="px-2 py-5 text-center">TX{i}</th>)}
+                                              <th className="px-3 py-5 text-center bg-slate-100/30">GK</th>
+                                              <th className="px-3 py-5 text-center bg-slate-100/30">CK</th>
+                                              <th className="px-6 py-5 text-right bg-indigo-50 text-indigo-600 w-28">Trung Bình</th>
+                                           </>
+                                         ) : (
+                                           <>
+                                              <th className="px-8 py-5 text-center">TB Học Kỳ 1</th>
+                                              <th className="px-8 py-5 text-center">TB Học Kỳ 2</th>
+                                              <th className="px-8 py-5 text-right bg-indigo-50 text-indigo-600 w-40">Tổng Kết Cả Năm</th>
+                                           </>
+                                         )}
+                                      </tr>
+                                   </thead>
+                                   <tbody className="divide-y divide-slate-50">
+                                      {subjectsList.map(sub => {
+                                         if (gradeView !== 'CANAM') {
+                                           const semester = gradeView === 'HK1' ? 1 : 2;
+                                           const { tx, gk, ck, avg } = getSubjectRow(sub.id, semester);
+                                           return (
+                                              <tr key={sub.id} className="hover:bg-indigo-50/10 transition-colors">
+                                                 <td className="px-6 py-4 font-bold text-slate-700 text-[11px] uppercase">{sub.name}</td>
+                                                 {tx.map((val, i) => (
+                                                    <td key={i} className="px-2 py-4 text-center text-[11px] font-medium text-slate-400">
+                                                       {val !== undefined ? val.toFixed(1) : '-'}
+                                                    </td>
+                                                 ))}
+                                                 <td className="px-3 py-4 text-center bg-slate-50/30 text-[11px] font-bold text-slate-600">
+                                                    {gk !== undefined ? gk.toFixed(1) : '-'}
+                                                 </td>
+                                                 <td className="px-3 py-4 text-center bg-slate-50/30 text-[11px] font-bold text-slate-600">
+                                                    {ck !== undefined ? ck.toFixed(1) : '-'}
+                                                 </td>
+                                                 <td className="px-6 py-4 text-right bg-indigo-50/30">
+                                                    <span className={`font-black text-[13px] ${avg && avg >= 8 ? 'text-emerald-600' : avg && avg < 5 ? 'text-rose-600' : 'text-indigo-600'}`}>
+                                                       {avg !== null ? avg.toFixed(1) : '--'}
+                                                    </span>
+                                                 </td>
                                               </tr>
-                                            )}
-                                         </tbody>
-                                      </table>
-                                   </div>
-                                </div>
-                              </div>
-                            );
-                          })}
+                                           );
+                                         } else {
+                                           const h1 = getSubjectRow(sub.id, 1).avg;
+                                           const h2 = getSubjectRow(sub.id, 2).avg;
+                                           const cn = (h1 !== null && h2 !== null) ? (h1 + h2 * 2) / 3 : null;
+                                           return (
+                                              <tr key={sub.id} className="hover:bg-indigo-50/10 transition-colors">
+                                                 <td className="px-6 py-6 font-bold text-slate-700 text-xs uppercase">{sub.name}</td>
+                                                 <td className="px-8 py-6 text-center text-slate-500 font-bold text-xs">{h1?.toFixed(1) || '--'}</td>
+                                                 <td className="px-8 py-6 text-center text-slate-500 font-bold text-xs">{h2?.toFixed(1) || '--'}</td>
+                                                 <td className="px-8 py-6 text-right bg-indigo-50/30">
+                                                    <span className={`font-black text-sm ${cn && cn >= 8 ? 'text-emerald-600' : cn && cn < 5 ? 'text-rose-600' : 'text-indigo-600'}`}>
+                                                       {cn !== null ? cn.toFixed(1) : '--'}
+                                                    </span>
+                                                 </td>
+                                              </tr>
+                                           );
+                                         }
+                                      })}
+                                   </tbody>
+                                </table>
+                             </div>
+                          </div>
+                          
+                          {/* Print Signature Section */}
+                          <div className="hidden print:grid grid-cols-2 gap-20 mt-16 text-center">
+                             <div className="space-y-20">
+                                <p className="text-xs font-bold uppercase">Phụ huynh học sinh</p>
+                                <p className="text-xs text-slate-300 italic">(Ký và ghi rõ họ tên)</p>
+                             </div>
+                             <div className="space-y-20">
+                                <p className="text-xs font-bold uppercase">Giáo viên chủ nhiệm</p>
+                                <p className="text-xs text-slate-800 font-black">{(state.currentUser as any)?.Hoten || '................................'}</p>
+                             </div>
+                          </div>
                        </div>
                     )}
 
@@ -409,7 +493,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                     )}
                  </div>
                ) : (
-                 /* Form Chỉnh sửa/Thêm mới SYLL (Giữ nguyên như cũ) */
+                 /* Form Chỉnh sửa/Thêm mới SYLL */
                  <div className="space-y-6 animate-in fade-in duration-300">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                        <Field label="Mã Học Sinh" value={formStudent.MaHS} onChange={v => setFormStudent({...formStudent, MaHS: v})} />
@@ -449,7 +533,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
             </div>
 
             {/* Footer Modal */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0 no-print">
                <button onClick={resetForm} className="px-6 py-2 bg-white border border-slate-200 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Đóng</button>
                {modalMode !== 'profile' && (
                   <button onClick={handleSave} className="px-8 py-2 bg-indigo-600 text-white rounded-xl font-black shadow-lg shadow-indigo-100 text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all">
