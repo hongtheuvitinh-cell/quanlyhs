@@ -31,6 +31,12 @@ const statusConfig: Record<AttendanceStatus, { label: string, color: string, ico
   TRE: { label: 'Đi trễ', color: 'text-indigo-600', icon: Clock, bg: 'bg-indigo-50' },
 };
 
+const subjectsList = [
+  { id: 'TOAN', name: 'Toán Học' }, { id: 'VAN', name: 'Ngữ Văn' }, { id: 'ANH', name: 'Tiếng Anh' },
+  { id: 'LY', name: 'Vật Lý' }, { id: 'HOA', name: 'Hóa Học' }, { id: 'SINH', name: 'Sinh Học' },
+  { id: 'DIA', name: 'Địa Lý' }, { id: 'SU', name: 'Lịch Sử' }, { id: 'GDCD', name: 'GDCD' }
+];
+
 const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplines, onAddStudent, onAddStudents, onUpdateStudent, onDeleteStudent }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -104,6 +110,23 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
     return { score, classification, color };
   }, [studentDisciplines, selectedStudentForProfile]);
 
+  // Hàm tính điểm trung bình cho từng môn trong tab GRADES
+  const getSubjectRow = (subjectId: string, semester: number) => {
+    const sGrades = studentGrades.filter(g => g.MaMonHoc === subjectId && g.HocKy === semester);
+    const tx = [1, 2, 3, 4, 5].map(i => sGrades.find(g => g.LoaiDiem === `ĐGTX${i}`)?.DiemSo);
+    const gk = sGrades.find(g => g.LoaiDiem === 'ĐGGK')?.DiemSo;
+    const ck = sGrades.find(g => g.LoaiDiem === 'ĐGCK')?.DiemSo;
+    
+    // Tính TBHK
+    let avg = null;
+    const txValues = tx.filter(v => v !== undefined) as number[];
+    if (txValues.length > 0 && gk !== undefined && ck !== undefined) {
+      avg = (txValues.reduce((a, b) => a + b, 0) + gk * 2 + ck * 3) / (txValues.length + 5);
+    }
+    
+    return { tx, gk, ck, avg };
+  };
+
   return (
     <div className="space-y-4 animate-in fade-in pb-20">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
@@ -156,7 +179,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in-95">
+          <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in zoom-in-95">
             {/* Header Modal */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
                <div className="flex items-center gap-3">
@@ -241,31 +264,70 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                     )}
 
                     {activeProfileTab === 'GRADES' && (
-                       <div className="space-y-6">
-                          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                             <table className="w-full text-left">
-                                <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                                   <tr>
-                                      <th className="px-6 py-4">Môn học</th>
-                                      <th className="px-6 py-4">Loại điểm</th>
-                                      <th className="px-6 py-4">Học kỳ</th>
-                                      <th className="px-6 py-4 text-right">Điểm số</th>
-                                   </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                   {studentGrades.length > 0 ? studentGrades.sort((a,b) => a.HocKy - b.HocKy).map(g => (
-                                      <tr key={g.MaDiem} className="hover:bg-slate-50/50">
-                                         <td className="px-6 py-3 font-bold text-slate-800 text-xs">{g.MaMonHoc}</td>
-                                         <td className="px-6 py-3 text-slate-500 text-xs">{g.LoaiDiem}</td>
-                                         <td className="px-6 py-3 text-slate-500 text-xs">HK{g.HocKy}</td>
-                                         <td className="px-6 py-3 text-right"><span className={`font-black text-sm ${g.DiemSo >= 8 ? 'text-emerald-600' : g.DiemSo < 5 ? 'text-rose-600' : 'text-indigo-600'}`}>{g.DiemSo.toFixed(1)}</span></td>
-                                      </tr>
-                                   )) : (
-                                      <tr><td colSpan={4} className="py-20 text-center text-slate-300 font-bold uppercase text-[10px] tracking-widest">Chưa có dữ liệu điểm</td></tr>
-                                   )}
-                                </tbody>
-                             </table>
-                          </div>
+                       <div className="space-y-8">
+                          {[1, 2].map(semester => {
+                            const semDataExists = studentGrades.some(g => g.HocKy === semester);
+                            return (
+                              <div key={semester} className="space-y-3">
+                                <div className="flex items-center gap-3 px-2">
+                                   <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-[10px]">HK{semester}</div>
+                                   <h4 className="font-black text-slate-800 text-[11px] uppercase tracking-widest">Kết quả học tập Học kỳ {semester}</h4>
+                                </div>
+                                
+                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                   <div className="overflow-x-auto custom-scrollbar">
+                                      <table className="w-full text-left border-collapse min-w-[700px]">
+                                         <thead>
+                                            <tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                               <th className="px-5 py-4 w-32">Môn học</th>
+                                               {[1, 2, 3, 4, 5].map(i => <th key={i} className="px-2 py-4 text-center">TX{i}</th>)}
+                                               <th className="px-3 py-4 text-center bg-slate-100/30">GK</th>
+                                               <th className="px-3 py-4 text-center bg-slate-100/30">CK</th>
+                                               <th className="px-5 py-4 text-right bg-indigo-50 text-indigo-600 w-24">TBHK</th>
+                                            </tr>
+                                         </thead>
+                                         <tbody className="divide-y divide-slate-50">
+                                            {subjectsList.map(sub => {
+                                               const { tx, gk, ck, avg } = getSubjectRow(sub.id, semester);
+                                               const hasGrades = tx.some(v => v !== undefined) || gk !== undefined || ck !== undefined;
+                                               if (!hasGrades && !semDataExists) return null;
+                                               
+                                               return (
+                                                  <tr key={sub.id} className="hover:bg-indigo-50/10 transition-colors">
+                                                     <td className="px-5 py-3 font-bold text-slate-700 text-[11px] uppercase">{sub.name}</td>
+                                                     {tx.map((val, i) => (
+                                                        <td key={i} className="px-2 py-3 text-center text-[11px] font-medium text-slate-400">
+                                                           {val !== undefined ? val.toFixed(1) : '-'}
+                                                        </td>
+                                                     ))}
+                                                     <td className="px-3 py-3 text-center bg-slate-50/30 text-[11px] font-bold text-slate-600">
+                                                        {gk !== undefined ? gk.toFixed(1) : '-'}
+                                                     </td>
+                                                     <td className="px-3 py-3 text-center bg-slate-50/30 text-[11px] font-bold text-slate-600">
+                                                        {ck !== undefined ? ck.toFixed(1) : '-'}
+                                                     </td>
+                                                     <td className="px-5 py-3 text-right bg-indigo-50/30">
+                                                        <span className={`font-black text-xs ${avg && avg >= 8 ? 'text-emerald-600' : avg && avg < 5 ? 'text-rose-600' : 'text-indigo-600'}`}>
+                                                           {avg !== null ? avg.toFixed(1) : '--'}
+                                                        </span>
+                                                     </td>
+                                                  </tr>
+                                               );
+                                            })}
+                                            {!semDataExists && (
+                                              <tr>
+                                                <td colSpan={9} className="py-10 text-center text-slate-300 font-bold uppercase text-[9px] tracking-widest italic">
+                                                  Chưa có dữ liệu điểm học kỳ {semester}
+                                                </td>
+                                              </tr>
+                                            )}
+                                         </tbody>
+                                      </table>
+                                   </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                        </div>
                     )}
 
