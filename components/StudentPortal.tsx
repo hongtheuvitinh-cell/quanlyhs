@@ -3,13 +3,14 @@ import React, { useMemo, useState } from 'react';
 import { 
   Plus, GraduationCap, Send, ShieldAlert, LogOut, User, Calendar, CheckCircle, Circle, Trophy, BookOpen, Award, TrendingUp, Clock, Layout, AlertCircle, Lock, Link as LinkIcon, Check, Shield, Save, X, Loader2, ExternalLink, Info, ClipboardList
 } from 'lucide-react';
-import { Student, Grade, Discipline, AssignmentTask } from '../types';
+import { Student, Grade, Discipline, AssignmentTask, ViolationRule } from '../types';
 import { supabase } from '../services/supabaseClient';
 
 interface Props {
   student: Student;
   grades: Grade[];
   disciplines: Discipline[];
+  violationRules: ViolationRule[];
   tasks: AssignmentTask[];
   onLogout: () => void;
   onToggleTask: (taskId: number, link?: string) => Promise<void>;
@@ -22,7 +23,7 @@ const subjectsList = [
   { id: 'DIA', name: 'Địa Lý' }, { id: 'SU', name: 'Lịch Sử' }, { id: 'GDCD', name: 'GDCD' }
 ];
 
-const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, onLogout, onToggleTask, onUpdateProfile }) => {
+const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violationRules, tasks, onLogout, onToggleTask, onUpdateProfile }) => {
   const [activePortalTab, setActivePortalTab] = useState<'study' | 'security'>('study');
   const [passwordForm, setPasswordForm] = useState({ old: '', new: '', confirm: '' });
   const [isUpdating, setIsUpdating] = useState(false);
@@ -165,21 +166,24 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
               <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-6 bg-slate-50/50 border-b flex items-center justify-between"><h3 className="font-black text-slate-800 text-[11px] uppercase tracking-widest flex items-center gap-2"><ShieldAlert size={16} className="text-rose-600"/> Nhật ký rèn luyện (Vi phạm)</h3></div>
                 <div className="p-6 space-y-4">
-                   {myDisciplines.length > 0 ? myDisciplines.map(d => (
-                     <div key={d.MaKyLuat} className="p-4 bg-white border border-slate-100 rounded-2xl flex items-center justify-between group hover:border-rose-200 transition-all shadow-sm">
-                        <div className="flex items-center gap-4">
-                           <div className="w-10 h-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center shrink-0 border border-rose-100"><AlertCircle size={18}/></div>
-                           <div>
-                              <div className="flex items-center gap-2 mb-0.5">
-                                 <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Lỗi: {d.MaLoi}</h5>
-                                 <span className="text-[8px] font-bold text-slate-400">{d.NgayViPham}</span>
-                              </div>
-                              <span className="px-2 py-0.5 bg-rose-500 text-white rounded-lg text-[8px] font-black uppercase tracking-widest">-{d.DiemTruTaiThoiDiemDo}đ</span>
-                           </div>
-                        </div>
-                        <button onClick={() => setViewingDiscipline(d)} className="px-4 py-2 bg-slate-50 text-slate-500 rounded-xl text-[9px] font-black uppercase hover:bg-slate-900 hover:text-white transition-all">Xem chi tiết</button>
-                     </div>
-                   )) : (
+                   {myDisciplines.length > 0 ? myDisciplines.map(d => {
+                     const rule = violationRules.find(r => r.MaLoi === d.MaLoi);
+                     return (
+                      <div key={d.MaKyLuat} className="p-4 bg-white border border-slate-100 rounded-2xl flex items-center justify-between group hover:border-rose-200 transition-all shadow-sm">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center shrink-0 border border-rose-100"><AlertCircle size={18}/></div>
+                            <div>
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Lỗi: {rule?.TenLoi || d.MaLoi}</h5>
+                                  <span className="text-[8px] font-bold text-slate-400">{d.NgayViPham}</span>
+                                </div>
+                                <span className="px-2 py-0.5 bg-rose-500 text-white rounded-lg text-[8px] font-black uppercase tracking-widest">-{d.DiemTruTaiThoiDiemDo}đ</span>
+                            </div>
+                          </div>
+                          <button onClick={() => setViewingDiscipline(d)} className="px-4 py-2 bg-slate-50 text-slate-500 rounded-xl text-[9px] font-black uppercase hover:bg-slate-900 hover:text-white transition-all">Xem chi tiết</button>
+                      </div>
+                     );
+                   }) : (
                      <div className="py-12 text-center text-slate-300 font-bold uppercase text-[9px] tracking-widest">Bạn chưa có vi phạm nào. Rất tốt!</div>
                    )}
                 </div>
@@ -276,7 +280,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
       {/* Modal xem chi tiết vi phạm */}
       {viewingDiscipline && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-           <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95">
+           <div className="bg-white w-full max-md rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95">
               <div className="p-6 border-b flex items-center justify-between bg-rose-50/30">
                  <h3 className="font-black text-slate-800 text-[11px] uppercase tracking-widest flex items-center gap-2"><ShieldAlert size={16} className="text-rose-500"/> Chi tiết vi phạm</h3>
                  <button onClick={() => setViewingDiscipline(null)} className="p-2 hover:bg-white rounded-full transition-colors"><X size={20}/></button>
@@ -285,7 +289,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, tasks, o
                  <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center shadow-inner"><AlertCircle size={24}/></div>
                     <div>
-                       <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Loại lỗi: {viewingDiscipline.MaLoi}</p>
+                       <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Loại lỗi: {violationRules.find(r => r.MaLoi === viewingDiscipline.MaLoi)?.TenLoi || viewingDiscipline.MaLoi}</p>
                        <p className="text-xs font-black text-slate-800">Ngày vi phạm: {viewingDiscipline.NgayViPham}</p>
                     </div>
                  </div>
