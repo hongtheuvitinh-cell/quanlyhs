@@ -1,11 +1,10 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
-  Search, Sparkles, GraduationCap, BookOpen, Table, ListChecks, Save, 
-  Loader2, Plus, Minus, Settings2, ChevronRight, AlertCircle, Check
+  Search, GraduationCap, Table, ListChecks, Save, 
+  Loader2, Plus, Minus, AlertCircle
 } from 'lucide-react';
 import { AppState, Student, Grade, Role } from '../types';
-import { parseGradesFromImage } from '../services/geminiService';
 import { supabase } from '../services/supabaseClient';
 
 interface Props {
@@ -22,23 +21,21 @@ const subjects = [
 ];
 
 const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }) => {
-  const isGiangDay = state.currentRole === Role.GIANG_DAY;
   const [viewMode, setViewMode] = useState<'DETAIL' | 'SUMMARY'>('DETAIL');
   const [selectedSubject, setSelectedSubject] = useState(subjects[0].id);
   const [selectedHK, setSelectedHK] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const [numDGTX, setNumDGTX] = useState(4); // Số lượng cột ĐGTX mặc định
+  const [numDGTX, setNumDGTX] = useState(4);
   
   const [isSaving, setIsSaving] = useState(false);
   const [tempGrades, setTempGrades] = useState<Grade[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Đồng bộ dữ liệu khi grades từ cha thay đổi hoặc khi đổi bối cảnh
+  // Đồng bộ dữ liệu sạch từ props
   useEffect(() => { 
     setTempGrades(grades); 
     setHasChanges(false); 
-  }, [grades, state.selectedYear, state.selectedClass]);
+  }, [grades]);
 
   const txColumns = useMemo(() => 
     Array.from({ length: numDGTX }, (_, i) => `ĐGTX${i + 1}`), 
@@ -52,11 +49,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   const handleInputChange = (studentId: string, type: string, rawValue: string) => {
     let val = rawValue === '' ? 0 : parseFloat(rawValue);
-    // Tự động chia 10 nếu nhập 85 -> 8.5
     if (!rawValue.includes('.') && val > 10 && val <= 100) val = val / 10;
     
     setTempGrades(prev => {
       const updated = [...prev];
+      // Tìm index của điểm cũ dựa trên tổ hợp khóa tự nhiên (MaHS, Mon, Nam, HK, Loai)
       const idx = updated.findIndex(g => 
         g.MaHS === studentId && 
         g.MaMonHoc === selectedSubject && 
@@ -66,7 +63,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       );
 
       const newGrade: Grade = { 
-        MaDiem: idx > -1 ? updated[idx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000), 
+        MaDiem: idx > -1 ? updated[idx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000), 
         MaHS: studentId, 
         MaMonHoc: selectedSubject, 
         MaNienHoc: state.selectedYear, 
@@ -75,7 +72,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         DiemSo: val 
       };
 
-      if (idx > -1) updated[idx] = newGrade; else updated.push(newGrade);
+      if (idx > -1) {
+        updated[idx] = newGrade;
+      } else {
+        updated.push(newGrade);
+      }
       return updated;
     });
     setHasChanges(true);
@@ -84,21 +85,40 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
-      // Lọc các điểm thuộc về lớp, môn, kỳ và NIÊN HỌC hiện tại để lưu
-      const gradesToSave = tempGrades.filter(g => 
-        students.some(s => s.MaHS === g.MaHS) && 
+      // BƯỚC QUAN TRỌNG: Loại bỏ trùng lặp trước khi gửi lên Supabase
+      // Lọc các điểm thuộc bối cảnh hiện tại
+      const currentContextGrades = tempGrades.filter(g => 
         g.MaMonHoc === selectedSubject && 
         g.HocKy === selectedHK &&
         g.MaNienHoc === state.selectedYear
       );
+
+      // Map để giữ duy nhất 1 bản ghi cho mỗi MaHS + LoaiDiem
+      const uniqueGradesMap = new Map<string, Grade>();
+      currentContextGrades.forEach(g => {
+        const key = `${g.MaHS}_${g.LoaiDiem}`;
+        uniqueGradesMap.set(key, g);
+      });
+
+      const finalGradesToSave = Array.from(uniqueGradesMap.values());
+
+      if (finalGradesToSave.length === 0) {
+        setHasChanges(false);
+        setIsSaving(false);
+        return;
+      }
+
+      const { error } = await supabase.from('grades').upsert(finalGradesToSave, { 
+        onConflict: 'MaDiem' // Dựa trên Primary Key để tránh lỗi 'cannot affect row a second time'
+      });
       
-      const { error } = await supabase.from('grades').upsert(gradesToSave);
       if (error) throw error;
       
       await onUpdateGrades(tempGrades);
       setHasChanges(false);
-      alert("Đã lưu bảng điểm lên hệ thống!");
+      alert("Đã lưu bảng điểm thành công!");
     } catch (e: any) {
+      console.error("Lưu lỗi:", e);
       alert("Lỗi lưu dữ liệu: " + e.message);
     } finally {
       setIsSaving(false);
@@ -126,9 +146,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   return (
     <div className="space-y-4 pb-32 animate-in fade-in">
-      {/* Header & Controls */}
       <div className="flex flex-col xl:flex-row gap-4">
-        {/* Cột trái: Chọn môn & Số cột */}
         <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-50 pb-3">
              <div className="flex items-center gap-2">
@@ -161,7 +179,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
           </div>
         </div>
 
-        {/* Cột phải: Tìm kiếm & View mode */}
         <div className="w-full xl:w-80 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
            <div className="space-y-1">
               <label className="text-[9px] font-bold text-slate-400 uppercase px-1 tracking-widest">Tìm học sinh</label>
@@ -184,7 +201,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         </div>
       </div>
 
-      {/* Table Area */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse">
@@ -271,7 +287,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         </div>
       </div>
 
-      {/* Floating Save Action */}
       {hasChanges && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10">
           <div className="bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md">
