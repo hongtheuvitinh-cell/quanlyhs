@@ -2,10 +2,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Search, GraduationCap, Table, ListChecks, Save, 
-  Loader2, Plus, Minus, AlertCircle
+  Loader2, Plus, Minus, AlertCircle, Camera, Download, FileSpreadsheet, Sparkles
 } from 'lucide-react';
 import { AppState, Student, Grade, Role } from '../types';
 import { supabase } from '../services/supabaseClient';
+import { parseGradesFromImage } from '../services/geminiService';
 
 interface Props {
   state: AppState;
@@ -28,10 +29,10 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const [numDGTX, setNumDGTX] = useState(4);
   
   const [isSaving, setIsSaving] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const [tempGrades, setTempGrades] = useState<Grade[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Đồng bộ dữ liệu sạch từ props
   useEffect(() => { 
     setTempGrades(grades); 
     setHasChanges(false); 
@@ -53,7 +54,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     
     setTempGrades(prev => {
       const updated = [...prev];
-      // Tìm index của điểm cũ dựa trên tổ hợp khóa tự nhiên (MaHS, Mon, Nam, HK, Loai)
       const idx = updated.findIndex(g => 
         g.MaHS === studentId && 
         g.MaMonHoc === selectedSubject && 
@@ -82,18 +82,75 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     setHasChanges(true);
   };
 
+  const handleAiGradeImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsAiLoading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = (event.target?.result as string).split(',')[1];
+        const results = await parseGradesFromImage(base64, file.type);
+        
+        if (results && results.length > 0) {
+          setTempGrades(prev => {
+            const updated = [...prev];
+            results.forEach((res: any) => {
+              const idx = updated.findIndex(g => 
+                g.MaHS === res.MaHS && 
+                g.MaMonHoc === selectedSubject && 
+                g.HocKy === selectedHK && 
+                g.MaNienHoc === state.selectedYear &&
+                g.LoaiDiem === res.LoaiDiem
+              );
+              
+              const newGrade = {
+                MaDiem: idx > -1 ? updated[idx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000),
+                MaHS: res.MaHS,
+                MaMonHoc: selectedSubject,
+                MaNienHoc: state.selectedYear,
+                HocKy: selectedHK,
+                LoaiDiem: res.LoaiDiem,
+                DiemSo: res.DiemSo
+              };
+
+              if (idx > -1) updated[idx] = newGrade;
+              else updated.push(newGrade);
+            });
+            return updated;
+          });
+          setHasChanges(true);
+          alert(`AI đã nhận diện thành công ${results.length} đầu điểm!`);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      alert("AI không thể đọc được bảng điểm từ file này. Hãy chắc chắn ảnh rõ nét.");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const downloadGradeTemplate = () => {
+    const headers = "MaHS,Hoten,LoaiDiem(ĐGTX1-5/ĐGGK/ĐGCK),DiemSo\n";
+    const data = students.map(s => `${s.MaHS},${s.Hoten},ĐGTX1,`).join('\n');
+    const blob = new Blob([headers + data], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Mau_Nhap_Diem_${selectedSubject}_Lop_${state.selectedClass}.csv`;
+    link.click();
+  };
+
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
-      // BƯỚC QUAN TRỌNG: Loại bỏ trùng lặp trước khi gửi lên Supabase
-      // Lọc các điểm thuộc bối cảnh hiện tại
       const currentContextGrades = tempGrades.filter(g => 
         g.MaMonHoc === selectedSubject && 
         g.HocKy === selectedHK &&
         g.MaNienHoc === state.selectedYear
       );
 
-      // Map để giữ duy nhất 1 bản ghi cho mỗi MaHS + LoaiDiem
       const uniqueGradesMap = new Map<string, Grade>();
       currentContextGrades.forEach(g => {
         const key = `${g.MaHS}_${g.LoaiDiem}`;
@@ -101,24 +158,13 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       });
 
       const finalGradesToSave = Array.from(uniqueGradesMap.values());
-
-      if (finalGradesToSave.length === 0) {
-        setHasChanges(false);
-        setIsSaving(false);
-        return;
-      }
-
-      const { error } = await supabase.from('grades').upsert(finalGradesToSave, { 
-        onConflict: 'MaDiem' // Dựa trên Primary Key để tránh lỗi 'cannot affect row a second time'
-      });
-      
+      const { error } = await supabase.from('grades').upsert(finalGradesToSave, { onConflict: 'MaDiem' });
       if (error) throw error;
       
       await onUpdateGrades(tempGrades);
       setHasChanges(false);
       alert("Đã lưu bảng điểm thành công!");
     } catch (e: any) {
-      console.error("Lưu lỗi:", e);
       alert("Lỗi lưu dữ liệu: " + e.message);
     } finally {
       setIsSaving(false);
@@ -156,13 +202,16 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                   <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Lớp {state.selectedClass} • HK {selectedHK}</p>
                 </div>
              </div>
+             
              <div className="flex items-center gap-2">
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Số cột ĐGTX:</label>
-                <div className="flex items-center bg-slate-50 rounded-lg p-1 border border-slate-100">
-                   <button onClick={() => setNumDGTX(Math.max(1, numDGTX - 1))} className="p-1 hover:bg-white rounded transition-all text-slate-400 hover:text-rose-500"><Minus size={14}/></button>
-                   <span className="w-8 text-center text-xs font-bold text-slate-700">{numDGTX}</span>
-                   <button onClick={() => setNumDGTX(Math.min(8, numDGTX + 1))} className="p-1 hover:bg-white rounded transition-all text-slate-400 hover:text-emerald-50"><Plus size={14}/></button>
-                </div>
+                <button onClick={downloadGradeTemplate} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-bold uppercase border border-slate-100 hover:bg-slate-100 transition-all">
+                  <Download size={14}/> Mẫu Excel
+                </button>
+                <label className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase border border-indigo-100 cursor-pointer hover:bg-indigo-100 transition-all">
+                  {isAiLoading ? <Loader2 size={14} className="animate-spin"/> : <Camera size={14} />}
+                  Quét AI
+                  <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleAiGradeImport} />
+                </label>
              </div>
           </div>
           
@@ -213,18 +262,18 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                     {allColumns.map(h => (
                       <th key={h} className={`px-2 py-4 text-center w-16 ${h === 'ĐGGK' || h === 'ĐGCK' ? 'bg-slate-50' : ''}`}>{h}</th>
                     ))}
-                    <th className="px-5 py-4 text-center bg-indigo-50 text-indigo-600 font-black w-20">Trung Bình</th>
+                    <th className="px-5 py-4 text-center bg-indigo-50 text-indigo-600 font-black w-20">TB</th>
                   </>
                 ) : (
                   <>
                     {subjects.map(sub => <th key={sub.id} className="px-2 py-4 text-center w-16">{sub.name.split(' ')[0]}</th>)}
-                    <th className="px-5 py-4 text-center bg-emerald-50 text-emerald-700 font-black w-24">TB Học Kỳ</th>
+                    <th className="px-5 py-4 text-center bg-emerald-50 text-emerald-700 font-black w-24">TB HK</th>
                   </>
                 )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredStudents.length > 0 ? filteredStudents.map((s, idx) => {
+              {filteredStudents.map((s, idx) => {
                 const tb = calculateSubjectAvg(s.MaHS, selectedSubject, selectedHK);
                 return (
                   <tr key={s.MaHS} className="hover:bg-indigo-50/10 transition-colors group">
@@ -272,16 +321,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                     )}
                   </tr>
                 );
-              }) : (
-                <tr>
-                  <td colSpan={allColumns.length + 3} className="py-20 text-center">
-                     <div className="flex flex-col items-center justify-center text-slate-300">
-                        <AlertCircle size={40} className="mb-2 opacity-20" />
-                        <p className="text-[11px] font-bold uppercase tracking-widest">Không tìm thấy học sinh phù hợp</p>
-                     </div>
-                  </td>
-                </tr>
-              )}
+              })}
             </tbody>
           </table>
         </div>
@@ -292,15 +332,15 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
           <div className="bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Bảng điểm có thay đổi chưa lưu</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Dữ liệu chưa lưu</span>
             </div>
             <button 
               disabled={isSaving}
               onClick={handleSaveChanges} 
-              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20"
+              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg"
             >
               {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              Lưu Cloud ngay
+              Lưu bảng điểm
             </button>
           </div>
         </div>
