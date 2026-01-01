@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { ShieldAlert, Plus, Calendar, AlertCircle, Trash2, Save, X, Edit3, Check, Ban, Loader2, CheckCircle2, Filter, ChevronDown } from 'lucide-react';
+import { ShieldAlert, Plus, AlertCircle, Trash2, Save, X, Edit3, Check, Loader2, CheckCircle2, Filter } from 'lucide-react';
 import { AppState, Student, Discipline, ViolationRule } from '../types';
 
 interface Props {
@@ -24,8 +24,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [ruleFormData, setRuleFormData] = useState<Partial<ViolationRule>>({});
 
-  // States cho bộ lọc
-  const [filterMonth, setFilterMonth] = useState<string>('all'); // 'all', '1', '2'...'12'
+  const [filterMonth, setFilterMonth] = useState<string>('all');
   const [filterStartDate, setFilterStartDate] = useState<string>('');
   const [filterEndDate, setFilterEndDate] = useState<string>('');
 
@@ -37,12 +36,10 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
     return disciplines.filter(d => {
       const dDate = new Date(d.NgayViPham);
       const dMonth = (dDate.getMonth() + 1).toString();
-      
       let matches = true;
       if (filterMonth !== 'all' && dMonth !== filterMonth) matches = false;
       if (filterStartDate && d.NgayViPham < filterStartDate) matches = false;
       if (filterEndDate && d.NgayViPham > filterEndDate) matches = false;
-      
       return matches;
     }).sort((a,b) => b.MaKyLuat - a.MaKyLuat);
   }, [disciplines, filterMonth, filterStartDate, filterEndDate]);
@@ -124,15 +121,12 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
 
       {activeView === 'LIST' && (
         <div className="space-y-4">
-          {/* TOOLBAR FILTER */}
           <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-wrap items-end gap-4">
              <div className="space-y-1.5 flex-1 min-w-[150px]">
                 <label className="text-[9px] font-black text-slate-400 uppercase px-1 tracking-widest flex items-center gap-1"><Filter size={10}/> Lọc theo tháng</label>
                 <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none text-slate-700 focus:bg-white transition-all">
                    <option value="all">Tất cả các tháng</option>
-                   {Array.from({length: 12}, (_, i) => (
-                     <option key={i+1} value={(i+1).toString()}>Tháng {i+1}</option>
-                   ))}
+                   {Array.from({length: 12}, (_, i) => (<option key={i+1} value={(i+1).toString()}>Tháng {i+1}</option>))}
                 </select>
              </div>
              <div className="space-y-1.5 flex-1 min-w-[150px]">
@@ -190,7 +184,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
             }) : (
               <div className="col-span-full py-20 bg-white rounded-[40px] border-2 border-dashed border-slate-100 text-center flex flex-col items-center justify-center opacity-40">
                 <CheckCircle2 size={48} className="text-emerald-200 mb-4" />
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Không tìm thấy vi phạm nào trong thời gian này</p>
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Không tìm thấy vi phạm nào</p>
               </div>
             )}
           </div>
@@ -228,33 +222,33 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
       {activeView === 'RULES' && (
         <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
-            <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2"><ShieldAlert size={16} className="text-rose-500"/> Bộ quy tắc rèn luyện</h3>
+            <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2">Bộ quy tắc rèn luyện</h3>
             <button 
               onClick={() => { setEditingRuleId('new'); setRuleFormData({ TenLoi: '', DiemTru: 2 }); }} 
               disabled={editingRuleId === 'new'}
-              className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-black transition-all active:scale-95"
+              className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2"
             >
               <Plus size={16} /> Thêm quy tắc
             </button>
           </div>
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-              <tr><th className="px-8 py-4">Tên lỗi vi phạm quy định</th><th className="px-8 py-4">Điểm trừ</th><th className="px-8 py-4 text-right">Thao tác</th></tr>
+              <tr><th className="px-8 py-4">Tên lỗi vi phạm</th><th className="px-8 py-4">Điểm trừ</th><th className="px-8 py-4 text-right">Thao tác</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {editingRuleId === 'new' && (
                 <tr className="bg-indigo-50/20">
-                  <td className="px-8 py-3"><input type="text" placeholder="Tên lỗi..." autoFocus value={ruleFormData.TenLoi || ''} onChange={e => setRuleFormData({...ruleFormData, TenLoi: e.target.value})} className="w-full p-2.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold outline-none" /></td>
-                  <td className="px-8 py-3"><input type="number" value={ruleFormData.DiemTru || 0} onChange={e => setRuleFormData({...ruleFormData, DiemTru: parseInt(e.target.value)})} className="w-24 p-2.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-center" /></td>
-                  <td className="px-8 py-3 text-right flex justify-end gap-2"><button onClick={handleSaveRule} className="p-2 bg-emerald-600 text-white rounded-xl shadow-lg"><Check size={18}/></button><button onClick={() => setEditingRuleId(null)} className="p-2 bg-white border border-slate-200 text-slate-400 rounded-xl"><X size={18}/></button></td>
+                  <td className="px-8 py-3"><input type="text" placeholder="Tên lỗi..." autoFocus value={ruleFormData.TenLoi || ''} onChange={e => setRuleFormData({...ruleFormData, TenLoi: e.target.value})} className="w-full p-2 bg-white border border-indigo-200 rounded-xl text-xs font-bold outline-none" /></td>
+                  <td className="px-8 py-3"><input type="number" value={ruleFormData.DiemTru || 0} onChange={e => setRuleFormData({...ruleFormData, DiemTru: parseInt(e.target.value)})} className="w-24 p-2 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-center" /></td>
+                  <td className="px-8 py-3 text-right flex justify-end gap-2"><button onClick={handleSaveRule} className="p-2 bg-emerald-600 text-white rounded-xl"><Check size={18}/></button><button onClick={() => setEditingRuleId(null)} className="p-2 bg-white border border-slate-200 text-slate-400 rounded-xl"><X size={18}/></button></td>
                 </tr>
               )}
               {violationRules.map(rule => (
                 <tr key={rule.MaLoi} className="hover:bg-slate-50/50 group">
                   {editingRuleId === rule.MaLoi ? (
                     <>
-                      <td className="px-8 py-3"><input type="text" value={ruleFormData.TenLoi || ''} onChange={e => setRuleFormData({...ruleFormData, TenLoi: e.target.value})} className="w-full p-2.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold" /></td>
-                      <td className="px-8 py-3"><input type="number" value={ruleFormData.DiemTru || 0} onChange={e => setRuleFormData({...ruleFormData, DiemTru: parseInt(e.target.value)})} className="w-24 p-2.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-center" /></td>
+                      <td className="px-8 py-3"><input type="text" value={ruleFormData.TenLoi || ''} onChange={e => setRuleFormData({...ruleFormData, TenLoi: e.target.value})} className="w-full p-2 bg-white border border-indigo-200 rounded-xl text-xs font-bold" /></td>
+                      <td className="px-8 py-3"><input type="number" value={ruleFormData.DiemTru || 0} onChange={e => setRuleFormData({...ruleFormData, DiemTru: parseInt(e.target.value)})} className="w-24 p-2 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-center" /></td>
                       <td className="px-8 py-3 text-right flex justify-end gap-2"><button onClick={handleSaveRule} className="p-2 bg-emerald-600 text-white rounded-xl"><Check size={18}/></button><button onClick={() => setEditingRuleId(null)} className="p-2 bg-white border border-slate-200 text-slate-400 rounded-xl"><X size={18}/></button></td>
                     </>
                   ) : (
@@ -263,7 +257,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
                       <td className="px-8 py-4"><span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black border border-rose-100">-{rule.DiemTru} điểm</span></td>
                       <td className="px-8 py-4 text-right">
                         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => { setEditingRuleId(rule.MaLoi); setRuleFormData(rule); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit3 size={16}/></button>
+                          <button onClick={() => { setEditingRuleId(rule.MaLoi); setRuleFormData(rule); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl"><Edit3 size={16}/></button>
                         </div>
                       </td>
                     </>
@@ -278,49 +272,48 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
           <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 my-auto">
-            <div className="px-6 py-4 border-b flex items-center justify-between shrink-0">
-              <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight">{modalMode === 'add' ? 'Ghi nhận vi phạm mới' : 'Cập nhật vi phạm'}</h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={20} className="text-slate-400" /></button>
+            <div className="px-6 py-3 border-b flex items-center justify-between shrink-0">
+              <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight">{modalMode === 'add' ? 'Ghi nhận vi phạm' : 'Cập nhật vi phạm'}</h3>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-400" /></button>
             </div>
-            <div className="px-6 py-4 space-y-4 bg-slate-50/20 max-h-[70vh] overflow-y-auto custom-scrollbar">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="px-6 py-4 space-y-3 bg-slate-50/20 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Học sinh</label>
-                  <select disabled={modalMode === 'edit'} value={formDiscipline.MaHS} onChange={e => setFormDiscipline({...formDiscipline, MaHS: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-rose-400 transition-all">
+                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Học sinh</label>
+                  <select disabled={modalMode === 'edit'} value={formDiscipline.MaHS} onChange={e => setFormDiscipline({...formDiscipline, MaHS: e.target.value})} className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none">
                     <option value="">-- Chọn --</option>
-                    {students.map(s => <option key={s.MaHS} value={s.MaHS}>{s.Hoten} ({s.MaHS})</option>)}
+                    {students.map(s => <option key={s.MaHS} value={s.MaHS}>{s.Hoten}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Ngày xảy ra</label>
-                  <input type="date" value={formDiscipline.NgayViPham} onChange={e => setFormDiscipline({...formDiscipline, NgayViPham: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-rose-400 transition-all" />
+                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Ngày xảy ra</label>
+                  <input type="date" value={formDiscipline.NgayViPham} onChange={e => setFormDiscipline({...formDiscipline, NgayViPham: e.target.value})} className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none" />
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Loại lỗi vi phạm</label>
-                <select disabled={modalMode === 'edit'} value={formDiscipline.MaLoi} onChange={e => setFormDiscipline({...formDiscipline, MaLoi: e.target.value})} className="w-full p-2.5 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-xs font-black outline-none shadow-sm">
+                <label className="text-[10px] font-black text-slate-400 uppercase px-1">Loại lỗi vi phạm</label>
+                <select disabled={modalMode === 'edit'} value={formDiscipline.MaLoi} onChange={e => setFormDiscipline({...formDiscipline, MaLoi: e.target.value})} className="w-full p-2 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-xs font-black outline-none">
                   <option value="">-- Chọn lỗi quy định --</option>
                   {violationRules.map(r => <option key={r.MaLoi} value={r.MaLoi}>{r.TenLoi} (-{r.DiemTru}đ)</option>)}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Hình thức xử lý</label>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase px-1">Hình thức xử lý</label>
+                <div className="flex flex-wrap gap-1">
                   {actionTypes.map(type => (
-                    <button key={type} onClick={() => setFormDiscipline({...formDiscipline, HinhThucXL: type})} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border transition-all ${formDiscipline.HinhThucXL === type ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300'}`}>{type}</button>
+                    <button key={type} onClick={() => setFormDiscipline({...formDiscipline, HinhThucXL: type})} className={`px-2 py-1.5 rounded-lg text-[9px] font-black uppercase border transition-all ${formDiscipline.HinhThucXL === type ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-100'}`}>{type}</button>
                   ))}
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Mô tả tình tiết</label>
-                <textarea value={formDiscipline.NoiDungChiTiet} onChange={e => setFormDiscipline({...formDiscipline, NoiDungChiTiet: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium min-h-[80px] outline-none focus:border-rose-400 transition-all shadow-inner" placeholder="Ghi chú chi tiết..."></textarea>
+                <label className="text-[10px] font-black text-slate-400 uppercase px-1">Mô tả tình tiết</label>
+                <textarea value={formDiscipline.NoiDungChiTiet} onChange={e => setFormDiscipline({...formDiscipline, NoiDungChiTiet: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-medium min-h-[70px] outline-none" placeholder="Ghi chú chi tiết..."></textarea>
               </div>
             </div>
             <div className="px-6 py-4 border-t bg-slate-50 flex gap-3 shrink-0">
-              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Hủy</button>
-              <button disabled={isSubmitting} onClick={handleSaveDiscipline} className="flex-[2] py-2.5 bg-rose-600 text-white rounded-2xl font-black shadow-lg shadow-rose-100 hover:bg-rose-700 flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest transition-all">
-                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                Lưu vi phạm
+              <button onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase">Hủy</button>
+              <button disabled={isSubmitting} onClick={handleSaveDiscipline} className="flex-[2] py-2.5 bg-rose-600 text-white rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2">
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Lưu vi phạm
               </button>
             </div>
           </div>
