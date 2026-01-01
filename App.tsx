@@ -187,6 +187,7 @@ const App: React.FC = () => {
         student={state.currentUser as Student}
         grades={grades}
         disciplines={disciplines}
+        violationRules={violationRules}
         tasks={tasks.filter(t => t.MaLop === state.selectedClass && t.DanhSachGiao.includes((state.currentUser as Student).MaHS))}
         onLogout={() => setIsLoggedIn(false)}
         onToggleTask={handleToggleTask}
