@@ -133,22 +133,37 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
 
   const handleExportExcel = () => {
     if (!selectedStudentForProfile) return;
-    let csvContent = "\uFEFF"; // UTF-8 BOM
-    csvContent += `HỌ TÊN: ${selectedStudentForProfile.Hoten}, MÃ HS: ${selectedStudentForProfile.MaHS}, LỚP: ${state.selectedClass}\n`;
-    csvContent += "Môn học,TB HK1,TB HK2,Cả Năm\n";
+    let csvContent = "\uFEFF"; // UTF-8 BOM để Excel đọc được tiếng Việt
     
-    subjectsList.forEach(sub => {
-      const h1 = getSubjectRow(sub.id, 1).avg;
-      const h2 = getSubjectRow(sub.id, 2).avg;
-      const cn = (h1 !== null && h2 !== null) ? (h1 + h2 * 2) / 3 : null;
-      csvContent += `${sub.name},${h1?.toFixed(1) || '-'},${h2?.toFixed(1) || '-'},${cn?.toFixed(1) || '-'}\n`;
-    });
+    // Header thông tin chung
+    csvContent += `HỌ TÊN: ${selectedStudentForProfile.Hoten}, MÃ HS: ${selectedStudentForProfile.MaHS}, LỚP: ${state.selectedClass}\n`;
+    csvContent += `CHẾ ĐỘ XEM: ${gradeView === 'CANAM' ? 'Cả Năm' : 'Học kỳ ' + gradeView.slice(-1)}\n\n`;
+
+    if (gradeView === 'CANAM') {
+      // Trường hợp xuất Cả Năm
+      csvContent += "Môn học,TB Học kỳ 1,TB Học kỳ 2,Trung bình Cả Năm\n";
+      subjectsList.forEach(sub => {
+        const h1 = getSubjectRow(sub.id, 1).avg;
+        const h2 = getSubjectRow(sub.id, 2).avg;
+        const cn = (h1 !== null && h2 !== null) ? (h1 + h2 * 2) / 3 : null;
+        csvContent += `${sub.name},${h1?.toFixed(1) || '-'},${h2?.toFixed(1) || '-'},${cn?.toFixed(1) || '-'}\n`;
+      });
+    } else {
+      // Trường hợp xuất HK1 hoặc HK2 (Chi tiết điểm thành phần)
+      const semester = gradeView === 'HK1' ? 1 : 2;
+      csvContent += "Môn học,TX1,TX2,TX3,TX4,TX5,GK,CK,TB Học Kỳ\n";
+      subjectsList.forEach(sub => {
+        const { tx, gk, ck, avg } = getSubjectRow(sub.id, semester);
+        const txStr = tx.map(v => v !== undefined ? v.toFixed(1) : '-').join(',');
+        csvContent += `${sub.name},${txStr},${gk?.toFixed(1) || '-'},${ck?.toFixed(1) || '-'},${avg?.toFixed(1) || '-'}\n`;
+      });
+    }
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `BangDiem_${selectedStudentForProfile.MaHS}.csv`);
+    link.setAttribute("download", `BangDiem_${selectedStudentForProfile.MaHS}_${gradeView}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -422,7 +437,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                                 <div className={`w-14 h-14 rounded-2xl bg-${conductData.color}-50 flex items-center justify-center text-${conductData.color}-600 border border-${conductData.color}-100`}>
                                    <Star size={28} />
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Điểm rèn luyện</p>
                                    <h4 className={`text-2xl font-black text-${conductData.color}-600`}>{conductData.score} <span className="text-xs font-bold text-slate-300">/ 100</span></h4>
                                 </div>
@@ -431,7 +446,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                                 <div className={`w-14 h-14 rounded-2xl bg-${conductData.color}-50 flex items-center justify-center text-${conductData.color}-600 border border-${conductData.color}-100`}>
                                    <Award size={28} />
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Xếp loại hạnh kiểm</p>
                                    <h4 className={`text-2xl font-black text-${conductData.color}-600 uppercase tracking-tighter`}>{conductData.classification}</h4>
                                 </div>
@@ -477,7 +492,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg uppercase border ${conf.color} ${conf.bg} border-current opacity-70`}>{conf.label}</span>
                                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold"><Calendar size={12} /> {log.NgayGhiChep}</div>
                                       </div>
-                                      <div className="p-3 bg-slate-50/80 rounded-2xl border border-slate-50">
+                                      <div className="p-3 bg-slate-50/80 rounded-2xl border border-slate-100">
                                          <p className="text-[11px] text-slate-700 font-semibold leading-relaxed">"{log.NhanXet || 'Học sinh sinh hoạt bình thường trong tiết học'}"</p>
                                       </div>
                                    </div>
