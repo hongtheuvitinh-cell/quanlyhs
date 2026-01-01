@@ -35,7 +35,6 @@ export interface Student {
   NgheNghiepCha?: string;
   TenMe?: string;
   NgheNghiepMe?: string;
-  HotenChame?: string; // Tên cha hoặc mẹ dùng cho hiển thị nhanh
   SDT_LinkHe: string;
   Email?: string;
   MaLopHienTai: string;
@@ -74,6 +73,7 @@ export interface AssignmentTask {
   HanChot: string;
   MaNienHoc: number;
   DanhSachHoanThanh: string[]; 
+  BaoCaoNhiemVu?: Record<string, string>; // MaHS -> Link sản phẩm
 }
 
 export interface ViolationRule {
