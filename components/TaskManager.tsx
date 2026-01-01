@@ -52,7 +52,6 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
   const today = new Date().toISOString().split('T')[0];
 
   const currentTasks = useMemo(() => {
-    // Nếu là giáo viên bộ môn, chỉ hiện bài môn đó. Nếu chủ nhiệm, hiện tất cả bài của lớp hoặc lọc theo môn đang chọn
     return tasks.filter(t => 
       t.MaLop === state.selectedClass && 
       (state.currentRole === Role.CHU_NHIEM ? true : t.MaMonHoc === (state.selectedSubject || 'TOAN'))
@@ -68,7 +67,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
     setIsSubmitting(true);
     try {
       const task: AssignmentTask = {
-        MaNhiemVu: Date.now(),
+        MaNhiemVu: Date.now(), // Số này rất lớn, CSDL cần kiểu bigint
         TieuDe: newTask.TieuDe,
         MoTa: newTask.MoTa,
         MaLop: state.selectedClass,
@@ -80,8 +79,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
         BaoCaoNhiemVu: {}
       };
 
-      // Gửi mảng mới bao gồm task vừa tạo lên Cloud
-      await onUpdateTasks([task, ...tasks]);
+      await onUpdateTasks([task]);
       
       setIsModalOpen(false);
       setNewTask({ 
@@ -91,28 +89,39 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks })
         MaMonHoc: state.selectedSubject || 'SHL'
       });
       alert("Đã giao nhiệm vụ thành công!");
-    } catch (error) {
-      console.error(error);
-      alert("Lỗi khi giao bài. Vui lòng thử lại!");
+    } catch (error: any) {
+      console.error("Lỗi chi tiết từ Supabase:", error);
+      // Hiển thị đầy đủ thông tin lỗi để xử lý
+      const errorMsg = [
+        "LỖI HỆ THỐNG:",
+        `Thông điệp: ${error.message || 'Không có'}`,
+        `Chi tiết: ${error.details || 'Không có'}`,
+        `Gợi ý: ${error.hint || 'Hãy kiểm tra kiểu dữ liệu MaNhiemVu (phải là bigint)'}`
+      ].join('\n\n');
+      
+      alert(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const toggleCompletion = async (taskId: number, studentId: string) => {
-    const updatedTasks = tasks.map(t => {
-      if (t.MaNhiemVu === taskId) {
-        const isCompleted = t.DanhSachHoanThanh.includes(studentId);
-        return {
-          ...t,
-          DanhSachHoanThanh: isCompleted 
-            ? t.DanhSachHoanThanh.filter(id => id !== studentId)
-            : [...t.DanhSachHoanThanh, studentId]
-        };
-      }
-      return t;
-    });
-    await onUpdateTasks(updatedTasks);
+    const task = tasks.find(t => t.MaNhiemVu === taskId);
+    if (!task) return;
+
+    const isCompleted = task.DanhSachHoanThanh.includes(studentId);
+    const updatedTask = {
+      ...task,
+      DanhSachHoanThanh: isCompleted 
+        ? task.DanhSachHoanThanh.filter(id => id !== studentId)
+        : [...task.DanhSachHoanThanh, studentId]
+    };
+
+    try {
+      await onUpdateTasks([updatedTask]);
+    } catch (error: any) {
+      alert("Lỗi cập nhật: " + error.message);
+    }
   };
 
   return (
