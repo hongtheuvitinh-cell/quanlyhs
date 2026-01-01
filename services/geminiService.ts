@@ -10,7 +10,7 @@ const cleanJsonResponse = (text: string) => {
 };
 
 /**
- * Phân tích kết quả học tập - Sử dụng Flash Lite (Hạn mức cao nhất)
+ * Phân tích kết quả học tập - Sử dụng Gemini 3 Flash Preview (Summarization/Basic Analysis)
  */
 export const analyzeStudentPerformance = async (
   student: Student,
@@ -29,9 +29,9 @@ export const analyzeStudentPerformance = async (
   `;
 
   try {
+    /* Using gemini-3-flash-preview for basic text analysis as per guidelines */
     const response = await ai.models.generateContent({ 
-      // Dùng bản Lite để đảm bảo không bị lỗi 429
-      model: "gemini-flash-lite-latest", 
+      model: "gemini-3-flash-preview", 
       contents: prompt 
     });
     return response.text || "AI không trả về kết quả.";
@@ -50,6 +50,7 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
   const prompt = `Trích xuất danh sách học sinh sang JSON. Định dạng NgaySinh: YYYY-MM-DD. GioiTinh: true (Nam)/false (Nữ).`;
 
   try {
+    /* Using gemini-2.5-flash-image for visual data extraction as per guidelines */
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: {
@@ -103,6 +104,7 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
     Lưu ý: Chỉ trả về JSON, không giải thích gì thêm.`;
 
   try {
+    /* Using gemini-2.5-flash-image for visual data extraction as per guidelines */
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: {
