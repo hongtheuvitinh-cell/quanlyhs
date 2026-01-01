@@ -54,10 +54,17 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
   const handleDeleteYear = async (id: number) => {
     if (!confirm("Cảnh báo: Xóa niên học sẽ ảnh hưởng đến toàn bộ dữ liệu phân công và học sinh liên quan. Bạn chắc chắn chứ?")) return;
     setIsSubmitting(true);
-    const { error } = await supabase.from('academic_years').delete().eq('MaNienHoc', id);
-    if (error) alert("Không thể xóa: Niên học này đang có dữ liệu ràng buộc."); 
-    else await onUpdate();
-    setIsSubmitting(false);
+    try {
+      const { error } = await supabase.from('academic_years').delete().eq('MaNienHoc', id);
+      if (error) {
+        if (error.code === '23503') alert("Không thể xóa: Niên học này đã có dữ liệu (Lớp, Học sinh hoặc Phân công) gắn liền. Hãy xóa dữ liệu liên quan trước.");
+        else alert("Lỗi: " + error.message);
+      } else {
+        await onUpdate();
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleUpdateYear = async (id: number) => {
@@ -77,11 +84,13 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
     }
     setIsSubmitting(true);
     try {
+      // 1. Upsert Lớp vào bảng classes (nếu chưa có)
       const { error: errClass } = await supabase.from('classes').upsert([{ 
         MaLop: classForm.MaLop, TenLop: classForm.TenLop, Khoi: classForm.Khoi 
       }]);
       if (errClass) throw errClass;
 
+      // 2. Tạo phân công chủ nhiệm cho Niên học đó
       if (classForm.MaGVCN) {
         const { error: errAssign } = await supabase.from('assignments').insert([{
           MaGV: classForm.MaGVCN, MaLop: classForm.MaLop, MaNienHoc: classForm.MaNienHoc,
@@ -96,10 +105,10 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
     } catch (e: any) { alert(e.message); } finally { setIsSubmitting(false); }
   };
 
-  // Lọc danh sách lớp hiển thị theo Niên học đang chọn trong Form
+  // Lọc danh sách lớp hiển thị theo Niên học đang chọn trong Form Lớp
   const filteredClassesByYear = useMemo(() => {
     if (!classForm.MaNienHoc) return [];
-    // Lấy tất cả phân công chủ nhiệm của năm đó
+    // Chỉ lấy các lớp đã được gán chủ nhiệm TRONG NIÊN HỌC ĐANG CHỌN
     const yearAssignments = assignments.filter(a => a.MaNienHoc === classForm.MaNienHoc && a.LoaiPhanCong === Role.CHU_NHIEM);
     const classIdsInYear = yearAssignments.map(a => a.MaLop);
     return classes.filter(c => classIdsInYear.includes(c.MaLop));
@@ -126,14 +135,14 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
     if (error) alert(error.message); else await onUpdate();
   };
 
-  // Lọc lớp cho dropdown phân công giảng dạy (Chỉ hiện lớp của năm đó)
+  // Lọc lớp cho dropdown phân công giảng dạy (Chỉ hiện lớp của niên học đang chọn ở form phân công)
   const classesForAssignDropdown = useMemo(() => {
     const yearAssignments = assignments.filter(a => a.MaNienHoc === assignForm.MaNienHoc && a.LoaiPhanCong === Role.CHU_NHIEM);
     const classIds = yearAssignments.map(a => a.MaLop);
     return classes.filter(c => classIds.includes(c.MaLop));
   }, [classes, assignments, assignForm.MaNienHoc]);
 
-  // Lọc lịch sử phân công theo niên học đang chọn
+  // Lọc danh sách giáo viên phân công giảng dạy theo niên học đang chọn
   const filteredAssignmentsHistory = useMemo(() => {
     return assignments.filter(a => a.LoaiPhanCong === Role.GIANG_DAY && a.MaNienHoc === assignForm.MaNienHoc);
   }, [assignments, assignForm.MaNienHoc]);
@@ -228,7 +237,7 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
 
              <div className="space-y-3">
                <h3 className="text-xs font-bold text-slate-800 uppercase px-1 flex items-center gap-2">
-                 <Database size={16} className="text-indigo-600" /> Cấu hình lớp năm {years.find(y => y.MaNienHoc === classForm.MaNienHoc)?.TenNienHoc}
+                 <Database size={16} className="text-indigo-600" /> Danh sách lớp năm {years.find(y => y.MaNienHoc === classForm.MaNienHoc)?.TenNienHoc}
                </h3>
                {filteredClassesByYear.length > 0 ? (
                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -304,7 +313,7 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
 
              <div className="space-y-3">
                <h3 className="text-xs font-bold text-slate-800 uppercase px-1 flex items-center gap-2">
-                 <Briefcase size={16} className="text-emerald-600" /> Danh sách phân công giảng dạy {years.find(y => y.MaNienHoc === assignForm.MaNienHoc)?.TenNienHoc}
+                 <Briefcase size={16} className="text-emerald-600" /> Danh sách giáo viên bộ môn năm {years.find(y => y.MaNienHoc === assignForm.MaNienHoc)?.TenNienHoc}
                </h3>
                {filteredAssignmentsHistory.length > 0 ? (
                  <table className="w-full text-left">
