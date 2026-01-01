@@ -59,9 +59,22 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
   const handleSave = () => {
     if (!formStudent.MaHS || !formStudent.Hoten) { alert("Vui lòng nhập đủ Mã HS và Họ tên!"); return; }
     const finalStudent: Student = {
-      ...(formStudent as Student),
+      MaHS: formStudent.MaHS!,
+      Hoten: formStudent.Hoten!,
+      NgaySinh: formStudent.NgaySinh!,
+      GioiTinh: !!formStudent.GioiTinh,
+      DiaChi: formStudent.DiaChi || '',
+      TenCha: formStudent.TenCha || '',
+      NgheNghiepCha: formStudent.NgheNghiepCha || '',
+      TenMe: formStudent.TenMe || '',
+      NgheNghiepMe: formStudent.NgheNghiepMe || '',
+      SDT_LinkHe: formStudent.SDT_LinkHe || '',
+      Email: formStudent.Email || '',
       MaLopHienTai: state.selectedClass,
       MaNienHoc: state.selectedYear,
+      Anh: formStudent.Anh || '',
+      GhiChuKhac: formStudent.GhiChuKhac || '',
+      MatKhau: formStudent.MatKhau || '123456'
     };
     if (modalMode === 'add') onAddStudent(finalStudent);
     else onUpdateStudent(finalStudent);
@@ -144,18 +157,13 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
             </div>
           </div>
         ))}
-        {filteredStudents.length === 0 && (
-          <div className="col-span-full py-20 text-center text-gray-400 italic bg-white rounded-[40px] border border-dashed border-gray-200">
-            Không tìm thấy học sinh nào trong danh sách.
-          </div>
-        )}
       </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in">
-          <div className="bg-white w-full max-w-5xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+          <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
             <div className="px-8 py-5 border-b flex items-center justify-between bg-white shrink-0">
-               <h3 className="font-black text-xl text-gray-800">
+               <h3 className="font-black text-xl text-gray-800 uppercase tracking-tight">
                  {modalMode === 'ai' ? 'Trích xuất từ AI' : modalMode === 'profile' ? 'Hồ sơ học tập' : modalMode === 'edit' ? 'Sửa thông tin' : 'Thêm học sinh'}
                </h3>
                <button onClick={resetForm} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={24}/></button>
@@ -165,25 +173,25 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                  <div className="space-y-8">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                        <div className="bg-indigo-50 p-6 rounded-[32px] border border-indigo-100">
-                          <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Điểm trung bình</p>
+                          <p className="text-[10px] font-black text-indigo-400 uppercase mb-2">ĐTB HK</p>
                           <h4 className="text-3xl font-black text-indigo-900">8.2</h4>
                        </div>
                        <div className="bg-emerald-50 p-6 rounded-[32px] border border-emerald-100">
-                          <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2">Hạnh kiểm</p>
+                          <p className="text-[10px] font-black text-emerald-400 uppercase mb-2">Hạnh kiểm</p>
                           <h4 className="text-3xl font-black text-emerald-900">Tốt</h4>
                        </div>
                        <div className="bg-rose-50 p-6 rounded-[32px] border border-rose-100">
-                          <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2">Vi phạm</p>
+                          <p className="text-[10px] font-black text-rose-400 uppercase mb-2">Vi phạm</p>
                           <h4 className="text-3xl font-black text-rose-900">{disciplines.filter(d => d.MaHS === selectedStudentForProfile.MaHS).length}</h4>
                        </div>
                     </div>
                     <div className="bg-white rounded-[32px] border border-gray-200 overflow-hidden shadow-sm">
                        <table className="w-full text-left">
                           <thead>
-                             <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200">
+                             <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase border-b border-gray-200">
                                <th className="px-8 py-4">Môn học</th>
-                               <th className="px-6 py-4 text-center">Học kỳ 1</th>
-                               <th className="px-6 py-4 text-center">Học kỳ 2</th>
+                               <th className="px-6 py-4 text-center">HK 1</th>
+                               <th className="px-6 py-4 text-center">HK 2</th>
                                <th className="px-8 py-4 text-right bg-indigo-50/50 text-indigo-600 font-black">Cả năm</th>
                              </tr>
                           </thead>
@@ -206,7 +214,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                  </div>
                ) : modalMode === 'ai' ? (
                   <div className="space-y-4">
-                     <p className="text-sm font-bold text-indigo-600">AI đã tìm thấy {aiPreviewData.length} học sinh. Vui lòng kiểm tra lại trước khi nhập.</p>
+                     <p className="text-sm font-bold text-indigo-600">AI đã tìm thấy {aiPreviewData.length} học sinh.</p>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {aiPreviewData.map((s, i) => (
                            <div key={i} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between items-center">
@@ -223,47 +231,54 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
                        <button onClick={() => setActiveFormTab('family')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${activeFormTab === 'family' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400'}`}>2. Gia đình</button>
                        <button onClick={() => setActiveFormTab('contact')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${activeFormTab === 'contact' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400'}`}>3. Liên hệ</button>
                     </div>
+
                     {activeFormTab === 'basic' && (
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-left-4">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-left-4">
                           <Field label="Mã HS" value={formStudent.MaHS} onChange={v => setFormStudent({...formStudent, MaHS: v})} />
                           <Field label="Họ tên" value={formStudent.Hoten} onChange={v => setFormStudent({...formStudent, Hoten: v})} />
                           <Field label="Ngày sinh" type="date" value={formStudent.NgaySinh} onChange={v => setFormStudent({...formStudent, NgaySinh: v})} />
-                          <div className="space-y-1"><label className="text-[10px] font-black text-gray-400 uppercase">Giới tính</label><select className="w-full p-4 bg-gray-50 border rounded-2xl font-bold" value={formStudent.GioiTinh ? 'true' : 'false'} onChange={e => setFormStudent({...formStudent, GioiTinh: e.target.value === 'true'})}><option value="true">Nam</option><option value="false">Nữ</option></select></div>
+                          <div className="space-y-1"><label className="text-[9px] font-black text-gray-400 uppercase">Giới tính</label><select className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-sm" value={formStudent.GioiTinh ? 'true' : 'false'} onChange={e => setFormStudent({...formStudent, GioiTinh: e.target.value === 'true'})}><option value="true">Nam</option><option value="false">Nữ</option></select></div>
+                          <div className="md:col-span-2"><Field label="Link Ảnh hồ sơ" value={formStudent.Anh} onChange={v => setFormStudent({...formStudent, Anh: v})} placeholder="Dán URL ảnh tại đây..." /></div>
                        </div>
                     )}
+
                     {activeFormTab === 'family' && (
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-left-4">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-left-4">
                           <Field label="Họ tên Cha" value={formStudent.TenCha} onChange={v => setFormStudent({...formStudent, TenCha: v})} />
+                          <Field label="Nghề nghiệp Cha" value={formStudent.NgheNghiepCha} onChange={v => setFormStudent({...formStudent, NgheNghiepCha: v})} />
                           <Field label="Họ tên Mẹ" value={formStudent.TenMe} onChange={v => setFormStudent({...formStudent, TenMe: v})} />
+                          <Field label="Nghề nghiệp Mẹ" value={formStudent.NgheNghiepMe} onChange={v => setFormStudent({...formStudent, NgheNghiepMe: v})} />
                        </div>
                     )}
+
                     {activeFormTab === 'contact' && (
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-left-4">
-                          <Field label="Điện thoại" value={formStudent.SDT_LinkHe} onChange={v => setFormStudent({...formStudent, SDT_LinkHe: v})} />
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-left-4">
+                          <Field label="Điện thoại liên hệ" value={formStudent.SDT_LinkHe} onChange={v => setFormStudent({...formStudent, SDT_LinkHe: v})} />
                           <Field label="Email" type="email" value={formStudent.Email} onChange={v => setFormStudent({...formStudent, Email: v})} />
-                          <div className="col-span-full"><Field label="Địa chỉ" value={formStudent.DiaChi} onChange={v => setFormStudent({...formStudent, DiaChi: v})} /></div>
+                          <div className="md:col-span-2"><Field label="Địa chỉ thường trú" value={formStudent.DiaChi} onChange={v => setFormStudent({...formStudent, DiaChi: v})} /></div>
+                          <div className="md:col-span-2"><Field label="Ghi chú khác" value={formStudent.GhiChuKhac} onChange={v => setFormStudent({...formStudent, GhiChuKhac: v})} /></div>
                        </div>
                     )}
                  </div>
                )}
             </div>
             <div className="px-8 py-5 bg-gray-50 border-t flex justify-end gap-3 shrink-0">
-               <button onClick={resetForm} className="px-6 py-3 bg-white border border-gray-200 text-gray-500 rounded-2xl font-black text-xs uppercase">Đóng</button>
+               <button onClick={resetForm} className="px-6 py-2.5 bg-white border border-gray-200 text-gray-500 rounded-2xl font-black text-xs uppercase">Hủy</button>
                {modalMode === 'ai' ? (
-                  <button onClick={() => { onAddStudents(aiPreviewData as Student[]); resetForm(); }} className="px-10 py-3 bg-indigo-600 text-white rounded-2xl font-black shadow-lg text-xs uppercase">Nhập tất cả</button>
+                  <button onClick={() => { onAddStudents(aiPreviewData as Student[]); resetForm(); }} className="px-8 py-2.5 bg-indigo-600 text-white rounded-2xl font-black shadow-lg text-xs uppercase">Nhập tất cả</button>
                ) : (modalMode !== 'profile' && (
-                  <button onClick={handleSave} className="px-10 py-3 bg-indigo-600 text-white rounded-2xl font-black shadow-lg text-xs uppercase flex items-center gap-2"><Save size={16}/> Lưu hồ sơ</button>
+                  <button onClick={handleSave} className="px-8 py-2.5 bg-indigo-600 text-white rounded-2xl font-black shadow-lg text-xs uppercase flex items-center gap-2"><Save size={16}/> Lưu dữ liệu</button>
                ))}
             </div>
           </div>
         </div>
       )}
 
-      {isAnalyzing && (
+      {isAiProcessing && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm">
            <div className="bg-white p-10 rounded-[40px] shadow-2xl flex flex-col items-center border border-indigo-100">
               <div className="h-16 w-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
-              <p className="font-black text-gray-800">AI đang phân tích...</p>
+              <p className="font-black text-gray-800 italic">AI đang xử lý danh sách...</p>
            </div>
         </div>
       )}
@@ -271,7 +286,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, logs, disciplin
       {aiAnalysis && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md animate-in fade-in">
           <div className="bg-white w-full max-w-xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-6 bg-indigo-600 text-white flex items-center justify-between"><div className="flex items-center gap-3"><BrainCircuit size={20}/><h3 className="font-black text-lg">Phân tích chuyên sâu</h3></div><button onClick={() => setAiAnalysis(null)} className="p-2 hover:bg-white/10 rounded-full"><X size={20}/></button></div>
+            <div className="p-6 bg-indigo-600 text-white flex items-center justify-between"><div className="flex items-center gap-3"><BrainCircuit size={20}/><h3 className="font-black text-lg">Phân tích học sinh</h3></div><button onClick={() => setAiAnalysis(null)} className="p-2 hover:bg-white/10 rounded-full"><X size={20}/></button></div>
             <div className="p-8 overflow-y-auto italic text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{aiAnalysis}</div>
             <div className="p-6 bg-gray-50 border-t flex justify-end"><button onClick={() => setAiAnalysis(null)} className="px-8 py-3 bg-gray-900 text-white rounded-2xl font-black text-xs uppercase">Đóng</button></div>
           </div>
@@ -290,14 +305,15 @@ const subjectsList = [
   { id: 'SINH', name: 'Sinh Học' },
 ];
 
-const Field = ({ label, value, onChange, type = "text" }: { label: string, value: any, onChange: (v: string) => void, type?: string }) => (
+const Field = ({ label, value, onChange, placeholder, type = "text" }: { label: string, value: any, onChange: (v: string) => void, placeholder?: string, type?: string }) => (
   <div className="space-y-1">
-    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">{label}</label>
+    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">{label}</label>
     <input 
       type={type} 
       value={value || ''} 
       onChange={e => onChange(e.target.value)} 
-      className="w-full p-4 bg-gray-50 border border-transparent rounded-2xl font-bold outline-none focus:bg-white focus:border-indigo-100 transition-all text-sm" 
+      placeholder={placeholder}
+      className="w-full p-3 bg-gray-50 border border-transparent rounded-xl font-bold outline-none focus:bg-white focus:border-indigo-100 transition-all text-sm" 
     />
   </div>
 );
