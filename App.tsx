@@ -196,12 +196,15 @@ const App: React.FC = () => {
        throw new Error("Cloud chưa được cấu hình (Thiếu API Key hoặc URL Supabase)");
     }
     try {
+      // Đảm bảo dữ liệu trước khi gửi đi khớp 100% với tên cột PascalCase
       const { error } = await supabase.from('tasks').upsert(newTasks);
+      
       if (error) {
-        // Log toàn bộ error ra console để người dùng kiểm tra F12 nếu cần
-        console.error("Supabase Upsert Error Full:", error);
+        console.error("LỖI SUPABASE UPSERT:", error);
+        // Ném nguyên đối tượng lỗi của Supabase ra ngoài để TaskManager xử lý message chi tiết
         throw error;
       }
+      
       await fetchData();
     } catch (error: any) {
       console.error("Lỗi bắt được trong handleUpdateTasks:", error);
