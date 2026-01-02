@@ -52,34 +52,36 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
-      const lines = text.split('\n');
-      const newStudents: Student[] = [];
+      const lines = text.split('\n').filter(line => line.trim() !== '');
       
       // Bỏ qua dòng header, bắt đầu từ i=1
+      let count = 0;
       for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',').map(c => c.trim());
+        const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
         if (cols.length >= 2 && cols[0] && cols[1]) {
           const student: Student = {
             MaHS: cols[0],
             Hoten: cols[1],
             NgaySinh: cols[2] || '',
-            GioiTinh: cols[3] === '1' || cols[3]?.toLowerCase() === 'nam',
+            GioiTinh: cols[3] === '1' || cols[3]?.toLowerCase() === 'nam' || cols[3]?.toLowerCase() === 'true',
             SDT_LinkHe: cols[4] || '',
-            DiaChi: cols[5] || '',
-            TenCha: cols[6] || '',
-            NgheNghiepCha: cols[7] || '',
-            TenMe: cols[8] || '',
-            NgheNghiepMe: cols[9] || '',
-            Email: cols[10] || '',
+            Email: cols[5] || '',
+            DiaChi: cols[6] || '',
+            TenCha: cols[7] || '',
+            NgheNghiepCha: cols[8] || '',
+            TenMe: cols[9] || '',
+            NgheNghiepMe: cols[10] || '',
             GhiChuKhac: cols[11] || '',
             MaLopHienTai: state.selectedClass,
             MaNienHoc: state.selectedYear,
             MatKhau: '123456'
           };
           onUpdateStudent(student);
+          count++;
         }
       }
-      alert(`Đã nhập thành công dữ liệu từ file CSV!`);
+      alert(`Đã nhập thành công ${count} học sinh từ file CSV!`);
+      e.target.value = ''; // Reset input file
     };
     reader.readAsText(file, 'UTF-8');
   };
@@ -161,12 +163,20 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
 
   const downloadTemplate = () => {
     const BOM = "\uFEFF";
-    const headers = "MaHS,Hoten,NgaySinh,GioiTinh(1:Nam/0:Nu),SDT_LinkHe,DiaChi,TenCha,NgheNghiepCha,TenMe,NgheNghiepMe,Email,GhiChuKhac\n";
-    const blob = new Blob([BOM + headers], { type: 'text/csv;charset=utf-8;' });
+    // Header được thiết kế y hệt giao diện form nhập tay:
+    // 1. Định danh (MaHS, Hoten)
+    // 2. Cá nhân (NgaySinh, GioiTinh)
+    // 3. Liên lạc (SDT, Email, DiaChi)
+    // 4. Gia đình (Cha, NgheCha, Me, NgheMe)
+    // 5. Khác (GhiChu)
+    const headers = "Mã Học Sinh (MaHS),Họ và Tên (Hoten),Ngày sinh (YYYY-MM-DD),Giới tính (1:Nam / 0:Nữ),Số điện thoại (SDT),Email,Địa chỉ liên hệ,Họ tên Cha,Nghề nghiệp Cha,Họ tên Mẹ,Nghề nghiệp Mẹ,Ghi chú đặc biệt\n";
+    const example = "HS001,Nguyễn Văn Mẫu,2008-01-01,1,0901234567,mau.nguyen@gmail.com,123 Đường ABC Quận 1,Nguyễn Văn A,Kỹ sư,Trần Thị B,Kinh doanh,Học sinh giỏi cấp trường\n";
+    
+    const blob = new Blob([BOM + headers + example], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Mau_Danh_Sach_HS_Lop_${state.selectedClass}.csv`;
+    link.download = `Mau_Ho_So_Hoc_Sinh_${state.selectedClass}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -261,10 +271,10 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
           </div>
           
           <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl text-[10px] font-bold uppercase border border-slate-200 hover:bg-slate-100 transition-all">
-            <Download size={14}/> Mẫu
+            <Download size={14}/> Mẫu HS
           </button>
           
-          <label className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl cursor-pointer hover:bg-emerald-100 transition-all border border-emerald-100 text-[10px] font-bold uppercase tracking-widest" title="Nhập danh sách học sinh từ file CSV">
+          <label className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl cursor-pointer hover:bg-emerald-100 transition-all border border-emerald-100 text-[10px] font-bold uppercase tracking-widest" title="Nhập danh sách học sinh nhanh từ file CSV">
              <FileUp size={16} />
              Nhập CSV
              <input type="file" className="hidden" accept=".csv" onChange={handleCsvImport} />
