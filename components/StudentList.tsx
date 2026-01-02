@@ -61,33 +61,45 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     return result.map(v => v.replace(/^"|"$/g, '').trim());
   };
 
-  // Hàm chuẩn hóa ngày tháng về YYYY-MM-DD để Supabase không lỗi
+  // Hàm chuẩn hóa ngày tháng về YYYY-MM-DD - Trả về null nếu không hợp lệ để tránh lỗi DB
   const formatDateToDB = (dateStr: string) => {
-    if (!dateStr) return '';
+    if (!dateStr || dateStr.trim() === '') return null;
     const clean = dateStr.trim();
     
-    // Trường hợp 1: DD/MM/YYYY
-    if (clean.includes('/')) {
-      const parts = clean.split('/');
-      if (parts.length === 3) {
-        const [d, m, y] = parts;
-        return `${y.padStart(4, '20')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    try {
+      // Trường hợp 1: DD/MM/YYYY
+      if (clean.includes('/')) {
+        const parts = clean.split('/');
+        if (parts.length === 3) {
+          const [d, m, y] = parts;
+          const year = y.length === 2 ? `20${y}` : y;
+          return `${year.padStart(4, '20')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        }
       }
+      
+      // Trường hợp 2: DD-MM-YYYY
+      if (clean.includes('-')) {
+        const parts = clean.split('-');
+        if (parts.length === 3) {
+          // Nếu đã là YYYY-MM-DD
+          if (parts[0].length === 4) return clean;
+          // Nếu là DD-MM-YYYY
+          const [d, m, y] = parts;
+          const year = y.length === 2 ? `20${y}` : y;
+          return `${year.padStart(4, '20')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        }
+      }
+
+      // Kiểm tra nếu là YYYYMMDD hoặc các định dạng khác
+      const dateObj = new Date(clean);
+      if (!isNaN(dateObj.getTime())) {
+        return dateObj.toISOString().split('T')[0];
+      }
+    } catch (e) {
+      console.error("Lỗi parse ngày:", clean);
     }
     
-    // Trường hợp 2: DD-MM-YYYY
-    if (clean.includes('-')) {
-      const parts = clean.split('-');
-      if (parts.length === 3) {
-        // Nếu đã là YYYY-MM-DD (phần đầu có 4 số)
-        if (parts[0].length === 4) return clean;
-        // Nếu là DD-MM-YYYY
-        const [d, m, y] = parts;
-        return `${y.padStart(4, '20')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-      }
-    }
-    
-    return clean;
+    return null;
   };
 
   const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,38 +108,44 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
-      // Tách dòng, lọc bỏ các dòng rỗng
       const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
       
       let count = 0;
-      // Dữ liệu bắt đầu từ i = 1
+      let errorCount = 0;
+
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCsvLine(lines[i]);
         
-        // Kiểm tra xem có tối thiểu Mã HS và Họ tên không
-        if (cols.length >= 2 && cols[0]) {
-          const student: Student = {
-            MaHS: cols[0].replace(/\s+/g, ''), // Xóa mọi khoảng trắng trong mã HS
-            Hoten: cols[1] || 'Học sinh chưa tên',
-            NgaySinh: formatDateToDB(cols[2]), // Chuẩn hóa ngày sinh
+        // KIỂM TRA BẮT BUỘC: Phải có Mã HS (cols[0]) và Họ Tên (cols[1])
+        if (cols[0] && cols[0].trim() !== '' && cols[1] && cols[1].trim() !== '') {
+          const student: any = {
+            MaHS: cols[0].replace(/\s+/g, ''), 
+            Hoten: cols[1].trim(),
+            NgaySinh: formatDateToDB(cols[2]), // Sẽ là null nếu trống
             GioiTinh: cols[3] === '1' || cols[3]?.toLowerCase() === 'nam' || cols[3]?.toLowerCase() === 'true',
-            SDT_LinkHe: cols[4] || '',
-            Email: cols[5] || '',
-            DiaChi: cols[6] || '',
-            TenCha: cols[7] || '',
-            NgheNghiepCha: cols[8] || '',
-            TenMe: cols[9] || '',
-            NgheNghiepMe: cols[10] || '',
-            GhiChuKhac: cols[11] || '',
+            SDT_LinkHe: cols[4] || null,
+            Email: cols[5] || null,
+            DiaChi: cols[6] || null,
+            TenCha: cols[7] || null,
+            NgheNghiepCha: cols[8] || null,
+            TenMe: cols[9] || null,
+            NgheNghiepMe: cols[10] || null,
+            GhiChuKhac: cols[11] || null,
             MaLopHienTai: state.selectedClass,
             MaNienHoc: state.selectedYear,
             MatKhau: '123456'
           };
           onUpdateStudent(student);
           count++;
+        } else {
+          errorCount++;
+          console.warn(`Dòng ${i+1} bị bỏ qua do thiếu MaHS hoặc Hoten:`, lines[i]);
         }
       }
-      alert(`Hệ thống đã đọc được ${count} học sinh. Đang đồng bộ lên Cloud...`);
+      
+      let msg = `Hệ thống đã đọc thành công ${count} học sinh.`;
+      if (errorCount > 0) msg += `\n(Có ${errorCount} dòng bị bỏ qua do thiếu thông tin bắt buộc)`;
+      alert(msg);
       e.target.value = ''; 
     };
     reader.readAsText(file, 'UTF-8');
