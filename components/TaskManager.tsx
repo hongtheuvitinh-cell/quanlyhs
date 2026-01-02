@@ -24,7 +24,6 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTask, setSelectedTask] = useState<AssignmentTask | null>(null);
   
-  // Bộ lọc
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expired'>('all');
 
@@ -129,7 +128,6 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
         <button onClick={handleOpenAdd} className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all"><Plus size={18} /> Tạo mới nhiệm vụ</button>
       </div>
 
-      {/* TASK FILTER TOOLBAR */}
       <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-wrap items-end gap-5">
          <div className="space-y-1.5 flex-1 min-w-[150px]">
             <label className="text-[9px] font-black text-slate-400 uppercase px-1 tracking-widest flex items-center gap-1"><Filter size={10}/> Tháng hạn nộp</label>
@@ -177,12 +175,11 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
                     <div className={`h-full transition-all duration-700 ${isSelected ? 'bg-white shadow-[0_0_12px_white]' : 'bg-indigo-500 shadow-md'}`} style={{width: `${progress}%`}}></div>
                   </div>
                 </div>
-                {isSelected && (
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                    <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(task); }} className="p-2 bg-white/20 hover:bg-white/40 rounded-xl"><Edit2 size={14} /></button>
-                    <button onClick={(e) => { e.stopPropagation(); if(confirm("Xóa nhiệm vụ này?")) onDeleteTask(task.MaNhiemVu); }} className="p-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl shadow-lg"><Trash2 size={14}/></button>
-                  </div>
-                )}
+                {/* Đưa nút xóa ra ngoài hoặc đảm bảo nó nhận sự kiện click độc lập */}
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-20">
+                  <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(task); }} className={`p-2 rounded-xl ${isSelected ? 'bg-white/20 hover:bg-white/40' : 'bg-slate-50 hover:bg-slate-100 text-indigo-600'}`}><Edit2 size={14} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); onDeleteTask(task.MaNhiemVu); }} className="p-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl shadow-lg"><Trash2 size={14}/></button>
+                </div>
               </div>
             );
           }) : (
@@ -209,7 +206,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
                 </div>
                 <div className="flex gap-2">
                    <button onClick={() => handleOpenEdit(selectedTask)} className="p-2.5 text-indigo-600 hover:bg-white border border-transparent hover:border-indigo-100 rounded-2xl transition-all shadow-sm"><Edit2 size={20}/></button>
-                   <button onClick={() => { if(confirm("Xóa nhiệm vụ?")) onDeleteTask(selectedTask.MaNhiemVu).then(() => setSelectedTask(null)); }} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={20}/></button>
+                   <button onClick={() => { if(confirm("Xóa nhiệm vụ này vĩnh viễn?")) onDeleteTask(selectedTask.MaNhiemVu).then(() => setSelectedTask(null)); }} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={20}/></button>
                 </div>
               </div>
               <div className="p-8 border-b bg-white">
@@ -226,7 +223,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
                    <p className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Học sinh được giao ({selectedTask.DanhSachGiao?.length})</p>
                    <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest">
                       <span className="flex items-center gap-1.5 text-emerald-600"><CheckCircle size={14} /> Hoàn thành: {selectedTask.DanhSachHoanThanh.length}</span>
-                      <span className="flex items-center gap-1.5 text-slate-300"><Clock size={14} /> Đang chờ: {selectedTask.DanhSachGiao?.length - selectedTask.DanhSachHoanThanh.length}</span>
+                      <span className="flex items-center gap-1.5 text-slate-300"><Clock size={14} /> Đang chờ: {(selectedTask.DanhSachGiao?.length || 0) - selectedTask.DanhSachHoanThanh.length}</span>
                    </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
