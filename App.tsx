@@ -245,7 +245,7 @@ const App: React.FC = () => {
         <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase">Niên học:</span>
+              <span className="text-0px] font-black text-slate-400 uppercase">Niên học:</span>
               <select value={state.selectedYear} onChange={(e: any) => setState(p => ({...p, selectedYear: parseInt(e.target.value)}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}</select>
             </div>
             <div className="flex items-center gap-2">
@@ -275,9 +275,55 @@ const App: React.FC = () => {
               violationRules={violationRules}
               onUpdateStudent={(s) => supabase.from('students').upsert(s).then(() => fetchData())} 
               onDeleteStudent={async (id) => {
-                const { error } = await supabase.from('students').delete().eq('MaHS', id);
-                if (error) alert("Lỗi khi xóa học sinh: " + error.message);
-                else fetchData();
+                if (!confirm(`Xóa học sinh ${id} sẽ xóa toàn bộ điểm số, kỷ luật và nhật ký liên quan. Bạn có chắc chắn?`)) return;
+                setIsLoading(true);
+                try {
+                  // 1. Xóa điểm
+                  await supabase.from('grades').delete().eq('MaHS', id);
+                  // 2. Xóa kỷ luật
+                  await supabase.from('disciplines').delete().eq('MaHS', id);
+                  // 3. Xóa nhật ký học tập
+                  await supabase.from('learning_logs').delete().eq('MaHS', id);
+                  // 4. Cập nhật các nhiệm vụ (Xóa khỏi mảng giao bài)
+                  const { data: allTasks } = await supabase.from('tasks').select('*');
+                  if (allTasks) {
+                    for (const task of allTasks) {
+                      let changed = false;
+                      let newGiao = [...(task.DanhSachGiao || [])];
+                      let newHoanThanh = [...(task.DanhSachHoanThanh || [])];
+                      let newReports = { ...(task.BaoCaoNhiemVu || {}) };
+
+                      if (newGiao.includes(id)) {
+                        newGiao = newGiao.filter(x => x !== id);
+                        changed = true;
+                      }
+                      if (newHoanThanh.includes(id)) {
+                        newHoanThanh = newHoanThanh.filter(x => x !== id);
+                        changed = true;
+                      }
+                      if (newReports[id]) {
+                        delete newReports[id];
+                        changed = true;
+                      }
+
+                      if (changed) {
+                        await supabase.from('tasks').update({
+                          DanhSachGiao: newGiao,
+                          DanhSachHoanThanh: newHoanThanh,
+                          BaoCaoNhiemVu: newReports
+                        }).eq('MaNhiemVu', task.MaNhiemVu);
+                      }
+                    }
+                  }
+                  // 5. Cuối cùng mới xóa học sinh
+                  const { error } = await supabase.from('students').delete().eq('MaHS', id);
+                  if (error) throw error;
+                  await fetchData();
+                } catch (err: any) {
+                  alert("Lỗi khi xóa dữ liệu: " + err.message);
+                } finally {
+                  setIsLoading(false);
+                }
               }} 
             />
           )}
@@ -289,9 +335,17 @@ const App: React.FC = () => {
               tasks={tasks} 
               onUpdateTasks={() => fetchData()} 
               onDeleteTask={async (id) => {
-                const { error } = await supabase.from('tasks').delete().eq('MaNhiemVu', id);
-                if (error) alert("Lỗi khi xóa nhiệm vụ: " + error.message);
-                else fetchData();
+                if (!confirm("Bạn có chắc chắn muốn xóa nhiệm vụ này?")) return;
+                setIsLoading(true);
+                try {
+                  const { error } = await supabase.from('tasks').delete().eq('MaNhiemVu', id);
+                  if (error) throw error;
+                  await fetchData();
+                } catch (err: any) {
+                  alert("Lỗi khi xóa nhiệm vụ: " + err.message);
+                } finally {
+                  setIsLoading(false);
+                }
               }} 
             />
           )}
