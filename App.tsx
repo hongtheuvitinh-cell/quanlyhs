@@ -274,11 +274,27 @@ const App: React.FC = () => {
               logs={logs}
               violationRules={violationRules}
               onUpdateStudent={(s) => supabase.from('students').upsert(s).then(() => fetchData())} 
-              onDeleteStudent={(id) => supabase.from('students').delete().eq('MaHS', id).then(() => fetchData())} 
+              onDeleteStudent={async (id) => {
+                const { error } = await supabase.from('students').delete().eq('MaHS', id);
+                if (error) alert("Lỗi khi xóa học sinh: " + error.message);
+                else fetchData();
+              }} 
             />
           )}
           {activeTab === 'grades' && <GradeBoard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={() => fetchData()} />}
-          {activeTab === 'tasks' && <TaskManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={() => fetchData()} onDeleteTask={() => fetchData()} />}
+          {activeTab === 'tasks' && (
+            <TaskManager 
+              state={state} 
+              students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
+              tasks={tasks} 
+              onUpdateTasks={() => fetchData()} 
+              onDeleteTask={async (id) => {
+                const { error } = await supabase.from('tasks').delete().eq('MaNhiemVu', id);
+                if (error) alert("Lỗi khi xóa nhiệm vụ: " + error.message);
+                else fetchData();
+              }} 
+            />
+          )}
           {activeTab === 'discipline' && (
             <DisciplineManager 
               state={state} 
