@@ -4,7 +4,7 @@ import {
   Search, User, Users, Calendar, Phone, Trash2, Plus, Sparkles, X, Save, 
   Edit2, MapPin, Mail, Info, Loader2, ChevronRight, FileSpreadsheet, 
   AlertTriangle, MessageSquare, Camera, Download, UserPlus, GraduationCap,
-  CheckCircle, Image as ImageIcon, FileText
+  CheckCircle, Image as ImageIcon, FileText, BrainCircuit, FileUp, Link as LinkIcon
 } from 'lucide-react';
 import { AppState, Student, Grade, Discipline, LearningLog, ViolationRule } from '../types';
 import { analyzeStudentPerformance, parseStudentListFromImage } from '../services/geminiService';
@@ -45,6 +45,44 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()) || 
     s.MaHS.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\n');
+      const newStudents: Student[] = [];
+      
+      // Bỏ qua dòng header, bắt đầu từ i=1
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',').map(c => c.trim());
+        if (cols.length >= 2 && cols[0] && cols[1]) {
+          const student: Student = {
+            MaHS: cols[0],
+            Hoten: cols[1],
+            NgaySinh: cols[2] || '',
+            GioiTinh: cols[3] === '1' || cols[3]?.toLowerCase() === 'nam',
+            SDT_LinkHe: cols[4] || '',
+            DiaChi: cols[5] || '',
+            TenCha: cols[6] || '',
+            NgheNghiepCha: cols[7] || '',
+            TenMe: cols[8] || '',
+            NgheNghiepMe: cols[9] || '',
+            Email: cols[10] || '',
+            GhiChuKhac: cols[11] || '',
+            MaLopHienTai: state.selectedClass,
+            MaNienHoc: state.selectedYear,
+            MatKhau: '123456'
+          };
+          onUpdateStudent(student);
+        }
+      }
+      alert(`Đã nhập thành công dữ liệu từ file CSV!`);
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
 
   const getSpecificGrade = (maHS: string, maMon: string, semester: number, type: string) => {
     const g = grades.find(g => g.MaHS === maHS && g.MaMonHoc === maMon && g.HocKy === semester && g.MaNienHoc === state.selectedYear && g.LoaiDiem === type);
@@ -104,13 +142,20 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
           const first = result[0];
           setFormData({ ...formData, ...first });
           setIsFormOpen(true);
+          alert(`Đã nhận diện thành công học sinh: ${first.Hoten}`);
+        } else {
+          alert("AI không tìm thấy thông tin học sinh trong ảnh này.");
         }
+      };
+      reader.onerror = () => {
+        alert("Lỗi đọc file ảnh.");
+        setIsAiLoading(false);
       };
       reader.readAsDataURL(file);
     } catch (err) {
       alert("AI không thể phân tích dữ liệu từ file này.");
     } finally {
-      setIsAiLoading(false);
+      setTimeout(() => setIsAiLoading(false), 2000);
     }
   };
 
@@ -123,6 +168,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     link.href = url;
     link.download = `Mau_Danh_Sach_HS_Lop_${state.selectedClass}.csv`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   const exportStudentReport = (student: Student, type: 1 | 2 | 'CN') => {
@@ -157,6 +203,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     link.href = url;
     link.download = `KetQua_${typeName}_${student.MaHS}.csv`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleAnalyze = async (student: Student) => {
@@ -175,6 +222,22 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
 
   return (
     <div className="space-y-4 animate-in fade-in pb-20">
+      {/* Loading Overlay cho Quét AI */}
+      {isAiLoading && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-md animate-in fade-in">
+           <div className="bg-white p-8 rounded-[40px] shadow-2xl flex flex-col items-center gap-4 border border-indigo-100">
+              <div className="relative">
+                 <div className="w-16 h-16 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin"></div>
+                 <BrainCircuit className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-600" size={24} />
+              </div>
+              <div className="text-center">
+                 <p className="text-[11px] font-black text-slate-800 uppercase tracking-widest">AI đang phân tích dữ liệu...</p>
+                 <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Vui lòng đợi trong giây lát</p>
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* HEADER CONTROLS */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-3">
@@ -198,12 +261,18 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
           </div>
           
           <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl text-[10px] font-bold uppercase border border-slate-200 hover:bg-slate-100 transition-all">
-            <Download size={14}/> Mẫu HS
+            <Download size={14}/> Mẫu
           </button>
           
+          <label className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl cursor-pointer hover:bg-emerald-100 transition-all border border-emerald-100 text-[10px] font-bold uppercase tracking-widest" title="Nhập danh sách học sinh từ file CSV">
+             <FileUp size={16} />
+             Nhập CSV
+             <input type="file" className="hidden" accept=".csv" onChange={handleCsvImport} />
+          </label>
+
           <label className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl cursor-pointer hover:bg-indigo-100 transition-all border border-indigo-100 text-[10px] font-bold uppercase tracking-widest" title="AI quét danh sách từ ảnh/PDF">
-             {isAiLoading ? <Loader2 size={16} className="animate-spin"/> : <Camera size={16} />}
-             Quét AI HS
+             <Camera size={16} />
+             Quét AI
              <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleAiImport} />
           </label>
           
@@ -359,7 +428,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                              <button 
                                key={tab} 
                                onClick={() => setGradeSubTab(tab as any)}
-                               className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase transition-all ${gradeSubTab === tab ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                               className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${gradeSubTab === tab ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                              >
                                {tab === 'CN' ? 'Cả năm' : `Học kỳ ${tab}`}
                              </button>
