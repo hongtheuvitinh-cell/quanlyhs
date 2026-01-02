@@ -54,44 +54,50 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
-      const lines = text.split('\n');
+      const lines = text.split('\n').filter(line => line.trim() !== '');
       const newGrades: Grade[] = [...tempGrades];
       
+      let count = 0;
       // Bỏ qua dòng header
       for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',').map(c => c.trim());
+        const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
         if (cols.length >= 3) {
           const maHS = cols[0];
           const loaiDiem = cols[2];
-          const diemSo = parseFloat(cols[3]);
+          const diemSoStr = cols[3];
           
-          if (maHS && loaiDiem && !isNaN(diemSo)) {
-            const idx = newGrades.findIndex(g => 
-              g.MaHS === maHS && 
-              g.MaMonHoc === selectedSubject && 
-              g.HocKy === selectedHK && 
-              g.MaNienHoc === state.selectedYear &&
-              g.LoaiDiem === loaiDiem
-            );
-            
-            const newGrade: Grade = {
-              MaDiem: idx > -1 ? newGrades[idx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000),
-              MaHS: maHS,
-              MaMonHoc: selectedSubject,
-              MaNienHoc: state.selectedYear,
-              HocKy: selectedHK,
-              LoaiDiem: loaiDiem,
-              DiemSo: diemSo
-            };
+          if (maHS && loaiDiem && diemSoStr !== '') {
+            const diemSo = parseFloat(diemSoStr);
+            if (!isNaN(diemSo)) {
+              const idx = newGrades.findIndex(g => 
+                g.MaHS === maHS && 
+                g.MaMonHoc === selectedSubject && 
+                g.HocKy === selectedHK && 
+                g.MaNienHoc === state.selectedYear &&
+                g.LoaiDiem === loaiDiem
+              );
+              
+              const newGrade: Grade = {
+                MaDiem: idx > -1 ? newGrades[idx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000000),
+                MaHS: maHS,
+                MaMonHoc: selectedSubject,
+                MaNienHoc: state.selectedYear,
+                HocKy: selectedHK,
+                LoaiDiem: loaiDiem,
+                DiemSo: diemSo
+              };
 
-            if (idx > -1) newGrades[idx] = newGrade;
-            else newGrades.push(newGrade);
+              if (idx > -1) newGrades[idx] = newGrade;
+              else newGrades.push(newGrade);
+              count++;
+            }
           }
         }
       }
       setTempGrades(newGrades);
       setHasChanges(true);
-      alert(`Đã nhập điểm thành công từ file CSV!`);
+      alert(`Đã nhập thành công ${count} điểm từ file CSV!`);
+      e.target.value = '';
     };
     reader.readAsText(file, 'UTF-8');
   };
@@ -187,13 +193,21 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   const downloadGradeTemplate = () => {
     const BOM = "\uFEFF";
-    const headers = "MaHS,Hoten,LoaiDiem(ĐGTX1-5/ĐGGK/ĐGCK),DiemSo\n";
-    const data = students.map(s => `${s.MaHS},${s.Hoten},ĐGTX1,`).join('\n');
-    const blob = new Blob([BOM + headers + data], { type: 'text/csv;charset=utf-8;' });
+    const headers = "MaHS,Họ và Tên (Không bắt buộc),Loại điểm (ĐGTX1-5 / ĐGGK / ĐGCK),Điểm số (0-10)\n";
+    
+    // Tạo sẵn danh sách học sinh hiện tại với các đầu điểm chính để GV chỉ việc điền
+    let dataRows = "";
+    students.forEach(s => {
+      dataRows += `${s.MaHS},${s.Hoten},ĐGTX1,\n`;
+      dataRows += `${s.MaHS},${s.Hoten},ĐGGK,\n`;
+      dataRows += `${s.MaHS},${s.Hoten},ĐGCK,\n`;
+    });
+
+    const blob = new Blob([BOM + headers + dataRows], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Mau_Nhap_Diem_${selectedSubject}_Lop_${state.selectedClass}.csv`;
+    link.download = `Mau_Nhap_Diem_${selectedSubject}_HK${selectedHK}_${state.selectedClass}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -277,7 +291,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
              
              <div className="flex items-center gap-2">
                 <button onClick={downloadGradeTemplate} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-bold uppercase border border-slate-100 hover:bg-slate-100 transition-all">
-                  <Download size={14}/> Mẫu
+                  <Download size={14}/> Mẫu Điểm
                 </button>
                 <label className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold uppercase border border-emerald-100 cursor-pointer hover:bg-emerald-100 transition-all">
                   <FileUp size={14} />
