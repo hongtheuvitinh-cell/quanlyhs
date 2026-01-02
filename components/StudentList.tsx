@@ -61,26 +61,55 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     return result.map(v => v.replace(/^"|"$/g, '').trim());
   };
 
+  // Hàm chuẩn hóa ngày tháng về YYYY-MM-DD để Supabase không lỗi
+  const formatDateToDB = (dateStr: string) => {
+    if (!dateStr) return '';
+    const clean = dateStr.trim();
+    
+    // Trường hợp 1: DD/MM/YYYY
+    if (clean.includes('/')) {
+      const parts = clean.split('/');
+      if (parts.length === 3) {
+        const [d, m, y] = parts;
+        return `${y.padStart(4, '20')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+    }
+    
+    // Trường hợp 2: DD-MM-YYYY
+    if (clean.includes('-')) {
+      const parts = clean.split('-');
+      if (parts.length === 3) {
+        // Nếu đã là YYYY-MM-DD (phần đầu có 4 số)
+        if (parts[0].length === 4) return clean;
+        // Nếu là DD-MM-YYYY
+        const [d, m, y] = parts;
+        return `${y.padStart(4, '20')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+    }
+    
+    return clean;
+  };
+
   const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
-      // Tách dòng và bỏ qua các dòng rỗng thực sự
+      // Tách dòng, lọc bỏ các dòng rỗng
       const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
       
       let count = 0;
-      // Header ở dòng 0, dữ liệu bắt đầu từ i = 1
+      // Dữ liệu bắt đầu từ i = 1
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCsvLine(lines[i]);
         
         // Kiểm tra xem có tối thiểu Mã HS và Họ tên không
-        if (cols.length >= 2 && cols[0] && cols[1]) {
+        if (cols.length >= 2 && cols[0]) {
           const student: Student = {
-            MaHS: cols[0],
-            Hoten: cols[1],
-            NgaySinh: cols[2] || '',
+            MaHS: cols[0].replace(/\s+/g, ''), // Xóa mọi khoảng trắng trong mã HS
+            Hoten: cols[1] || 'Học sinh chưa tên',
+            NgaySinh: formatDateToDB(cols[2]), // Chuẩn hóa ngày sinh
             GioiTinh: cols[3] === '1' || cols[3]?.toLowerCase() === 'nam' || cols[3]?.toLowerCase() === 'true',
             SDT_LinkHe: cols[4] || '',
             Email: cols[5] || '',
@@ -98,7 +127,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
           count++;
         }
       }
-      alert(`Đã xử lý xong ${count} dòng dữ liệu từ file CSV!`);
+      alert(`Hệ thống đã đọc được ${count} học sinh. Đang đồng bộ lên Cloud...`);
       e.target.value = ''; 
     };
     reader.readAsText(file, 'UTF-8');
@@ -136,6 +165,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     if (!formData.Hoten || !formData.MaHS) { alert("Vui lòng nhập đầy đủ Mã HS và Họ tên!"); return; }
     onUpdateStudent({
       ...formData as Student,
+      MaHS: formData.MaHS!.replace(/\s+/g, ''),
       MaLopHienTai: state.selectedClass,
       MaNienHoc: state.selectedYear,
       MatKhau: formData.MatKhau || '123456'
@@ -186,8 +216,8 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
 
   const downloadTemplate = () => {
     const BOM = "\uFEFF";
-    const headers = "Mã Học Sinh (MaHS),Họ và Tên (Hoten),Ngày sinh (YYYY-MM-DD),Giới tính (1:Nam / 0:Nữ),Số điện thoại (SDT),Email,Địa chỉ liên hệ,Họ tên Cha,Nghề nghiệp Cha,Họ tên Mẹ,Nghề nghiệp Mẹ,Ghi chú đặc biệt\n";
-    const example = 'HS001,Nguyễn Văn Mẫu,2008-01-01,1,0901234567,mau.nguyen@gmail.com,"123 Đường ABC, Quận 1, TP.HCM",Nguyễn Văn A,Kỹ sư,Trần Thị B,Kinh doanh,Học sinh giỏi cấp trường\n';
+    const headers = "Mã Học Sinh (MaHS),Họ và Tên (Hoten),Ngày sinh (DD/MM/YYYY),Giới tính (1:Nam / 0:Nữ),Số điện thoại (SDT),Email,Địa chỉ liên hệ,Họ tên Cha,Nghề nghiệp Cha,Họ tên Mẹ,Nghề nghiệp Mẹ,Ghi chú đặc biệt\n";
+    const example = 'HS001,Nguyễn Văn Mẫu,01/05/2008,1,0901234567,mau.nguyen@gmail.com,"123 Đường ABC, Quận 1, TP.HCM",Nguyễn Văn A,Kỹ sư,Trần Thị B,Kinh doanh,Học sinh giỏi cấp trường\n';
     
     const blob = new Blob([BOM + headers + example], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
