@@ -21,6 +21,17 @@ const subjects = [
   { id: 'DIA', name: 'Địa Lý' }, { id: 'SU', name: 'Lịch Sử' }, { id: 'GDCD', name: 'GDCD' }
 ];
 
+// Map từ tiêu đề cột file CSV sang loại điểm trong hệ thống
+const CSV_COLUMN_MAP: Record<string, string> = {
+  'TX1': 'ĐGTX1',
+  'TX2': 'ĐGTX2',
+  'TX3': 'ĐGTX3',
+  'TX4': 'ĐGTX4',
+  'TX5': 'ĐGTX5',
+  'GK': 'ĐGGK',
+  'CK': 'ĐGCK'
+};
+
 const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }) => {
   const [viewMode, setViewMode] = useState<'DETAIL' | 'SUMMARY'>('DETAIL');
   const [selectedSubject, setSelectedSubject] = useState(subjects[0].id);
@@ -55,48 +66,58 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     reader.onload = (event) => {
       const text = event.target?.result as string;
       const lines = text.split('\n').filter(line => line.trim() !== '');
+      if (lines.length < 2) return;
+
       const newGrades: Grade[] = [...tempGrades];
-      
-      let count = 0;
-      // Bỏ qua dòng header
+      let updateCount = 0;
+
+      // Header mong đợi: MAHS, HOTEN, TX1, TX2, TX3, TX4, TX5, GK, CK
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-        if (cols.length >= 3) {
-          const maHS = cols[0];
-          const loaiDiem = cols[2];
-          const diemSoStr = cols[3];
+        if (cols.length < 2) continue;
+
+        const maHS = cols[0];
+        // Duyệt qua các cột điểm từ index 2 đến 8 (TX1 -> CK)
+        const gradeHeaders = ['TX1', 'TX2', 'TX3', 'TX4', 'TX5', 'GK', 'CK'];
+        
+        gradeHeaders.forEach((header, idx) => {
+          const colIndex = idx + 2;
+          const diemValue = cols[colIndex];
           
-          if (maHS && loaiDiem && diemSoStr !== '') {
-            const diemSo = parseFloat(diemSoStr);
+          if (diemValue !== undefined && diemValue !== '') {
+            const diemSo = parseFloat(diemValue);
             if (!isNaN(diemSo)) {
-              const idx = newGrades.findIndex(g => 
+              const loaiDiemSystem = CSV_COLUMN_MAP[header];
+              
+              const existingIdx = newGrades.findIndex(g => 
                 g.MaHS === maHS && 
                 g.MaMonHoc === selectedSubject && 
                 g.HocKy === selectedHK && 
                 g.MaNienHoc === state.selectedYear &&
-                g.LoaiDiem === loaiDiem
+                g.LoaiDiem === loaiDiemSystem
               );
-              
+
               const newGrade: Grade = {
-                MaDiem: idx > -1 ? newGrades[idx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000000),
+                MaDiem: existingIdx > -1 ? newGrades[existingIdx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000000) + updateCount,
                 MaHS: maHS,
                 MaMonHoc: selectedSubject,
                 MaNienHoc: state.selectedYear,
                 HocKy: selectedHK,
-                LoaiDiem: loaiDiem,
+                LoaiDiem: loaiDiemSystem,
                 DiemSo: diemSo
               };
 
-              if (idx > -1) newGrades[idx] = newGrade;
+              if (existingIdx > -1) newGrades[existingIdx] = newGrade;
               else newGrades.push(newGrade);
-              count++;
+              updateCount++;
             }
           }
-        }
+        });
       }
+
       setTempGrades(newGrades);
       setHasChanges(true);
-      alert(`Đã nhập thành công ${count} điểm từ file CSV!`);
+      alert(`Đã xử lý thành công điểm cho các học sinh từ file CSV! Nhấn "Lưu" để hoàn tất.`);
       e.target.value = '';
     };
     reader.readAsText(file, 'UTF-8');
@@ -193,21 +214,34 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   const downloadGradeTemplate = () => {
     const BOM = "\uFEFF";
-    const headers = "MaHS,Họ và Tên (Không bắt buộc),Loại điểm (ĐGTX1-5 / ĐGGK / ĐGCK),Điểm số (0-10)\n";
+    // Header hàng ngang đúng chuẩn người dùng yêu cầu
+    const headers = "MAHS,HOTEN,TX1,TX2,TX3,TX4,TX5,GK,CK\n";
     
-    // Tạo sẵn danh sách học sinh hiện tại với các đầu điểm chính để GV chỉ việc điền
+    // Tạo danh sách học sinh, mỗi người 1 dòng
     let dataRows = "";
     students.forEach(s => {
-      dataRows += `${s.MaHS},${s.Hoten},ĐGTX1,\n`;
-      dataRows += `${s.MaHS},${s.Hoten},ĐGGK,\n`;
-      dataRows += `${s.MaHS},${s.Hoten},ĐGCK,\n`;
+      // Lấy điểm hiện tại nếu có để điền vào mẫu
+      const getG = (type: string) => {
+        const found = tempGrades.find(g => g.MaHS === s.MaHS && g.MaMonHoc === selectedSubject && g.HocKy === selectedHK && g.MaNienHoc === state.selectedYear && g.LoaiDiem === type);
+        return found ? found.DiemSo : "";
+      };
+
+      const tx1 = getG('ĐGTX1');
+      const tx2 = getG('ĐGTX2');
+      const tx3 = getG('ĐGTX3');
+      const tx4 = getG('ĐGTX4');
+      const tx5 = getG('ĐGTX5');
+      const gk = getG('ĐGGK');
+      const ck = getG('ĐGCK');
+
+      dataRows += `${s.MaHS},${s.Hoten},${tx1},${tx2},${tx3},${tx4},${tx5},${gk},${ck}\n`;
     });
 
     const blob = new Blob([BOM + headers + dataRows], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Mau_Nhap_Diem_${selectedSubject}_HK${selectedHK}_${state.selectedClass}.csv`;
+    link.download = `Bang_Diem_${selectedSubject}_HK${selectedHK}_Lop_${state.selectedClass}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -221,14 +255,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         g.MaNienHoc === state.selectedYear
       );
 
-      const uniqueGradesMap = new Map<string, Grade>();
-      currentContextGrades.forEach(g => {
-        const key = `${g.MaHS}_${g.LoaiDiem}`;
-        uniqueGradesMap.set(key, g);
-      });
-
-      const finalGradesToSave = Array.from(uniqueGradesMap.values());
-      const { error } = await supabase.from('grades').upsert(finalGradesToSave, { onConflict: 'MaDiem' });
+      const { error } = await supabase.from('grades').upsert(currentContextGrades, { onConflict: 'MaDiem' });
       if (error) throw error;
       
       await onUpdateGrades(tempGrades);
@@ -262,7 +289,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   return (
     <div className="space-y-4 pb-32 animate-in fade-in">
-      {/* Loading Overlay cho Quét AI Bảng Điểm */}
+      {/* Loading Overlay */}
       {isAiLoading && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-md animate-in fade-in">
            <div className="bg-white p-8 rounded-[40px] shadow-2xl flex flex-col items-center gap-4 border border-indigo-100">
@@ -291,7 +318,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
              
              <div className="flex items-center gap-2">
                 <button onClick={downloadGradeTemplate} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-bold uppercase border border-slate-100 hover:bg-slate-100 transition-all">
-                  <Download size={14}/> Mẫu Điểm
+                  <Download size={14}/> Tải Mẫu CSV
                 </button>
                 <label className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold uppercase border border-emerald-100 cursor-pointer hover:bg-emerald-100 transition-all">
                   <FileUp size={14} />
@@ -347,7 +374,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
             <thead>
               <tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
                 <th className="px-5 py-4 w-12 text-center">STT</th>
-                <th className="px-5 py-4 min-w-[180px]">Họ và Tên Học Sinh</th>
+                <th className="px-5 py-4 min-w-[180px]">Học Sinh</th>
                 {viewMode === 'DETAIL' ? (
                   <>
                     {allColumns.map(h => (
