@@ -48,7 +48,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     setHasChanges(false); 
   }, [grades]);
 
-  // Hàm helper để tách dòng CSV chuẩn
   const parseCsvLine = (line: string) => {
     const result = [];
     let curVal = '';
@@ -141,9 +140,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   };
 
   const handleInputChange = (studentId: string, type: string, rawValue: string) => {
-    let val = rawValue === '' ? 0 : parseFloat(rawValue);
-    if (!rawValue.includes('.') && val > 10 && val <= 100) val = val / 10;
-    
     setTempGrades(prev => {
       const updated = [...prev];
       const idx = updated.findIndex(g => 
@@ -154,6 +150,19 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         g.LoaiDiem === type
       );
 
+      // Nếu người dùng xóa trắng ô nhập
+      if (rawValue === '') {
+        if (idx > -1) {
+          // Gán DiemSo là null thay vì 0 để đánh dấu cần xóa khỏi DB
+          updated[idx] = { ...updated[idx], DiemSo: null as any };
+        }
+        return updated;
+      }
+
+      let val = parseFloat(rawValue);
+      // Hỗ trợ nhập nhanh 85 -> 8.5
+      if (!rawValue.includes('.') && val > 10 && val <= 100) val = val / 10;
+      
       const newGrade: Grade = { 
         MaDiem: idx > -1 ? updated[idx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000), 
         MaHS: studentId, 
@@ -164,11 +173,9 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         DiemSo: val 
       };
 
-      if (idx > -1) {
-        updated[idx] = newGrade;
-      } else {
-        updated.push(newGrade);
-      }
+      if (idx > -1) updated[idx] = newGrade;
+      else updated.push(newGrade);
+      
       return updated;
     });
     setHasChanges(true);
@@ -223,7 +230,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       };
       reader.readAsDataURL(file);
     } catch (err) {
-      alert("AI không thể đọc được bảng điểm từ file này. Hãy chắc chắn ảnh rõ nét.");
+      alert("AI không thể đọc được bảng điểm từ file này.");
     } finally {
       setTimeout(() => setIsAiLoading(false), 2000);
     }
@@ -236,7 +243,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     students.forEach(s => {
       const getG = (type: string) => {
         const found = tempGrades.find(g => g.MaHS === s.MaHS && g.MaMonHoc === selectedSubject && g.HocKy === selectedHK && g.MaNienHoc === state.selectedYear && g.LoaiDiem === type);
-        return found ? found.DiemSo : "";
+        return (found && found.DiemSo !== null) ? found.DiemSo : "";
       };
       const tx1 = getG('ĐGTX1');
       const tx2 = getG('ĐGTX2');
@@ -259,16 +266,33 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
+      // 1. Lọc danh sách điểm thuộc ngữ cảnh hiện tại
       const currentContextGrades = tempGrades.filter(g => 
         g.MaMonHoc === selectedSubject && 
         g.HocKy === selectedHK &&
         g.MaNienHoc === state.selectedYear
       );
-      const { error } = await supabase.from('grades').upsert(currentContextGrades, { onConflict: 'MaDiem' });
-      if (error) throw error;
-      await onUpdateGrades(tempGrades);
+
+      // 2. Tách thành danh sách cần cập nhật và danh sách cần xóa
+      const toUpsert = currentContextGrades.filter(g => g.DiemSo !== null && g.DiemSo !== undefined);
+      const toDelete = currentContextGrades.filter(g => g.DiemSo === null || g.DiemSo === undefined);
+
+      // 3. Thực hiện lưu những điểm có giá trị
+      if (toUpsert.length > 0) {
+        const { error: upsertError } = await supabase.from('grades').upsert(toUpsert, { onConflict: 'MaDiem' });
+        if (upsertError) throw upsertError;
+      }
+
+      // 4. Thực hiện xóa những điểm đã bị xóa trắng trong UI
+      if (toDelete.length > 0) {
+        const idsToDelete = toDelete.map(g => g.MaDiem);
+        const { error: deleteError } = await supabase.from('grades').delete().in('MaDiem', idsToDelete);
+        if (deleteError) throw deleteError;
+      }
+
+      await onUpdateGrades(tempGrades.filter(g => g.DiemSo !== null));
       setHasChanges(false);
-      alert("Đã lưu bảng điểm thành công!");
+      alert("Đã đồng bộ bảng điểm thành công!");
     } catch (e: any) {
       alert("Lỗi lưu dữ liệu: " + e.message);
     } finally {
@@ -281,7 +305,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       g.MaHS === studentId && 
       g.MaMonHoc === subjectId && 
       g.HocKy === semester &&
-      g.MaNienHoc === state.selectedYear
+      g.MaNienHoc === state.selectedYear &&
+      g.DiemSo !== null
     );
     const dgtx = sGrades.filter(g => g.LoaiDiem.startsWith('ĐGTX')).map(g => g.DiemSo);
     const ggk = sGrades.find(g => g.LoaiDiem === 'ĐGGK')?.DiemSo;
@@ -418,11 +443,13 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                             g.MaNienHoc === state.selectedYear &&
                             g.LoaiDiem === type
                           );
+                          const currentVal = (gradeObj && gradeObj.DiemSo !== null) ? gradeObj.DiemSo : '';
+                          
                           return (
                             <td key={type} className={`px-2 py-2 text-center ${type === 'ĐGGK' || type === 'ĐGCK' ? 'bg-slate-50/30' : ''}`}>
                               <input 
                                 type="number" step="0.1" min="0" max="10"
-                                value={gradeObj?.DiemSo ?? ''} 
+                                value={currentVal} 
                                 onChange={(e) => handleInputChange(s.MaHS, type, e.target.value)} 
                                 placeholder="-" 
                                 className="w-11 h-8 text-center font-normal text-xs bg-white border border-slate-100 rounded-lg focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 outline-none transition-all shadow-sm group-hover:border-slate-200" 
