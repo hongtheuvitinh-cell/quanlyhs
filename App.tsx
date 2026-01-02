@@ -180,7 +180,6 @@ const App: React.FC = () => {
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>;
   if (!isLoggedIn) return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
 
-  // NẾU LÀ HỌC SINH -> HIỂN THỊ STUDENT PORTAL
   if (state.currentRole === Role.STUDENT) {
     return (
       <StudentPortal 
@@ -196,7 +195,6 @@ const App: React.FC = () => {
     );
   }
 
-  // NẾU LÀ GIÁO VIÊN -> HIỂN THỊ GIAO DIỆN QUẢN LÝ
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden text-[13px] font-normal text-slate-600">
       <aside className="w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm relative z-20">
@@ -245,7 +243,7 @@ const App: React.FC = () => {
         <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <span className="text-0px] font-black text-slate-400 uppercase">Niên học:</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase">Niên học:</span>
               <select value={state.selectedYear} onChange={(e: any) => setState(p => ({...p, selectedYear: parseInt(e.target.value)}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}</select>
             </div>
             <div className="flex items-center gap-2">
@@ -278,35 +276,34 @@ const App: React.FC = () => {
                 if (!confirm(`Xóa học sinh ${id} sẽ xóa toàn bộ điểm số, kỷ luật và nhật ký liên quan. Bạn có chắc chắn?`)) return;
                 setIsLoading(true);
                 try {
-                  // 1. Xóa điểm
-                  await supabase.from('grades').delete().eq('MaHS', id);
+                  // PHẢI XÓA THEO THỨ TỰ NGƯỢC LẠI CỦA RÀNG BUỘC KHÓA NGOẠI
+                  
+                  // 1. Xóa tất cả các bản ghi trong bảng grades có MaHS này
+                  const { error: errGrades } = await supabase.from('grades').delete().eq('MaHS', id);
+                  if (errGrades) throw new Error("Lỗi xóa điểm: " + errGrades.message);
+
                   // 2. Xóa kỷ luật
-                  await supabase.from('disciplines').delete().eq('MaHS', id);
-                  // 3. Xóa nhật ký học tập
-                  await supabase.from('learning_logs').delete().eq('MaHS', id);
-                  // 4. Cập nhật các nhiệm vụ (Xóa khỏi mảng giao bài)
-                  const { data: allTasks } = await supabase.from('tasks').select('*');
-                  if (allTasks) {
-                    for (const task of allTasks) {
-                      let changed = false;
+                  const { error: errDisciplines } = await supabase.from('disciplines').delete().eq('MaHS', id);
+                  if (errDisciplines) throw new Error("Lỗi xóa kỷ luật: " + errDisciplines.message);
+
+                  // 3. Xóa nhật ký
+                  const { error: errLogs } = await supabase.from('learning_logs').delete().eq('MaHS', id);
+                  if (errLogs) throw new Error("Lỗi xóa nhật ký: " + errLogs.message);
+
+                  // 4. Xử lý bảng Tasks (Nhiệm vụ) - Cập nhật JSON arrays
+                  const { data: relatedTasks } = await supabase.from('tasks').select('*');
+                  if (relatedTasks) {
+                    for (const task of relatedTasks) {
+                      let needsUpdate = false;
                       let newGiao = [...(task.DanhSachGiao || [])];
                       let newHoanThanh = [...(task.DanhSachHoanThanh || [])];
                       let newReports = { ...(task.BaoCaoNhiemVu || {}) };
 
-                      if (newGiao.includes(id)) {
-                        newGiao = newGiao.filter(x => x !== id);
-                        changed = true;
-                      }
-                      if (newHoanThanh.includes(id)) {
-                        newHoanThanh = newHoanThanh.filter(x => x !== id);
-                        changed = true;
-                      }
-                      if (newReports[id]) {
-                        delete newReports[id];
-                        changed = true;
-                      }
+                      if (newGiao.includes(id)) { newGiao = newGiao.filter(x => x !== id); needsUpdate = true; }
+                      if (newHoanThanh.includes(id)) { newHoanThanh = newHoanThanh.filter(x => x !== id); needsUpdate = true; }
+                      if (newReports[id]) { delete newReports[id]; needsUpdate = true; }
 
-                      if (changed) {
+                      if (needsUpdate) {
                         await supabase.from('tasks').update({
                           DanhSachGiao: newGiao,
                           DanhSachHoanThanh: newHoanThanh,
@@ -315,12 +312,15 @@ const App: React.FC = () => {
                       }
                     }
                   }
-                  // 5. Cuối cùng mới xóa học sinh
-                  const { error } = await supabase.from('students').delete().eq('MaHS', id);
-                  if (error) throw error;
+
+                  // 5. CUỐI CÙNG mới xóa học sinh khỏi bảng students
+                  const { error: errStudent } = await supabase.from('students').delete().eq('MaHS', id);
+                  if (errStudent) throw new Error("Lỗi xóa học sinh: " + errStudent.message);
+
                   await fetchData();
+                  alert("Đã xóa học sinh và các dữ liệu liên quan thành công.");
                 } catch (err: any) {
-                  alert("Lỗi khi xóa dữ liệu: " + err.message);
+                  alert(err.message);
                 } finally {
                   setIsLoading(false);
                 }
@@ -335,12 +335,13 @@ const App: React.FC = () => {
               tasks={tasks} 
               onUpdateTasks={() => fetchData()} 
               onDeleteTask={async (id) => {
-                if (!confirm("Bạn có chắc chắn muốn xóa nhiệm vụ này?")) return;
+                if (!confirm("Xác nhận xóa nhiệm vụ này vĩnh viễn?")) return;
                 setIsLoading(true);
                 try {
                   const { error } = await supabase.from('tasks').delete().eq('MaNhiemVu', id);
                   if (error) throw error;
                   await fetchData();
+                  alert("Đã xóa nhiệm vụ thành công.");
                 } catch (err: any) {
                   alert("Lỗi khi xóa nhiệm vụ: " + err.message);
                 } finally {
@@ -375,7 +376,7 @@ const App: React.FC = () => {
 
       {isPasswordModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl p-6">
+          <div className="bg-white w-full max-md rounded-[32px] shadow-2xl p-6">
              <h3 className="font-black text-sm text-slate-800 uppercase mb-4">Đổi mật khẩu Giáo viên</h3>
              <div className="space-y-3">
                 <input type="password" placeholder="Mật khẩu cũ" value={passwordForm.old} onChange={(e: any) => setPasswordForm({...passwordForm, old: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none" />
