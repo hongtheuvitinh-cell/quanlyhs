@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Search, GraduationCap, Table, ListChecks, Save, 
-  Loader2, Plus, Minus, AlertCircle, Camera, Download, FileSpreadsheet, Sparkles
+  Loader2, Plus, Minus, AlertCircle, Camera, Download, FileSpreadsheet, Sparkles, BrainCircuit, FileUp, Link as LinkIcon
 } from 'lucide-react';
 import { AppState, Student, Grade, Role } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -47,6 +47,54 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     [...txColumns, 'ĐGGK', 'ĐGCK'], 
     [txColumns]
   );
+
+  const handleCsvGradeImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\n');
+      const newGrades: Grade[] = [...tempGrades];
+      
+      // Bỏ qua dòng header
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',').map(c => c.trim());
+        if (cols.length >= 3) {
+          const maHS = cols[0];
+          const loaiDiem = cols[2];
+          const diemSo = parseFloat(cols[3]);
+          
+          if (maHS && loaiDiem && !isNaN(diemSo)) {
+            const idx = newGrades.findIndex(g => 
+              g.MaHS === maHS && 
+              g.MaMonHoc === selectedSubject && 
+              g.HocKy === selectedHK && 
+              g.MaNienHoc === state.selectedYear &&
+              g.LoaiDiem === loaiDiem
+            );
+            
+            const newGrade: Grade = {
+              MaDiem: idx > -1 ? newGrades[idx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000),
+              MaHS: maHS,
+              MaMonHoc: selectedSubject,
+              MaNienHoc: state.selectedYear,
+              HocKy: selectedHK,
+              LoaiDiem: loaiDiem,
+              DiemSo: diemSo
+            };
+
+            if (idx > -1) newGrades[idx] = newGrade;
+            else newGrades.push(newGrade);
+          }
+        }
+      }
+      setTempGrades(newGrades);
+      setHasChanges(true);
+      alert(`Đã nhập điểm thành công từ file CSV!`);
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
 
   const handleInputChange = (studentId: string, type: string, rawValue: string) => {
     let val = rawValue === '' ? 0 : parseFloat(rawValue);
@@ -121,13 +169,19 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
           });
           setHasChanges(true);
           alert(`AI đã nhận diện thành công ${results.length} đầu điểm!`);
+        } else {
+          alert("AI không nhận diện được bảng điểm nào trong ảnh.");
         }
+      };
+      reader.onerror = () => {
+        alert("Lỗi đọc file ảnh.");
+        setIsAiLoading(false);
       };
       reader.readAsDataURL(file);
     } catch (err) {
       alert("AI không thể đọc được bảng điểm từ file này. Hãy chắc chắn ảnh rõ nét.");
     } finally {
-      setIsAiLoading(false);
+      setTimeout(() => setIsAiLoading(false), 2000);
     }
   };
 
@@ -141,6 +195,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     link.href = url;
     link.download = `Mau_Nhap_Diem_${selectedSubject}_Lop_${state.selectedClass}.csv`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleSaveChanges = async () => {
@@ -193,6 +248,22 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   return (
     <div className="space-y-4 pb-32 animate-in fade-in">
+      {/* Loading Overlay cho Quét AI Bảng Điểm */}
+      {isAiLoading && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-md animate-in fade-in">
+           <div className="bg-white p-8 rounded-[40px] shadow-2xl flex flex-col items-center gap-4 border border-indigo-100">
+              <div className="relative">
+                 <div className="w-16 h-16 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin"></div>
+                 <BrainCircuit className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-600" size={24} />
+              </div>
+              <div className="text-center">
+                 <p className="text-[11px] font-black text-slate-800 uppercase tracking-widest">AI đang đọc bảng điểm...</p>
+                 <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Đang xử lý thị giác máy tính</p>
+              </div>
+           </div>
+        </div>
+      )}
+
       <div className="flex flex-col xl:flex-row gap-4">
         <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-50 pb-3">
@@ -206,10 +277,15 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
              
              <div className="flex items-center gap-2">
                 <button onClick={downloadGradeTemplate} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-bold uppercase border border-slate-100 hover:bg-slate-100 transition-all">
-                  <Download size={14}/> Mẫu Excel
+                  <Download size={14}/> Mẫu
                 </button>
+                <label className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold uppercase border border-emerald-100 cursor-pointer hover:bg-emerald-100 transition-all">
+                  <FileUp size={14} />
+                  Nhập CSV
+                  <input type="file" className="hidden" accept=".csv" onChange={handleCsvGradeImport} />
+                </label>
                 <label className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase border border-indigo-100 cursor-pointer hover:bg-indigo-100 transition-all">
-                  {isAiLoading ? <Loader2 size={14} className="animate-spin"/> : <Camera size={14} />}
+                  <Camera size={14} />
                   Quét AI
                   <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleAiGradeImport} />
                 </label>
