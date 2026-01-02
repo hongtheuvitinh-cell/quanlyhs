@@ -21,7 +21,6 @@ const subjects = [
   { id: 'DIA', name: 'Địa Lý' }, { id: 'SU', name: 'Lịch Sử' }, { id: 'GDCD', name: 'GDCD' }
 ];
 
-// Map từ tiêu đề cột file CSV sang loại điểm trong hệ thống
 const CSV_COLUMN_MAP: Record<string, string> = {
   'TX1': 'ĐGTX1',
   'TX2': 'ĐGTX2',
@@ -49,6 +48,26 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     setHasChanges(false); 
   }, [grades]);
 
+  // Hàm helper để tách dòng CSV chuẩn
+  const parseCsvLine = (line: string) => {
+    const result = [];
+    let curVal = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(curVal.trim());
+        curVal = '';
+      } else {
+        curVal += char;
+      }
+    }
+    result.push(curVal.trim());
+    return result.map(v => v.replace(/^"|"$/g, '').trim());
+  };
+
   const txColumns = useMemo(() => 
     Array.from({ length: numDGTX }, (_, i) => `ĐGTX${i + 1}`), 
     [numDGTX]
@@ -65,19 +84,17 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
-      const lines = text.split('\n').filter(line => line.trim() !== '');
+      const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
       if (lines.length < 2) return;
 
       const newGrades: Grade[] = [...tempGrades];
       let updateCount = 0;
 
-      // Header mong đợi: MAHS, HOTEN, TX1, TX2, TX3, TX4, TX5, GK, CK
       for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+        const cols = parseCsvLine(lines[i]);
         if (cols.length < 2) continue;
 
         const maHS = cols[0];
-        // Duyệt qua các cột điểm từ index 2 đến 8 (TX1 -> CK)
         const gradeHeaders = ['TX1', 'TX2', 'TX3', 'TX4', 'TX5', 'GK', 'CK'];
         
         gradeHeaders.forEach((header, idx) => {
@@ -117,7 +134,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
       setTempGrades(newGrades);
       setHasChanges(true);
-      alert(`Đã xử lý thành công điểm cho các học sinh từ file CSV! Nhấn "Lưu" để hoàn tất.`);
+      alert(`Đã xử lý xong dữ liệu điểm từ file CSV! Nhấn "Lưu" để hoàn tất.`);
       e.target.value = '';
     };
     reader.readAsText(file, 'UTF-8');
@@ -214,18 +231,13 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   const downloadGradeTemplate = () => {
     const BOM = "\uFEFF";
-    // Header hàng ngang đúng chuẩn người dùng yêu cầu
     const headers = "MAHS,HOTEN,TX1,TX2,TX3,TX4,TX5,GK,CK\n";
-    
-    // Tạo danh sách học sinh, mỗi người 1 dòng
     let dataRows = "";
     students.forEach(s => {
-      // Lấy điểm hiện tại nếu có để điền vào mẫu
       const getG = (type: string) => {
         const found = tempGrades.find(g => g.MaHS === s.MaHS && g.MaMonHoc === selectedSubject && g.HocKy === selectedHK && g.MaNienHoc === state.selectedYear && g.LoaiDiem === type);
         return found ? found.DiemSo : "";
       };
-
       const tx1 = getG('ĐGTX1');
       const tx2 = getG('ĐGTX2');
       const tx3 = getG('ĐGTX3');
@@ -233,10 +245,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       const tx5 = getG('ĐGTX5');
       const gk = getG('ĐGGK');
       const ck = getG('ĐGCK');
-
       dataRows += `${s.MaHS},${s.Hoten},${tx1},${tx2},${tx3},${tx4},${tx5},${gk},${ck}\n`;
     });
-
     const blob = new Blob([BOM + headers + dataRows], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -254,10 +264,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         g.HocKy === selectedHK &&
         g.MaNienHoc === state.selectedYear
       );
-
       const { error } = await supabase.from('grades').upsert(currentContextGrades, { onConflict: 'MaDiem' });
       if (error) throw error;
-      
       await onUpdateGrades(tempGrades);
       setHasChanges(false);
       alert("Đã lưu bảng điểm thành công!");
@@ -278,7 +286,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     const dgtx = sGrades.filter(g => g.LoaiDiem.startsWith('ĐGTX')).map(g => g.DiemSo);
     const ggk = sGrades.find(g => g.LoaiDiem === 'ĐGGK')?.DiemSo;
     const gck = sGrades.find(g => g.LoaiDiem === 'ĐGCK')?.DiemSo;
-    
     if (dgtx.length > 0 && ggk !== undefined && gck !== undefined) {
       return (dgtx.reduce((a, b) => a + b, 0) + ggk * 2 + gck * 3) / (dgtx.length + 5);
     }
@@ -289,7 +296,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   return (
     <div className="space-y-4 pb-32 animate-in fade-in">
-      {/* Loading Overlay */}
       {isAiLoading && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-md animate-in fade-in">
            <div className="bg-white p-8 rounded-[40px] shadow-2xl flex flex-col items-center gap-4 border border-indigo-100">
