@@ -7,7 +7,8 @@ import {
   Calendar,
   CheckCircle2,
   FileText,
-  ChevronRight
+  ChevronRight,
+  Link as LinkIcon
 } from 'lucide-react';
 import { AppState, Student, Grade, Discipline, Teacher, SchoolPlan, ChatMessage } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -69,7 +70,7 @@ const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plan
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
            {latestPlan && (
-             <div className="bg-white p-6 rounded-[32px] border border-indigo-100 shadow-sm relative overflow-hidden group">
+             <div className="bg-white p-8 rounded-[40px] border border-indigo-100 shadow-sm relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><FileText size={120} /></div>
                 <div className="flex items-center gap-2 mb-4">
                    <div className="px-3 py-1 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest">Kế hoạch Tuần {latestPlan.Tuan}</div>
@@ -81,7 +82,18 @@ const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plan
                      "{latestPlan.NoiDung}"
                    </p>
                 </div>
-                <div className="flex justify-end">
+                
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                   {latestPlan.DinhKem ? (
+                      <a 
+                        href={latestPlan.DinhKem} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all border border-indigo-100 shadow-sm"
+                      >
+                        <LinkIcon size={14} /> Mở file đính kèm
+                      </a>
+                   ) : <div />}
                    <button className="flex items-center gap-1.5 text-[10px] font-black text-indigo-600 uppercase hover:underline">Chi tiết kế hoạch <ChevronRight size={14}/></button>
                 </div>
              </div>
