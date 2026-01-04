@@ -77,6 +77,17 @@ export interface SchoolPlan {
   Created_at?: string;
 }
 
+export interface ChatMessage {
+  id: number;
+  MaLop: string;
+  MaNienHoc: number;
+  senderId: string;
+  senderName: string;
+  senderRole: Role;
+  content: string;
+  created_at: string;
+}
+
 export interface AssignmentTask {
   MaNhiemVu: number;
   TieuDe: string;
