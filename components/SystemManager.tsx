@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  Calendar, Layers, UserPlus, Plus, Edit2, Trash2, Save, X, Database, Users, BookOpen, GraduationCap, Briefcase, Check, AlertCircle
+  Calendar, Layers, UserPlus, Plus, Edit2, Trash2, Save, X, Database, Users, BookOpen, GraduationCap, Briefcase, Check, AlertCircle, Loader2
 } from 'lucide-react';
 import { AcademicYear, Class, Teacher, Assignment, Role } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -29,10 +29,12 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
   const [editingYearId, setEditingYearId] = useState<number | null>(null);
   const [editYearName, setEditYearName] = useState('');
 
-  // States cho Lớp học & Chủ nhiệm
+  // States cho Lớp học
   const [classForm, setClassForm] = useState({
     MaLop: '', TenLop: '', Khoi: 10, MaNienHoc: years[0]?.MaNienHoc || 0, MaGVCN: ''
   });
+  const [editingClassId, setEditingClassId] = useState<string | null>(null);
+  const [editClassData, setEditClassData] = useState({ TenLop: '', Khoi: 10 });
 
   // States cho Phân công giảng dạy
   const [assignForm, setAssignForm] = useState({
@@ -99,10 +101,52 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
         if (errAssign) throw errAssign;
       }
 
-      alert("Thành công!");
+      alert("Đã tạo lớp thành công!");
       setClassForm({ ...classForm, MaLop: '', TenLop: '' });
       await onUpdate();
     } catch (e: any) { alert(e.message); } finally { setIsSubmitting(false); }
+  };
+
+  const handleUpdateClass = async (maLop: string) => {
+    if (!editClassData.TenLop) return;
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from('classes').update({
+        TenLop: editClassData.TenLop,
+        Khoi: editClassData.Khoi
+      }).eq('MaLop', maLop);
+      
+      if (error) throw error;
+      setEditingClassId(null);
+      await onUpdate();
+      alert("Cập nhật thông tin lớp thành công!");
+    } catch (e: any) {
+      alert("Lỗi cập nhật: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteClass = async (maLop: string) => {
+    if (!confirm(`Bạn có chắc muốn xóa lớp ${maLop}? Hành động này sẽ xóa toàn bộ phân công dạy và chủ nhiệm của lớp này.`)) return;
+    setIsSubmitting(true);
+    try {
+      // Xóa phân công trước do ràng buộc khóa ngoại
+      await supabase.from('assignments').delete().eq('MaLop', maLop);
+      
+      const { error } = await supabase.from('classes').delete().eq('MaLop', maLop);
+      if (error) {
+        if (error.code === '23503') alert("Không thể xóa lớp này vì đã có dữ liệu học sinh bên trong. Vui lòng chuyển học sinh sang lớp khác trước khi xóa.");
+        else throw error;
+      } else {
+        await onUpdate();
+        alert("Đã xóa lớp thành công.");
+      }
+    } catch (e: any) {
+      alert("Lỗi xóa lớp: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Lọc danh sách lớp hiển thị theo Niên học đang chọn trong Form Lớp
@@ -237,40 +281,76 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
 
              <div className="space-y-3">
                <h3 className="text-xs font-bold text-slate-800 uppercase px-1 flex items-center gap-2">
-                 <Database size={16} className="text-indigo-600" /> Danh sách lớp năm {years.find(y => y.MaNienHoc === classForm.MaNienHoc)?.TenNienHoc}
+                 <Database size={16} className="text-indigo-600" /> Danh sách quản lý lớp
                </h3>
                {filteredClassesByYear.length > 0 ? (
-                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filteredClassesByYear.map(c => {
                       const activeAssigns = assignments.filter(a => a.MaLop === c.MaLop && a.LoaiPhanCong === Role.CHU_NHIEM && a.MaNienHoc === classForm.MaNienHoc);
+                      const isEditing = editingClassId === c.MaLop;
+                      
                       return (
-                        <div key={c.MaLop} className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-indigo-200 transition-all flex flex-col gap-2">
+                        <div key={c.MaLop} className={`p-5 rounded-[28px] border transition-all flex flex-col gap-3 relative overflow-hidden shadow-sm ${isEditing ? 'bg-indigo-50 border-indigo-200 shadow-lg' : 'bg-white border-slate-100 hover:border-indigo-100'}`}>
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Khối {c.Khoi}</span>
-                            <span className="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-lg">{c.MaLop}</span>
-                          </div>
-                          <h4 className="text-sm font-bold text-slate-800">{c.TenLop}</h4>
-                          <div className="mt-1 pt-2 border-t border-slate-50 flex items-center gap-2">
-                            <UserPlus size={12} className="text-slate-300" />
-                            <div className="min-w-0">
-                                {activeAssigns.map(a => {
-                                  const t = teachers.find(x => x.MaGV === a.MaGV);
-                                  return (
-                                    <div key={a.MaPhanCong} className="text-[10px] font-normal text-slate-500 truncate">
-                                      GVCN: <span className="font-bold text-indigo-600">{t?.Hoten}</span>
-                                    </div>
-                                  );
-                                })}
+                            <div className="flex items-center gap-2">
+                               <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Niên học: {years.find(y => y.MaNienHoc === classForm.MaNienHoc)?.TenNienHoc}</span>
                             </div>
+                            <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-lg">{c.MaLop}</span>
                           </div>
+
+                          {isEditing ? (
+                            <div className="space-y-3 py-2 animate-in slide-in-from-top-2">
+                               <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-400 uppercase px-1">Tên lớp hiển thị</label>
+                                  <input type="text" value={editClassData.TenLop} onChange={e => setEditClassData({...editClassData, TenLop: e.target.value})} className="w-full p-2 bg-white border border-indigo-200 rounded-xl text-xs font-bold outline-none" />
+                               </div>
+                               <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-400 uppercase px-1">Khối lớp</label>
+                                  <select value={editClassData.Khoi} onChange={e => setEditClassData({...editClassData, Khoi: parseInt(e.target.value)})} className="w-full p-2 bg-white border border-indigo-200 rounded-xl text-xs font-bold outline-none">
+                                     <option value={10}>Khối 10</option>
+                                     <option value={11}>Khối 11</option>
+                                     <option value={12}>Khối 12</option>
+                                  </select>
+                               </div>
+                               <div className="flex gap-2 pt-2">
+                                  <button onClick={() => handleUpdateClass(c.MaLop)} className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase shadow-md flex items-center justify-center gap-2">
+                                     {isSubmitting ? <Loader2 size={12} className="animate-spin" /> : <Check size={14} />} Lưu
+                                  </button>
+                                  <button onClick={() => setEditingClassId(null)} className="flex-1 py-2 bg-white border border-slate-200 text-slate-400 rounded-xl text-[10px] font-black uppercase">Hủy</button>
+                               </div>
+                            </div>
+                          ) : (
+                            <>
+                              <h4 className="text-sm font-black text-slate-800 uppercase leading-none mt-1">{c.TenLop} (Khối {c.Khoi})</h4>
+                              <div className="pt-3 border-t border-slate-50 flex items-center gap-3">
+                                <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg shrink-0"><UserPlus size={14} /></div>
+                                <div className="min-w-0">
+                                    {activeAssigns.length > 0 ? activeAssigns.map(a => {
+                                      const t = teachers.find(x => x.MaGV === a.MaGV);
+                                      return (
+                                        <div key={a.MaPhanCong} className="text-[10px] font-normal text-slate-500 truncate">
+                                          GVCN: <span className="font-bold text-indigo-600 uppercase tracking-tight">{t?.Hoten}</span>
+                                        </div>
+                                      );
+                                    }) : (
+                                      <div className="text-[10px] font-bold text-rose-400 uppercase italic">Chưa có GVCN</div>
+                                    )}
+                                </div>
+                              </div>
+                              <div className="mt-2 flex justify-end gap-1">
+                                 <button onClick={() => { setEditingClassId(c.MaLop); setEditClassData({ TenLop: c.TenLop, Khoi: c.Khoi }); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit2 size={16}/></button>
+                                 <button onClick={() => handleDeleteClass(c.MaLop)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={16}/></button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       );
                     })}
                  </div>
                ) : (
-                 <div className="py-12 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-slate-300">
-                    <AlertCircle size={32} className="mb-2 opacity-20" />
-                    <p className="text-[11px] font-bold uppercase tracking-widest">Không có lớp nào trong năm học này</p>
+                 <div className="py-16 bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-slate-300">
+                    <AlertCircle size={40} className="mb-3 opacity-20" />
+                    <p className="text-[11px] font-black uppercase tracking-widest leading-relaxed text-center">Niên học hiện tại chưa có lớp học nào.<br/>Vui lòng tạo lớp mới ở trên.</p>
                  </div>
                )}
              </div>
@@ -327,7 +407,7 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
                          const sub = subjects.find(x => x.id === a.MaMonHoc);
                          return (
                            <tr key={a.MaPhanCong} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-5 py-3 font-bold text-slate-800 text-xs">{t?.Hoten}</td>
+                              <td className="px-5 py-3 font-bold text-slate-800 text-xs uppercase">{t?.Hoten}</td>
                               <td className="px-5 py-3"><span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[9px] font-bold uppercase">{sub?.name || a.MaMonHoc}</span></td>
                               <td className="px-5 py-3 font-normal text-slate-500 text-xs">{c?.TenLop}</td>
                               <td className="px-5 py-3 text-right"><button onClick={() => handleDeleteAssignment(a.MaPhanCong)} className="p-1.5 text-slate-300 hover:text-rose-500 rounded-xl transition-all"><Trash2 size={16}/></button></td>
@@ -337,7 +417,7 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
                     </tbody>
                  </table>
                ) : (
-                 <div className="py-20 text-center font-bold text-slate-300 text-[10px] uppercase tracking-widest italic bg-white border border-slate-100 rounded-3xl">Chưa có dữ liệu phân công giảng dạy cho năm này</div>
+                 <div className="py-20 text-center font-bold text-slate-300 text-[10px] uppercase tracking-widest italic bg-white border border-slate-100 rounded-[40px] opacity-40">Chưa có dữ liệu phân công giảng dạy cho năm này</div>
                )}
              </div>
           </div>
