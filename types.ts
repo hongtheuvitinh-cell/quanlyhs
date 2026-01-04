@@ -2,7 +2,8 @@
 export enum Role {
   CHU_NHIEM = 'ChuNhiem',
   GIANG_DAY = 'GiangDay',
-  STUDENT = 'Student'
+  STUDENT = 'Student',
+  ADMIN = 'Admin'
 }
 
 export type AttendanceStatus = 'CO_MAT' | 'VANG_CP' | 'VANG_KP' | 'TRE';
@@ -63,6 +64,19 @@ export interface Grade {
   DiemSo: number;
 }
 
+export interface SchoolPlan {
+  MaKeHoach: number;
+  TieuDe: string;
+  NoiDung: string;
+  Tuan: number;
+  TuNgay: string;
+  DenNgay: string;
+  MaNienHoc: number;
+  DoiTuong: string[] | null; // Null means All classes
+  DinhKem?: string;
+  Created_at?: string;
+}
+
 export interface AssignmentTask {
   MaNhiemVu: number;
   TieuDe: string;
@@ -72,9 +86,9 @@ export interface AssignmentTask {
   MaGV: string;
   HanChot: string;
   MaNienHoc: number;
-  DanhSachGiao: string[]; // Danh sách MaHS được giao nhiệm vụ
+  DanhSachGiao: string[]; 
   DanhSachHoanThanh: string[]; 
-  BaoCaoNhiemVu?: Record<string, string>; // MaHS -> Link sản phẩm
+  BaoCaoNhiemVu?: Record<string, string>; 
 }
 
 export interface ViolationRule {
