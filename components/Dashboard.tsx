@@ -30,7 +30,6 @@ const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plan
   const classDisciplines = disciplines.filter(d => students.some(s => s.MaHS === d.MaHS));
   const pendingActions = classDisciplines.length;
 
-  // Fix: Added useMemo import
   const latestPlan = useMemo(() => {
     return [...plans]
       .filter(p => p.MaNienHoc === state.selectedYear)
@@ -74,7 +73,11 @@ const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plan
                    <span className="text-[9px] text-slate-400 font-bold uppercase">{latestPlan.TuNgay} → {latestPlan.DenNgay}</span>
                 </div>
                 <h3 className="text-base font-black text-slate-800 uppercase mb-3 leading-tight">{latestPlan.TieuDe}</h3>
-                <p className="text-[11px] text-slate-500 font-medium italic line-clamp-2 mb-4">"{latestPlan.NoiDung}"</p>
+                <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-50 mb-4">
+                   <p className="text-[11px] text-slate-500 font-medium italic whitespace-pre-line leading-relaxed">
+                     "{latestPlan.NoiDung}"
+                   </p>
+                </div>
                 <div className="flex justify-end">
                    <button className="flex items-center gap-1.5 text-[10px] font-black text-indigo-600 uppercase hover:underline">Chi tiết kế hoạch <ChevronRight size={14}/></button>
                 </div>
