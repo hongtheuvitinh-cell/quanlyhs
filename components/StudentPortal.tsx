@@ -242,6 +242,20 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                                  <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-50">
                                     <p className="text-[11px] text-slate-600 font-medium italic leading-relaxed whitespace-pre-line">"{p.NoiDung}"</p>
                                  </div>
+                                 
+                                 {/* PHẦN SỬA LỖI: Hiển thị link đính kèm cho học sinh */}
+                                 {p.DinhKem && (
+                                   <div className="flex justify-start">
+                                      <a 
+                                        href={p.DinhKem} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all border border-indigo-100 shadow-sm"
+                                      >
+                                        <LinkIcon size={14} /> Xem tệp đính kèm / Link thông báo
+                                      </a>
+                                   </div>
+                                 )}
                               </div>
                            </div>
                          )) : (
@@ -332,9 +346,12 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
 
         {activeView === 'tasks' && (
           <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-right-4 duration-500">
-             <div className="flex items-center gap-3">
-                <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg"><Send size={24} /></div>
-                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Nhiệm vụ & Bài tập</h2>
+             <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                   <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg"><Send size={24} /></div>
+                   <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Nhiệm vụ & Bài tập</h2>
+                </div>
+                <span className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-2xl text-[10px] font-black uppercase border border-indigo-100">{tasks.length} nhiệm vụ</span>
              </div>
              
              <div className="grid grid-cols-1 gap-6">
