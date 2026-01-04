@@ -4,7 +4,7 @@ import {
   Search, User, Users, Calendar, Phone, Trash2, Plus, Sparkles, X, Save, 
   Edit2, MapPin, Mail, Info, Loader2, ChevronRight, FileSpreadsheet, 
   AlertTriangle, MessageSquare, Camera, Download, UserPlus, GraduationCap,
-  CheckCircle, Image as ImageIcon, FileText, BrainCircuit, FileUp, Link as LinkIcon
+  CheckCircle, Image as ImageIcon, FileText, BrainCircuit, FileUp, Link as LinkIcon, Lock
 } from 'lucide-react';
 import { AppState, Student, Grade, Discipline, LearningLog, ViolationRule } from '../types';
 import { analyzeStudentPerformance, parseStudentListFromImage } from '../services/geminiService';
@@ -38,7 +38,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
   
   const [formData, setFormData] = useState<Partial<Student>>({
     Hoten: '', MaHS: '', NgaySinh: '', GioiTinh: true, SDT_LinkHe: '', DiaChi: '', 
-    TenCha: '', NgheNghiepCha: '', TenMe: '', NgheNghiepMe: '', Email: '', GhiChuKhac: '', Anh: ''
+    TenCha: '', NgheNghiepCha: '', TenMe: '', NgheNghiepMe: '', Email: '', GhiChuKhac: '', Anh: '', MatKhau: '123456'
   });
 
   // Hàm helper để tách dòng CSV chuẩn (xử lý dấu phẩy trong ngoặc kép)
@@ -465,6 +465,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                            <InfoField label="Giới tính" value={selectedStudent.GioiTinh ? 'Nam' : 'Nữ'} />
                            <InfoField label="Điện thoại" value={selectedStudent.SDT_LinkHe} />
                            <InfoField label="Email" value={selectedStudent.Email} />
+                           <InfoField label="Mật khẩu đăng nhập" value={selectedStudent.MatKhau || '123456'} icon={<Lock size={12} className="text-rose-400" />} />
                            <InfoField label="Địa chỉ" value={selectedStudent.DiaChi} colSpan={2} />
                         </div>
                         <div className="h-px bg-slate-50"></div>
@@ -490,7 +491,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
 
                 {activeInfoTab === 'GRADES' && (
                   <div className="space-y-6 animate-in slide-in-from-right-4">
-                     <div className="flex items-center justify-between bg-slate-50 p-1 rounded-2xl border border-slate-100">
+                     <div className="flex items-center gap-3 justify-between bg-slate-50 p-1 rounded-2xl border border-slate-100">
                         <div className="flex gap-1">
                            {[1, 2, 'CN'].map(tab => (
                              <button 
@@ -677,6 +678,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                            </div>
                            <InputField label="Số điện thoại" value={formData.SDT_LinkHe} onChange={v => setFormData({...formData, SDT_LinkHe: v})} placeholder="090..." colSpan={2} />
                            <InputField label="Email" value={formData.Email} onChange={v => setFormData({...formData, Email: v})} placeholder="abc@gmail.com" colSpan={2} />
+                           <InputField label="Mật khẩu (Khởi tạo)" value={formData.MatKhau} onChange={v => setFormData({...formData, MatKhau: v})} placeholder="123456" colSpan={4} />
                            <InputField label="Địa chỉ" value={formData.DiaChi} onChange={v => setFormData({...formData, DiaChi: v})} placeholder="Địa chỉ thường trú..." colSpan={4} />
                            
                            <InputField label="Họ tên Cha" value={formData.TenCha} onChange={v => setFormData({...formData, TenCha: v})} placeholder="Tên cha" colSpan={2} />
@@ -715,9 +717,11 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
   );
 };
 
-const InfoField = ({ label, value, colSpan = 1 }: any) => (
+const InfoField = ({ label, value, colSpan = 1, icon }: any) => (
   <div className={`space-y-1 ${colSpan === 2 ? 'md:col-span-2' : colSpan === 3 ? 'md:col-span-3' : ''}`}>
-    <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest px-1">{label}</p>
+    <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest px-1 flex items-center gap-1">
+      {icon} {label}
+    </p>
     <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold text-slate-700 text-[11px] truncate">
       {value || '---'}
     </div>
