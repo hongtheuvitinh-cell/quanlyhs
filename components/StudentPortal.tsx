@@ -243,16 +243,16 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                                     <p className="text-[11px] text-slate-600 font-medium italic leading-relaxed whitespace-pre-line">"{p.NoiDung}"</p>
                                  </div>
                                  
-                                 {/* PHẦN SỬA LỖI: Hiển thị link đính kèm cho học sinh */}
+                                 {/* SỬA LỖI IPAD: Hiển thị link rõ ràng hơn */}
                                  {p.DinhKem && (
-                                   <div className="flex justify-start">
+                                   <div className="flex justify-start pt-1">
                                       <a 
                                         href={p.DinhKem} 
                                         target="_blank" 
                                         rel="noopener noreferrer" 
-                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all border border-indigo-100 shadow-sm"
+                                        className="flex items-center gap-2.5 px-5 py-3 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 border border-indigo-500"
                                       >
-                                        <LinkIcon size={14} /> Xem tệp đính kèm / Link thông báo
+                                        <LinkIcon size={16} /> Xem tệp đính kèm / Link thông báo
                                       </a>
                                    </div>
                                  )}
