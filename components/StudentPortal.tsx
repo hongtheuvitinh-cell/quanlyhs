@@ -20,7 +20,8 @@ interface Props {
   plans: SchoolPlan[];
   messages: ChatMessage[];
   onSendMessage: (content: string) => Promise<void>;
-  onLogout: void;
+  // Fix: changed onLogout from void to () => void to correctly match usage as an event callback
+  onLogout: () => void;
   onToggleTask: (taskId: number, link?: string) => Promise<void>;
   onUpdateProfile: () => Promise<void>;
 }
