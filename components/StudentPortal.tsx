@@ -6,8 +6,10 @@ import {
   Lock, Link as LinkIcon, Check, Shield, Save, X, Loader2, ExternalLink, 
   Info, ClipboardList, Globe, Home, Menu, ChevronRight, Bell
 } from 'lucide-react';
-import { Student, Grade, Discipline, AssignmentTask, ViolationRule, SchoolPlan } from '../types';
+// Added missing Role import
+import { Student, Grade, Discipline, AssignmentTask, ViolationRule, SchoolPlan, ChatMessage, Role } from '../types';
 import { supabase } from '../services/supabaseClient';
+import GroupChat from './GroupChat';
 
 interface Props {
   student: Student;
@@ -16,7 +18,9 @@ interface Props {
   violationRules: ViolationRule[];
   tasks: AssignmentTask[];
   plans: SchoolPlan[];
-  onLogout: () => void;
+  messages: ChatMessage[];
+  onSendMessage: (content: string) => Promise<void>;
+  onLogout: void;
   onToggleTask: (taskId: number, link?: string) => Promise<void>;
   onUpdateProfile: () => Promise<void>;
 }
@@ -29,7 +33,7 @@ const subjectsList = [
 
 type ViewState = 'dashboard' | 'study' | 'tasks' | 'discipline' | 'profile';
 
-const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violationRules, tasks, plans, onLogout, onToggleTask, onUpdateProfile }) => {
+const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violationRules, tasks, plans, messages, onSendMessage, onLogout, onToggleTask, onUpdateProfile }) => {
   const [activeView, setActiveView] = useState<ViewState>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ old: '', new: '', confirm: '' });
@@ -140,6 +144,14 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
     </nav>
   );
 
+  const portalState = {
+     currentUser: student,
+     currentRole: Role.STUDENT,
+     selectedClass: student.MaLopHienTai,
+     selectedYear: student.MaNienHoc,
+     selectedSubject: null
+  };
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans">
       {/* Sidebar Desktop */}
@@ -200,20 +212,19 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
              </header>
 
              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* KẾ HOẠCH TUẦN - CHIẾM VỊ TRÍ TRUNG TÂM */}
+                {/* KẾ HOẠCH TUẦN */}
                 <div className="lg:col-span-8 space-y-6">
                    <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden relative group">
                       <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity"><Bell size={120} /></div>
                       <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-indigo-600 text-white relative z-10">
                          <div className="flex items-center gap-3">
                             <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md"><Calendar size={20}/></div>
-                            <h3 className="font-black text-sm uppercase tracking-widest">Kế hoạch tuần & Thông báo lớp</h3>
+                            <h3 className="font-black text-sm uppercase tracking-widest">Kế hoạch tuần & Thông báo</h3>
                          </div>
-                         <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 bg-white/10 rounded-full border border-white/20">Niên học {student.MaNienHoc}</span>
                       </div>
                       
                       <div className="p-8 space-y-6 bg-white relative z-10">
-                         {myPlans.length > 0 ? myPlans.slice(0, 3).map((p, idx) => (
+                         {myPlans.length > 0 ? myPlans.slice(0, 2).map((p, idx) => (
                            <div key={p.MaKeHoach} className={`flex gap-6 pb-6 last:pb-0 last:border-0 border-b border-slate-50 ${idx === 0 ? 'animate-in slide-in-from-right duration-700' : ''}`}>
                               <div className="flex flex-col items-center gap-2 shrink-0">
                                  <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border-2 ${idx === 0 ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
@@ -230,21 +241,19 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                                  <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-50">
                                     <p className="text-[11px] text-slate-600 font-medium italic leading-relaxed whitespace-pre-line">"{p.NoiDung}"</p>
                                  </div>
-                                 {p.DinhKem && (
-                                   <a href={p.DinhKem} target="_blank" className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-100 transition-all shadow-sm">
-                                     <LinkIcon size={14} /> Tệp đính kèm hướng dẫn
-                                   </a>
-                                 )}
                               </div>
                            </div>
                          )) : (
                            <div className="py-20 text-center space-y-4 opacity-30">
                               <Bell size={48} className="mx-auto text-slate-300" />
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hiện chưa có kế hoạch hoặc thông báo mới dành cho bạn.</p>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hiện chưa có kế hoạch hoặc thông báo mới.</p>
                            </div>
                          )}
                       </div>
                    </div>
+
+                   {/* THẢO LUẬN NHÓM - Dành cho học sinh */}
+                   <GroupChat state={portalState as any} messages={messages} onSendMessage={onSendMessage} />
                 </div>
 
                 {/* THỐNG KÊ NHANH - CỘT PHẢI */}
@@ -279,7 +288,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                             <ShieldAlert size={16} className="text-rose-400" />
                          </div>
                          <h4 className="text-2xl font-black text-rose-600 mb-2">{conductScore} <span className="text-xs font-bold opacity-60">/ 100đ</span></h4>
-                         <p className="text-[10px] text-rose-500/70 font-medium italic">Bạn có {myDisciplines.length} lỗi vi phạm ghi nhận.</p>
+                         <p className="text-[10px] text-rose-500/70 font-medium italic">Bạn có {myDisciplines.length} lỗi vi phạm.</p>
                       </div>
                    </div>
                 </div>
@@ -317,23 +326,14 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                    </table>
                 </div>
              </div>
-             <div className="p-6 bg-indigo-50 rounded-[32px] border border-indigo-100 flex items-start gap-4">
-                <Info className="text-indigo-600 shrink-0 mt-1" size={20} />
-                <p className="text-[11px] text-indigo-700 font-medium leading-relaxed italic">
-                  <b>Lưu ý:</b> Điểm học tập hiển thị được tính dựa trên dữ liệu hệ thống cập nhật đến thời điểm hiện tại. Điểm tổng kết chính thức sẽ do nhà trường công bố vào cuối mỗi học kỳ.
-                </p>
-             </div>
           </div>
         )}
 
         {activeView === 'tasks' && (
           <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-right-4 duration-500">
-             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                   <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg"><Send size={24} /></div>
-                   <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Nhiệm vụ & Bài tập</h2>
-                </div>
-                <span className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-2xl text-[10px] font-black uppercase border border-indigo-100">{tasks.length} nhiệm vụ được giao</span>
+             <div className="flex items-center gap-3">
+                <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg"><Send size={24} /></div>
+                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Nhiệm vụ & Bài tập</h2>
              </div>
              
              <div className="grid grid-cols-1 gap-6">
@@ -354,24 +354,19 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                               <h4 className={`font-black text-base uppercase leading-tight mb-2 ${isDone ? 'text-emerald-700' : 'text-slate-800'}`}>{task.TieuDe}</h4>
                               <p className="text-[12px] text-slate-500 font-medium italic leading-relaxed">"{task.MoTa}"</p>
                            </div>
-                           {isDone && (
-                             <div className="flex items-center gap-2 text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-white w-fit px-3 py-1 rounded-lg border border-emerald-100">
-                               <CheckCircle size={14}/> Bạn đã nộp bài thành công
-                             </div>
-                           )}
                         </div>
                         
                         <div className="md:w-72 space-y-4 border-t md:border-t-0 md:border-l border-slate-100 pt-6 md:pt-0 md:pl-8 flex flex-col justify-center">
                            <div className="space-y-1.5">
-                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Link nộp sản phẩm</label>
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Link nộp bài</label>
                               <div className="relative">
                                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
                                  <input 
                                    type="text" 
-                                   placeholder="Dán link Drive/PDF..."
+                                   placeholder="Dán link..."
                                    value={taskLinks[task.MaNhiemVu] !== undefined ? taskLinks[task.MaNhiemVu] : reportLink}
                                    onChange={(e) => setTaskLinks({...taskLinks, [task.MaNhiemVu]: e.target.value})}
-                                   className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner" 
+                                   className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold outline-none focus:bg-white transition-all shadow-inner" 
                                  />
                               </div>
                            </div>
@@ -381,7 +376,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                               className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 ${isDone ? 'bg-emerald-600 text-white shadow-emerald-100' : 'bg-indigo-600 text-white shadow-indigo-100'}`}
                            >
                               {processingTaskId === task.MaNhiemVu ? <Loader2 size={16} className="animate-spin" /> : (isDone ? <CheckCircle size={16} /> : <Circle size={16} />)}
-                              {isDone ? 'Cập nhật nội dung' : 'Xác nhận nộp bài'}
+                              {isDone ? 'Cập nhật nộp bài' : 'Xác nhận nộp bài'}
                            </button>
                         </div>
                      </div>
@@ -389,7 +384,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                 }) : (
                   <div className="py-24 text-center opacity-30">
                      <Plus size={48} className="mx-auto mb-4" />
-                     <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Hiện chưa có nhiệm vụ nào được giao cho bạn.</p>
+                     <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Hiện chưa có nhiệm vụ nào.</p>
                   </div>
                 )}
              </div>
@@ -398,17 +393,10 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
 
         {activeView === 'discipline' && (
           <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-right-4 duration-500">
-             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                   <div className="p-3 bg-rose-600 rounded-2xl text-white shadow-lg shadow-rose-100"><ShieldAlert size={24} /></div>
-                   <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Rèn luyện & Vi phạm</h2>
-                </div>
-                <div className="px-6 py-3 bg-rose-50 border border-rose-100 rounded-[24px] text-rose-600">
-                   <p className="text-[9px] font-black uppercase tracking-widest mb-1 opacity-60">Điểm rèn luyện hiện tại</p>
-                   <h4 className="text-2xl font-black">{conductScore} <span className="text-xs opacity-60">/ 100</span></h4>
-                </div>
+             <div className="flex items-center gap-3">
+                <div className="p-3 bg-rose-600 rounded-2xl text-white shadow-lg shadow-rose-100"><ShieldAlert size={24} /></div>
+                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Rèn luyện & Vi phạm</h2>
              </div>
-
              <div className="space-y-4">
                 {myDisciplines.length > 0 ? myDisciplines.map(d => {
                   const rule = violationRules.find(r => r.MaLoi === d.MaLoi);
@@ -421,12 +409,11 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                                 <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">Lỗi: {rule?.TenLoi || d.MaLoi}</h4>
                                 <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">-{d.DiemTruTaiThoiDiemDo}đ</span>
                              </div>
-                             <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mb-2">Ngày vi phạm: {d.NgayViPham}</p>
+                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">{d.NgayViPham}</p>
                              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-[11px] font-medium text-slate-600 italic">"{d.NoiDungChiTiet}"</div>
                           </div>
                        </div>
                        <div className="md:text-right shrink-0">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Hình thức xử lý</p>
                           <span className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">{d.HinhThucXL}</span>
                        </div>
                     </div>
@@ -434,7 +421,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                 }) : (
                   <div className="py-24 bg-white rounded-[40px] border-2 border-dashed border-slate-100 text-center opacity-30">
                      <CheckCircle size={56} className="mx-auto text-emerald-200 mb-4" />
-                     <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Tuyệt vời! Bạn không có vi phạm nào ghi nhận trên hệ thống.</p>
+                     <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Tuyệt vời! Bạn không có vi phạm nào.</p>
                   </div>
                 )}
              </div>
@@ -445,69 +432,37 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
           <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-right-4 duration-500">
              <div className="flex items-center gap-3 mb-2">
                 <div className="p-3 bg-slate-900 rounded-2xl text-white shadow-lg"><User size={24} /></div>
-                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Hồ sơ cá nhân & Bảo mật</h2>
+                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Cá nhân & Bảo mật</h2>
              </div>
              
              <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-8 border-b border-slate-50 bg-slate-50/50 flex flex-col md:flex-row items-center gap-8">
-                   <div className="w-24 h-32 bg-white rounded-3xl border-4 border-white shadow-xl overflow-hidden shrink-0 flex items-center justify-center">
-                      {student.Anh ? <img src={student.Anh} className="w-full h-full object-cover" /> : <User size={48} className="text-slate-200" />}
-                   </div>
-                   <div className="text-center md:text-left space-y-2">
-                      <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none">{student.Hoten}</h3>
-                      <div className="flex flex-wrap justify-center md:justify-start gap-2">
-                         <span className="text-[9px] font-black uppercase tracking-widest bg-indigo-600 text-white px-3 py-1 rounded-full">ID: {student.MaHS}</span>
-                         <span className="text-[9px] font-black uppercase tracking-widest bg-white border border-slate-200 text-slate-500 px-3 py-1 rounded-full">Lớp: {student.MaLopHienTai}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 font-medium pt-2 italic leading-relaxed">"{student.GhiChuKhac || 'Bạn chưa có lời tự giới thiệu.'}"</p>
-                   </div>
-                </div>
-
                 <div className="p-8 space-y-10">
-                   <div className="space-y-6">
-                      <div className="flex items-center gap-2 border-b border-slate-50 pb-2">
-                         <Info size={16} className="text-indigo-500" />
-                         <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Thông tin chi tiết</h4>
+                   <div className="flex flex-col md:flex-row items-center gap-8 border-b border-slate-50 pb-8">
+                      <div className="w-24 h-32 bg-slate-100 rounded-3xl overflow-hidden shrink-0 flex items-center justify-center">
+                         {student.Anh ? <img src={student.Anh} className="w-full h-full object-cover" /> : <User size={48} className="text-slate-200" />}
                       </div>
-                      <div className="grid grid-cols-2 gap-6">
-                         <div className="space-y-1">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Ngày sinh</p>
-                            <p className="text-sm font-black text-slate-700">{student.NgaySinh}</p>
-                         </div>
-                         <div className="space-y-1">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Số điện thoại liên hệ</p>
-                            <p className="text-sm font-black text-slate-700">{student.SDT_LinkHe}</p>
-                         </div>
-                         <div className="space-y-1 col-span-2">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Địa chỉ thường trú</p>
-                            <p className="text-sm font-black text-slate-700">{student.DiaChi}</p>
+                      <div className="text-center md:text-left space-y-2">
+                         <h3 className="text-2xl font-black text-slate-800 uppercase leading-none">{student.Hoten}</h3>
+                         <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                            <span className="text-[9px] font-black uppercase tracking-widest bg-indigo-600 text-white px-3 py-1 rounded-full">ID: {student.MaHS}</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest bg-white border border-slate-200 text-slate-500 px-3 py-1 rounded-full">Lớp: {student.MaLopHienTai}</span>
                          </div>
                       </div>
                    </div>
 
                    <div className="space-y-6">
-                      <div className="flex items-center gap-2 border-b border-slate-50 pb-2">
-                         <Lock size={16} className="text-rose-500" />
-                         <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Thay đổi mật khẩu đăng nhập</h4>
+                      <div className="flex items-center gap-2 border-b border-slate-50 pb-2 text-rose-500">
+                         <Lock size={16} />
+                         <h4 className="text-[10px] font-black uppercase tracking-widest">Đổi mật khẩu</h4>
                       </div>
                       <div className="space-y-4">
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Mật khẩu cũ</label>
-                               <input type="password" value={passwordForm.old} onChange={(e: any) => setPasswordForm({...passwordForm, old: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:bg-white focus:border-indigo-400 font-bold text-sm shadow-inner" />
-                            </div>
-                            <div className="space-y-1.5">
-                               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Mật khẩu mới</label>
-                               <input type="password" value={passwordForm.new} onChange={(e: any) => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:bg-white focus:border-indigo-400 font-bold text-sm shadow-inner" />
-                            </div>
+                            <input type="password" value={passwordForm.old} onChange={(e: any) => setPasswordForm({...passwordForm, old: e.target.value})} placeholder="Mật khẩu cũ" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
+                            <input type="password" value={passwordForm.new} onChange={(e: any) => setPasswordForm({...passwordForm, new: e.target.value})} placeholder="Mật khẩu mới" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
                          </div>
-                         <div className="space-y-1.5">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Xác nhận mật khẩu mới</label>
-                            <input type="password" value={passwordForm.confirm} onChange={(e: any) => setPasswordForm({...passwordForm, confirm: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:bg-white focus:border-indigo-400 font-bold text-sm shadow-inner" />
-                         </div>
-                         <button onClick={handleUpdatePassword} disabled={isUpdating} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
-                            {isUpdating ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                            Cập nhật bảo mật
+                         <input type="password" value={passwordForm.confirm} onChange={(e: any) => setPasswordForm({...passwordForm, confirm: e.target.value})} placeholder="Xác nhận mật khẩu mới" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
+                         <button onClick={handleUpdatePassword} disabled={isUpdating} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3">
+                            {isUpdating ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} Cập nhật
                          </button>
                       </div>
                    </div>
