@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  Calendar, Layers, UserPlus, Plus, Edit2, Trash2, Save, X, Database, Users, BookOpen, GraduationCap, Briefcase, Check, AlertCircle, Loader2
+  Calendar, Layers, UserPlus, Plus, Edit2, Trash2, Save, X, Database, Users, BookOpen, GraduationCap, Briefcase, Check, AlertCircle, Loader2, Search, ArrowRightLeft, UserCheck
 } from 'lucide-react';
-import { AcademicYear, Class, Teacher, Assignment, Role } from '../types';
+import { AcademicYear, Class, Teacher, Assignment, Role, Student } from '../types';
 import { supabase } from '../services/supabaseClient';
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
   teachers: Teacher[];
   assignments: Assignment[];
   onUpdate: () => Promise<void>;
+  students: Student[];
 }
 
 const subjects = [
@@ -20,8 +21,8 @@ const subjects = [
   { id: 'SHL', name: 'Sinh hoạt lớp' }
 ];
 
-const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments, onUpdate }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'YEARS' | 'CLASSES' | 'ASSIGN'>('YEARS');
+const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments, onUpdate, students }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'YEARS' | 'CLASSES' | 'ASSIGN' | 'PLACEMENT'>('YEARS');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // States cho Niên học
@@ -40,6 +41,11 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
   const [assignForm, setAssignForm] = useState({
     MaGV: '', MaLop: '', MaNienHoc: years[0]?.MaNienHoc || 0, MaMonHoc: 'TOAN'
   });
+
+  // States cho Xếp lớp
+  const [placementSearch, setPlacementSearch] = useState('');
+  const [targetClass, setTargetClass] = useState('');
+  const [targetYear, setTargetYear] = useState(years[0]?.MaNienHoc || 0);
 
   // --- LOGIC NIÊN HỌC ---
   const handleAddYear = async () => {
@@ -86,13 +92,11 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
     }
     setIsSubmitting(true);
     try {
-      // 1. Upsert Lớp vào bảng classes (nếu chưa có)
       const { error: errClass } = await supabase.from('classes').upsert([{ 
         MaLop: classForm.MaLop, TenLop: classForm.TenLop, Khoi: classForm.Khoi 
       }]);
       if (errClass) throw errClass;
 
-      // 2. Tạo phân công chủ nhiệm cho Niên học đó
       if (classForm.MaGVCN) {
         const { error: errAssign } = await supabase.from('assignments').insert([{
           MaGV: classForm.MaGVCN, MaLop: classForm.MaLop, MaNienHoc: classForm.MaNienHoc,
@@ -131,9 +135,7 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
     if (!confirm(`Bạn có chắc muốn xóa lớp ${maLop}? Hành động này sẽ xóa toàn bộ phân công dạy và chủ nhiệm của lớp này.`)) return;
     setIsSubmitting(true);
     try {
-      // Xóa phân công trước do ràng buộc khóa ngoại
       await supabase.from('assignments').delete().eq('MaLop', maLop);
-      
       const { error } = await supabase.from('classes').delete().eq('MaLop', maLop);
       if (error) {
         if (error.code === '23503') alert("Không thể xóa lớp này vì đã có dữ liệu học sinh bên trong. Vui lòng chuyển học sinh sang lớp khác trước khi xóa.");
@@ -149,10 +151,8 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
     }
   };
 
-  // Lọc danh sách lớp hiển thị theo Niên học đang chọn trong Form Lớp
   const filteredClassesByYear = useMemo(() => {
     if (!classForm.MaNienHoc) return [];
-    // Chỉ lấy các lớp đã được gán chủ nhiệm TRONG NIÊN HỌC ĐANG CHỌN
     const yearAssignments = assignments.filter(a => a.MaNienHoc === classForm.MaNienHoc && a.LoaiPhanCong === Role.CHU_NHIEM);
     const classIdsInYear = yearAssignments.map(a => a.MaLop);
     return classes.filter(c => classIdsInYear.includes(c.MaLop));
@@ -179,21 +179,54 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
     if (error) alert(error.message); else await onUpdate();
   };
 
-  // Lọc lớp cho dropdown phân công giảng dạy (Chỉ hiện lớp của niên học đang chọn ở form phân công)
   const classesForAssignDropdown = useMemo(() => {
     const yearAssignments = assignments.filter(a => a.MaNienHoc === assignForm.MaNienHoc && a.LoaiPhanCong === Role.CHU_NHIEM);
     const classIds = yearAssignments.map(a => a.MaLop);
     return classes.filter(c => classIds.includes(c.MaLop));
   }, [classes, assignments, assignForm.MaNienHoc]);
 
-  // Lọc danh sách giáo viên phân công giảng dạy theo niên học đang chọn
   const filteredAssignmentsHistory = useMemo(() => {
     return assignments.filter(a => a.LoaiPhanCong === Role.GIANG_DAY && a.MaNienHoc === assignForm.MaNienHoc);
   }, [assignments, assignForm.MaNienHoc]);
 
+  // --- LOGIC XẾP LỚP HỌC SINH ---
+  const handlePlacement = async (maHS: string) => {
+    if (!targetClass || !targetYear) {
+      alert("Vui lòng chọn Lớp đích và Niên học!");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from('students').update({
+        MaLopHienTai: targetClass,
+        MaNienHoc: targetYear
+      }).eq('MaHS', maHS);
+      if (error) throw error;
+      await onUpdate();
+    } catch (e: any) {
+      alert("Lỗi xếp lớp: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredStudentsForPlacement = useMemo(() => {
+    if (!placementSearch.trim()) return students.slice(0, 10);
+    return students.filter(s => 
+      s.Hoten.toLowerCase().includes(placementSearch.toLowerCase()) || 
+      s.MaHS.toLowerCase().includes(placementSearch.toLowerCase())
+    );
+  }, [students, placementSearch]);
+
+  const classesForPlacement = useMemo(() => {
+    const yearAssignments = assignments.filter(a => a.MaNienHoc === targetYear && a.LoaiPhanCong === Role.CHU_NHIEM);
+    const classIds = yearAssignments.map(a => a.MaLop);
+    return classes.filter(c => classIds.includes(c.MaLop));
+  }, [classes, assignments, targetYear]);
+
   return (
     <div className="space-y-6 animate-in fade-in pb-20">
-      <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 w-fit shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 w-fit shadow-sm">
         <button onClick={() => setActiveSubTab('YEARS')} className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[10px] font-bold uppercase transition-all ${activeSubTab === 'YEARS' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>
           <Calendar size={14} /> Niên học
         </button>
@@ -202,6 +235,9 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
         </button>
         <button onClick={() => setActiveSubTab('ASSIGN')} className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[10px] font-bold uppercase transition-all ${activeSubTab === 'ASSIGN' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>
           <BookOpen size={14} /> Phân công dạy
+        </button>
+        <button onClick={() => setActiveSubTab('PLACEMENT')} className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[10px] font-bold uppercase transition-all ${activeSubTab === 'PLACEMENT' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>
+          <ArrowRightLeft size={14} /> Xếp lớp HS
         </button>
       </div>
 
@@ -420,6 +456,73 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
                  <div className="py-20 text-center font-bold text-slate-300 text-[10px] uppercase tracking-widest italic bg-white border border-slate-100 rounded-[40px] opacity-40">Chưa có dữ liệu phân công giảng dạy cho năm này</div>
                )}
              </div>
+          </div>
+        )}
+
+        {activeSubTab === 'PLACEMENT' && (
+          <div className="p-6 space-y-6">
+            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-6">
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase px-1 tracking-widest">Niên học đích</label>
+                    <select value={targetYear} onChange={e => setTargetYear(parseInt(e.target.value))} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none text-indigo-600">
+                      {years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase px-1 tracking-widest">Lớp đích</label>
+                    <select value={targetClass} onChange={e => setTargetClass(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none text-indigo-600">
+                      <option value="">-- Chọn lớp đích --</option>
+                      {classesForPlacement.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}
+                    </select>
+                  </div>
+                  <div className="lg:col-span-2 space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase px-1 tracking-widest">Tìm học sinh cần xếp lớp</label>
+                    <div className="relative">
+                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+                       <input type="text" value={placementSearch} onChange={e => setPlacementSearch(e.target.value)} placeholder="Nhập tên hoặc mã học sinh..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-normal outline-none focus:border-indigo-500 shadow-sm" />
+                    </div>
+                  </div>
+               </div>
+
+               <div className="space-y-3">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Kết quả tìm kiếm</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                     {filteredStudentsForPlacement.length > 0 ? filteredStudentsForPlacement.map(s => {
+                        const currentYear = years.find(y => y.MaNienHoc === s.MaNienHoc)?.TenNienHoc;
+                        return (
+                          <div key={s.MaHS} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-indigo-300 transition-all">
+                             <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 font-black text-xs">{s.Hoten.charAt(0)}</div>
+                                <div>
+                                   <p className="text-xs font-black text-slate-800 uppercase leading-none mb-1">{s.Hoten}</p>
+                                   <p className="text-[9px] text-slate-400 font-bold uppercase">Lớp: {s.MaLopHienTai} ({currentYear})</p>
+                                </div>
+                             </div>
+                             <button 
+                                onClick={() => handlePlacement(s.MaHS)}
+                                disabled={isSubmitting || !targetClass}
+                                className={`p-2 rounded-xl transition-all ${targetClass ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-100 text-slate-300'}`}
+                                title="Xếp vào lớp đang chọn"
+                             >
+                                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <UserCheck size={16} />}
+                             </button>
+                          </div>
+                        );
+                     }) : (
+                        <div className="col-span-full py-10 text-center text-[10px] font-black text-slate-300 uppercase italic">Không tìm thấy học sinh nào</div>
+                     )}
+                  </div>
+               </div>
+            </div>
+
+            <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-start gap-3">
+               <AlertCircle className="text-indigo-600 shrink-0 mt-0.5" size={16} />
+               <p className="text-[10px] text-indigo-700 font-medium leading-relaxed">
+                 <span className="font-black uppercase">Lưu ý:</span> Chức năng xếp lớp sẽ cập nhật trực tiếp <b>Lớp hiện tại</b> và <b>Niên học</b> của học sinh. 
+                 Điều này thường dùng khi bắt đầu năm học mới để chuyển học sinh từ lớp cũ lên lớp mới.
+               </p>
+            </div>
           </div>
         )}
       </div>
