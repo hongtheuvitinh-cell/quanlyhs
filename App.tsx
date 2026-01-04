@@ -5,7 +5,7 @@ import {
   Send, Plus, Loader2, BookOpen, UserCheck, Settings, Database, ChevronRight, Lock, Shield, X, Save, Calendar
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './services/supabaseClient';
-import { Role, AppState, Student, Grade, Assignment, LearningLog, Discipline, AcademicYear, Class, ViolationRule, AssignmentTask, Teacher, SchoolPlan } from './types';
+import { Role, AppState, Student, Grade, Assignment, LearningLog, Discipline, AcademicYear, Class, ViolationRule, AssignmentTask, Teacher, SchoolPlan, ChatMessage } from './types';
 import StudentList from './components/StudentList';
 import GradeBoard from './components/GradeBoard';
 import Dashboard from './components/Dashboard';
@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<LearningLog[]>([]);
   const [tasks, setTasks] = useState<AssignmentTask[]>([]);
   const [plans, setPlans] = useState<SchoolPlan[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   
   const [state, setState] = useState<AppState>({
     currentUser: null,
@@ -51,7 +52,7 @@ const App: React.FC = () => {
       const [
         { data: yrData }, { data: clData }, { data: tcData }, { data: asData },
         { data: stData }, { data: grData }, { data: dsData }, { data: lgData },
-        { data: tkData }, { data: rlData }, { data: plData }
+        { data: tkData }, { data: rlData }, { data: plData }, { data: msData }
       ] = await Promise.all([
         supabase.from('academic_years').select('*').order('MaNienHoc', { ascending: false }),
         supabase.from('classes').select('*').order('MaLop', { ascending: true }),
@@ -63,7 +64,8 @@ const App: React.FC = () => {
         supabase.from('learning_logs').select('*'),
         supabase.from('tasks').select('*'),
         supabase.from('violation_rules').select('*'),
-        supabase.from('school_plans').select('*')
+        supabase.from('school_plans').select('*'),
+        supabase.from('messages').select('*').order('created_at', { ascending: true })
       ]);
 
       if (yrData) setYears(yrData);
@@ -77,6 +79,7 @@ const App: React.FC = () => {
       if (tkData) setTasks(tkData);
       if (rlData) setViolationRules(rlData);
       if (plData) setPlans(plData);
+      if (msData) setMessages(msData);
 
       if (yrData?.length && state.selectedYear === 0) {
         setState(p => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
@@ -115,6 +118,22 @@ const App: React.FC = () => {
       a.LoaiPhanCong === state.currentRole
     );
   }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole]);
+
+  const handleSendMessage = async (content: string) => {
+    if (!state.currentUser || !state.selectedClass) return;
+    const user = state.currentUser as any;
+    const newMessage = {
+      MaLop: state.selectedClass,
+      MaNienHoc: state.selectedYear,
+      senderId: user.MaGV || user.MaHS,
+      senderName: user.Hoten,
+      senderRole: state.currentRole,
+      content: content
+    };
+    const { error } = await supabase.from('messages').insert([newMessage]);
+    if (error) alert("Lỗi gửi tin nhắn: " + error.message);
+    else fetchData();
+  };
 
   const handleLogin = (role: Role, id: string, pass: string) => {
     if (role === Role.STUDENT) {
@@ -193,6 +212,8 @@ const App: React.FC = () => {
         violationRules={violationRules}
         tasks={tasks.filter(t => t.MaLop === state.selectedClass && t.DanhSachGiao.includes((state.currentUser as Student).MaHS))}
         plans={plans}
+        messages={messages.filter(m => m.MaLop === state.selectedClass)}
+        onSendMessage={handleSendMessage}
         onLogout={() => setIsLoggedIn(false)}
         onToggleTask={handleToggleTask}
         onUpdateProfile={() => fetchData()}
@@ -267,7 +288,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
-          {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} plans={plans} />}
+          {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} />}
           {activeTab === 'plans' && <SchoolPlans state={state} plans={plans} classes={classes} onUpdatePlan={(p) => supabase.from('school_plans').upsert(p).then(() => fetchData())} onDeletePlan={(id) => supabase.from('school_plans').delete().eq('MaKeHoach', id).then(() => fetchData())} />}
           {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={() => fetchData()} students={students} />}
           {activeTab === 'students' && (
