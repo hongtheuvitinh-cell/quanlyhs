@@ -9,8 +9,9 @@ import {
   FileText,
   ChevronRight
 } from 'lucide-react';
-import { AppState, Student, Grade, Discipline, Teacher, SchoolPlan } from '../types';
+import { AppState, Student, Grade, Discipline, Teacher, SchoolPlan, ChatMessage } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import GroupChat from './GroupChat';
 
 interface Props {
   state: AppState;
@@ -18,9 +19,11 @@ interface Props {
   grades: Grade[];
   disciplines: Discipline[];
   plans: SchoolPlan[];
+  messages: ChatMessage[];
+  onSendMessage: (content: string) => Promise<void>;
 }
 
-const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plans }) => {
+const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plans, messages, onSendMessage }) => {
   const totalStudents = students.length;
   const classGrades = grades.filter(g => students.some(s => s.MaHS === g.MaHS));
   const avgGrade = classGrades.length > 0 
@@ -104,31 +107,35 @@ const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plan
            </div>
         </div>
 
-        <div className="bg-white p-5 rounded-[32px] border border-slate-200 shadow-sm flex flex-col">
-          <h3 className="text-xs font-bold mb-5 flex items-center gap-2 uppercase tracking-wider text-slate-800 px-1">
-            <AlertCircle size={16} className="text-rose-600" /> Kỷ luật gần đây
-          </h3>
-          <div className="space-y-3 flex-1">
-            {classDisciplines.length > 0 ? classDisciplines.slice(0, 6).map(d => {
-              const student = students.find(s => s.MaHS === d.MaHS);
-              return (
-                <div key={d.MaKyLuat} className="flex gap-3 p-3 hover:bg-slate-50 rounded-2xl transition-colors border border-transparent hover:border-slate-100">
-                  <div className="h-10 w-10 bg-rose-50 rounded-xl flex items-center justify-center text-rose-600 shrink-0 font-black text-xs">
-                    {student?.Hoten.charAt(0)}
+        <div className="space-y-6">
+          <GroupChat state={state} messages={messages} onSendMessage={onSendMessage} />
+          
+          <div className="bg-white p-5 rounded-[32px] border border-slate-200 shadow-sm flex flex-col">
+            <h3 className="text-xs font-bold mb-5 flex items-center gap-2 uppercase tracking-wider text-slate-800 px-1">
+              <AlertCircle size={16} className="text-rose-600" /> Kỷ luật gần đây
+            </h3>
+            <div className="space-y-3 flex-1">
+              {classDisciplines.length > 0 ? classDisciplines.slice(0, 3).map(d => {
+                const student = students.find(s => s.MaHS === d.MaHS);
+                return (
+                  <div key={d.MaKyLuat} className="flex gap-3 p-3 hover:bg-slate-50 rounded-2xl transition-colors border border-transparent hover:border-slate-100">
+                    <div className="h-10 w-10 bg-rose-50 rounded-xl flex items-center justify-center text-rose-600 shrink-0 font-black text-xs">
+                      {student?.Hoten.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-black text-slate-800 truncate uppercase">{student?.Hoten}</p>
+                      <p className="text-[10px] text-slate-400 font-medium line-clamp-1 italic">"{d.NoiDungChiTiet}"</p>
+                      <span className="text-[8px] text-rose-500 font-black uppercase tracking-widest mt-1 block">{d.HinhThucXL}</span>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-black text-slate-800 truncate uppercase">{student?.Hoten}</p>
-                    <p className="text-[10px] text-slate-400 font-medium line-clamp-1 italic">"{d.NoiDungChiTiet}"</p>
-                    <span className="text-[8px] text-rose-500 font-black uppercase tracking-widest mt-1 block">{d.HinhThucXL}</span>
-                  </div>
+                );
+              }) : (
+                <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                  <CheckCircle2 size={40} className="text-emerald-200 mb-2" />
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest italic">Nề nếp lớp đang rất tốt</p>
                 </div>
-              );
-            }) : (
-              <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                <CheckCircle2 size={40} className="text-emerald-200 mb-2" />
-                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest italic">Nề nếp lớp đang rất tốt</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
