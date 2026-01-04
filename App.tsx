@@ -2,10 +2,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Users, GraduationCap, ClipboardList, ShieldAlert, LayoutDashboard, LogOut,
-  Send, Plus, Loader2, BookOpen, UserCheck, Settings, Database, ChevronRight, Lock, Shield, X, Save
+  Send, Plus, Loader2, BookOpen, UserCheck, Settings, Database, ChevronRight, Lock, Shield, X, Save, Calendar
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './services/supabaseClient';
-import { Role, AppState, Student, Grade, Assignment, LearningLog, Discipline, AcademicYear, Class, ViolationRule, AssignmentTask, Teacher } from './types';
+import { Role, AppState, Student, Grade, Assignment, LearningLog, Discipline, AcademicYear, Class, ViolationRule, AssignmentTask, Teacher, SchoolPlan } from './types';
 import StudentList from './components/StudentList';
 import GradeBoard from './components/GradeBoard';
 import Dashboard from './components/Dashboard';
@@ -15,11 +15,12 @@ import TaskManager from './components/TaskManager';
 import SystemManager from './components/SystemManager';
 import Login from './components/Login';
 import StudentPortal from './components/StudentPortal';
+import SchoolPlans from './components/SchoolPlans';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'grades' | 'discipline' | 'logs' | 'tasks' | 'system'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'grades' | 'discipline' | 'logs' | 'tasks' | 'system' | 'plans'>('dashboard');
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   
   const [years, setYears] = useState<AcademicYear[]>([]);
@@ -32,6 +33,7 @@ const App: React.FC = () => {
   const [violationRules, setViolationRules] = useState<ViolationRule[]>([]);
   const [logs, setLogs] = useState<LearningLog[]>([]);
   const [tasks, setTasks] = useState<AssignmentTask[]>([]);
+  const [plans, setPlans] = useState<SchoolPlan[]>([]);
   
   const [state, setState] = useState<AppState>({
     currentUser: null,
@@ -49,7 +51,7 @@ const App: React.FC = () => {
       const [
         { data: yrData }, { data: clData }, { data: tcData }, { data: asData },
         { data: stData }, { data: grData }, { data: dsData }, { data: lgData },
-        { data: tkData }, { data: rlData }
+        { data: tkData }, { data: rlData }, { data: plData }
       ] = await Promise.all([
         supabase.from('academic_years').select('*').order('MaNienHoc', { ascending: false }),
         supabase.from('classes').select('*').order('MaLop', { ascending: true }),
@@ -60,7 +62,8 @@ const App: React.FC = () => {
         supabase.from('disciplines').select('*'),
         supabase.from('learning_logs').select('*'),
         supabase.from('tasks').select('*'),
-        supabase.from('violation_rules').select('*')
+        supabase.from('violation_rules').select('*'),
+        supabase.from('school_plans').select('*')
       ]);
 
       if (yrData) setYears(yrData);
@@ -73,6 +76,7 @@ const App: React.FC = () => {
       if (lgData) setLogs(lgData);
       if (tkData) setTasks(tkData);
       if (rlData) setViolationRules(rlData);
+      if (plData) setPlans(plData);
 
       if (yrData?.length && state.selectedYear === 0) {
         setState(p => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
@@ -188,6 +192,7 @@ const App: React.FC = () => {
         disciplines={disciplines}
         violationRules={violationRules}
         tasks={tasks.filter(t => t.MaLop === state.selectedClass && t.DanhSachGiao.includes((state.currentUser as Student).MaHS))}
+        plans={plans}
         onLogout={() => setIsLoggedIn(false)}
         onToggleTask={handleToggleTask}
         onUpdateProfile={() => fetchData()}
@@ -220,6 +225,7 @@ const App: React.FC = () => {
         <nav className="flex-1 px-3 space-y-1 pt-2 overflow-y-auto custom-scrollbar">
           {[
             { id: 'dashboard', label: 'Bàn làm việc', icon: LayoutDashboard },
+            { id: 'plans', label: 'Kế hoạch tuần', icon: Calendar },
             { id: 'students', label: 'Học sinh & SYLL', icon: Users },
             { id: 'grades', label: 'Bảng điểm môn', icon: GraduationCap },
             { id: 'tasks', label: 'Giao bài tập', icon: Send },
@@ -261,8 +267,9 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
-          {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} />}
-          {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={() => fetchData()} />}
+          {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} plans={plans} />}
+          {activeTab === 'plans' && <SchoolPlans state={state} plans={plans} classes={classes} onUpdatePlan={(p) => supabase.from('school_plans').upsert(p).then(() => fetchData())} onDeletePlan={(id) => supabase.from('school_plans').delete().eq('MaKeHoach', id).then(() => fetchData())} />}
+          {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={() => fetchData()} students={students} />}
           {activeTab === 'students' && (
             <StudentList 
               state={state} 
@@ -276,101 +283,21 @@ const App: React.FC = () => {
                 if (!confirm(`Xóa học sinh ${id} sẽ xóa toàn bộ điểm số, kỷ luật và nhật ký liên quan. Bạn có chắc chắn?`)) return;
                 setIsLoading(true);
                 try {
-                  // PHẢI XÓA THEO THỨ TỰ NGƯỢC LẠI CỦA RÀNG BUỘC KHÓA NGOẠI
-                  
-                  // 1. Xóa tất cả các bản ghi trong bảng grades có MaHS này
-                  const { error: errGrades } = await supabase.from('grades').delete().eq('MaHS', id);
-                  if (errGrades) throw new Error("Lỗi xóa điểm: " + errGrades.message);
-
-                  // 2. Xóa kỷ luật
-                  const { error: errDisciplines } = await supabase.from('disciplines').delete().eq('MaHS', id);
-                  if (errDisciplines) throw new Error("Lỗi xóa kỷ luật: " + errDisciplines.message);
-
-                  // 3. Xóa nhật ký
-                  const { error: errLogs } = await supabase.from('learning_logs').delete().eq('MaHS', id);
-                  if (errLogs) throw new Error("Lỗi xóa nhật ký: " + errLogs.message);
-
-                  // 4. Xử lý bảng Tasks (Nhiệm vụ) - Cập nhật JSON arrays
-                  const { data: relatedTasks } = await supabase.from('tasks').select('*');
-                  if (relatedTasks) {
-                    for (const task of relatedTasks) {
-                      let needsUpdate = false;
-                      let newGiao = [...(task.DanhSachGiao || [])];
-                      let newHoanThanh = [...(task.DanhSachHoanThanh || [])];
-                      let newReports = { ...(task.BaoCaoNhiemVu || {}) };
-
-                      if (newGiao.includes(id)) { newGiao = newGiao.filter(x => x !== id); needsUpdate = true; }
-                      if (newHoanThanh.includes(id)) { newHoanThanh = newHoanThanh.filter(x => x !== id); needsUpdate = true; }
-                      if (newReports[id]) { delete newReports[id]; needsUpdate = true; }
-
-                      if (needsUpdate) {
-                        await supabase.from('tasks').update({
-                          DanhSachGiao: newGiao,
-                          DanhSachHoanThanh: newHoanThanh,
-                          BaoCaoNhiemVu: newReports
-                        }).eq('MaNhiemVu', task.MaNhiemVu);
-                      }
-                    }
-                  }
-
-                  // 5. CUỐI CÙNG mới xóa học sinh khỏi bảng students
+                  await supabase.from('grades').delete().eq('MaHS', id);
+                  await supabase.from('disciplines').delete().eq('MaHS', id);
+                  await supabase.from('learning_logs').delete().eq('MaHS', id);
                   const { error: errStudent } = await supabase.from('students').delete().eq('MaHS', id);
                   if (errStudent) throw new Error("Lỗi xóa học sinh: " + errStudent.message);
-
                   await fetchData();
-                  alert("Đã xóa học sinh và các dữ liệu liên quan thành công.");
-                } catch (err: any) {
-                  alert(err.message);
-                } finally {
-                  setIsLoading(false);
-                }
+                  alert("Đã xóa thành công.");
+                } catch (err: any) { alert(err.message); } finally { setIsLoading(false); }
               }} 
             />
           )}
           {activeTab === 'grades' && <GradeBoard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={() => fetchData()} />}
-          {activeTab === 'tasks' && (
-            <TaskManager 
-              state={state} 
-              students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
-              tasks={tasks} 
-              onUpdateTasks={() => fetchData()} 
-              onDeleteTask={async (id) => {
-                if (!confirm("Xác nhận xóa nhiệm vụ này vĩnh viễn?")) return;
-                setIsLoading(true);
-                try {
-                  const { error } = await supabase.from('tasks').delete().eq('MaNhiemVu', id);
-                  if (error) throw error;
-                  await fetchData();
-                  alert("Đã xóa nhiệm vụ thành công.");
-                } catch (err: any) {
-                  alert("Lỗi khi xóa nhiệm vụ: " + err.message);
-                } finally {
-                  setIsLoading(false);
-                }
-              }} 
-            />
-          )}
-          {activeTab === 'discipline' && (
-            <DisciplineManager 
-              state={state} 
-              students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
-              disciplines={disciplines} 
-              violationRules={violationRules} 
-              onUpdateDisciplines={(d) => supabase.from('disciplines').upsert(d).then(() => fetchData())} 
-              onDeleteDiscipline={(id) => supabase.from('disciplines').delete().eq('MaKyLuat', id).then(() => fetchData())} 
-              onUpdateRules={(r) => supabase.from('violation_rules').upsert(r).then(() => fetchData())} 
-            />
-          )}
-          {activeTab === 'logs' && currentAssignment && (
-            <LearningLogs 
-              state={state} 
-              students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
-              logs={logs} 
-              assignment={currentAssignment} 
-              onUpdateLogs={(l) => supabase.from('learning_logs').upsert(l).then(() => fetchData())} 
-              onDeleteLog={(id) => supabase.from('learning_logs').delete().eq('MaTheoDoi', id).then(() => fetchData())} 
-            />
-          )}
+          {activeTab === 'tasks' && <TaskManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={() => fetchData()} onDeleteTask={(id) => supabase.from('tasks').delete().eq('MaNhiemVu', id).then(() => fetchData())} />}
+          {activeTab === 'discipline' && <DisciplineManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={(d) => supabase.from('disciplines').upsert(d).then(() => fetchData())} onDeleteDiscipline={(id) => supabase.from('disciplines').delete().eq('MaKyLuat', id).then(() => fetchData())} onUpdateRules={(r) => supabase.from('violation_rules').upsert(r).then(() => fetchData())} />}
+          {activeTab === 'logs' && currentAssignment && <LearningLogs state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} logs={logs} assignment={currentAssignment} onUpdateLogs={(l) => supabase.from('learning_logs').upsert(l).then(() => fetchData())} onDeleteLog={(id) => supabase.from('learning_logs').delete().eq('MaTheoDoi', id).then(() => fetchData())} />}
         </div>
       </main>
 
