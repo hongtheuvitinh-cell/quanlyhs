@@ -106,7 +106,7 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
                </div>
                
                <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex-1">
-                 <p className="text-[11px] text-slate-600 leading-relaxed font-medium whitespace-pre-line line-clamp-6 italic">
+                 <p className="text-[11px] text-slate-600 leading-relaxed font-medium whitespace-pre-line italic">
                    {plan.NoiDung || 'Chưa có nội dung chi tiết.'}
                  </p>
                </div>
@@ -171,7 +171,7 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
                  </div>
 
                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Nội dung kế hoạch chi tiết</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Nội dung kế hoạch chi tiết (Dùng phím Enter để xuống dòng)</label>
                     <textarea value={editingPlan.NoiDung || ''} onChange={e => setEditingPlan({...editingPlan, NoiDung: e.target.value})} className="w-full p-5 bg-white border border-slate-200 rounded-[32px] text-xs font-medium h-48 outline-none focus:border-indigo-400 shadow-sm" placeholder="Liệt kê các đầu việc trọng tâm trong tuần..."></textarea>
                  </div>
 
@@ -225,4 +225,3 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
 };
 
 export default SchoolPlans;
-
