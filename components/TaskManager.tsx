@@ -42,8 +42,12 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
     const today = new Date().toISOString().split('T')[0];
     
     return tasks.filter(t => {
+      // Lọc theo lớp hiện tại
       if (t.MaLop !== state.selectedClass) return false;
-      if (state.currentRole !== Role.CHU_NHIEM && t.MaMonHoc !== (state.selectedSubject || 'SHL')) return false;
+      
+      // Lọc theo môn học đang chọn (với GV bộ môn)
+      const currentSub = state.selectedSubject || 'SHL';
+      if (state.currentRole === Role.GIANG_DAY && t.MaMonHoc !== currentSub) return false;
       
       const tMonth = (new Date(t.HanChot).getMonth() + 1).toString();
       if (filterMonth !== 'all' && tMonth !== filterMonth) return false;
@@ -62,7 +66,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
       TieuDe: '', 
       MoTa: '', 
       HanChot: new Date().toISOString().split('T')[0], 
-      MaMonHoc: state.selectedSubject || (subjects[0].id)
+      MaMonHoc: state.selectedSubject || 'SHL'
     });
     setAssignedStudentIds(students.map(s => s.MaHS));
     setIsModalOpen(true);
@@ -122,7 +126,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
           <div className="p-2.5 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100"><Send size={20} /></div>
           <div>
             <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Giao bài & Nhiệm vụ học tập</h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Lớp {state.selectedClass} • {currentTasks.length} nhiệm vụ được lọc</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Lớp {state.selectedClass} • {state.selectedSubject || 'Tất cả môn'}</p>
           </div>
         </div>
         <button onClick={handleOpenAdd} className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all"><Plus size={18} /> Tạo mới nhiệm vụ</button>
@@ -175,17 +179,16 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
                     <div className={`h-full transition-all duration-700 ${isSelected ? 'bg-white shadow-[0_0_12px_white]' : 'bg-indigo-500 shadow-md'}`} style={{width: `${progress}%`}}></div>
                   </div>
                 </div>
-                {/* Đưa nút xóa ra ngoài hoặc đảm bảo nó nhận sự kiện click độc lập */}
                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-20">
                   <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(task); }} className={`p-2 rounded-xl ${isSelected ? 'bg-white/20 hover:bg-white/40' : 'bg-slate-50 hover:bg-slate-100 text-indigo-600'}`}><Edit2 size={14} /></button>
-                  <button onClick={(e) => { e.stopPropagation(); onDeleteTask(task.MaNhiemVu); }} className="p-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl shadow-lg"><Trash2 size={14}/></button>
+                  <button onClick={(e) => { e.stopPropagation(); if(confirm("Xóa nhiệm vụ này?")) onDeleteTask(task.MaNhiemVu); }} className="p-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl shadow-lg"><Trash2 size={14}/></button>
                 </div>
               </div>
             );
           }) : (
              <div className="py-24 bg-white rounded-[40px] border-2 border-dashed border-slate-100 text-center opacity-40 flex flex-col items-center justify-center">
                 <Target size={56} className="text-slate-200 mb-4 mx-auto" />
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">Không có nhiệm vụ nào<br/>phù hợp với bộ lọc</p>
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-relaxed text-center">Không có nhiệm vụ nào<br/>cho môn {state.selectedSubject || 'này'}</p>
              </div>
           )}
         </div>
@@ -214,7 +217,8 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
                    <Info size={14} className="text-slate-400" />
                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nội dung & Yêu cầu chi tiết</p>
                 </div>
-                <div className="p-6 bg-slate-50 rounded-[32px] border border-slate-100 text-xs font-medium text-slate-700 leading-relaxed italic shadow-inner">
+                {/* SỬA LỖI: Thêm whitespace-pre-line để hiển thị xuống dòng */}
+                <div className="p-6 bg-slate-50 rounded-[32px] border border-slate-100 text-xs font-medium text-slate-700 leading-relaxed italic shadow-inner whitespace-pre-line">
                   "{selectedTask.MoTa || 'Không có mô tả chi tiết cho nhiệm vụ này.'}"
                 </div>
               </div>
@@ -236,7 +240,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs shadow-sm ${isDone ? 'bg-white text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>{s.Hoten.charAt(0)}</div>
                            <div>
                              <span className="text-xs font-black text-slate-700 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{s.Hoten}</span>
-                             {link && <a href={link} target="_blank" className="block text-[9px] text-indigo-500 hover:underline mt-1 font-black uppercase tracking-widest">Xem sản phẩm bài làm &rarr;</a>}
+                             {link && <a href={link} target="_blank" rel="noopener noreferrer" className="block text-[9px] text-indigo-500 hover:underline mt-1 font-black uppercase tracking-widest">Xem sản phẩm bài làm &rarr;</a>}
                            </div>
                         </div>
                         <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm ${isDone ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400 opacity-60'}`}>
