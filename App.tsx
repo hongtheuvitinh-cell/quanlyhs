@@ -91,7 +91,45 @@ const App: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+
+    if (isSupabaseConfigured) {
+      const channel = supabase
+        .channel('realtime_messages')
+        .on('postgres_changes', { event: 'INSERT', table: 'messages' }, (payload) => {
+          setMessages((prev) => {
+            if (prev.some(m => m.id === payload.new.id)) return prev;
+            return [...prev, payload.new as ChatMessage];
+          });
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, []);
+
+  // TỰ ĐỘNG ĐỒNG BỘ MÔN HỌC KHI ĐỔI LỚP HOẶC VAI TRÒ
+  useEffect(() => {
+    if (state.currentUser && !(state.currentUser as any).MaHS) {
+      const teacher = state.currentUser as Teacher;
+      const currentAs = assignments.find(a => 
+        a.MaGV === teacher.MaGV && 
+        a.MaLop === state.selectedClass && 
+        a.MaNienHoc === state.selectedYear &&
+        a.LoaiPhanCong === state.currentRole
+      );
+      
+      if (currentAs) {
+        setState(p => ({ 
+          ...p, 
+          selectedSubject: state.currentRole === Role.CHU_NHIEM ? 'SHL' : (currentAs.MaMonHoc || 'SHL') 
+        }));
+      }
+    }
+  }, [state.selectedClass, state.currentRole, state.selectedYear, assignments]);
 
   const filteredClasses = useMemo(() => {
     if (!state.currentUser || (state.currentUser as any).MaHS) return [];
@@ -132,7 +170,6 @@ const App: React.FC = () => {
     };
     const { error } = await supabase.from('messages').insert([newMessage]);
     if (error) alert("Lỗi gửi tin nhắn: " + error.message);
-    else fetchData();
   };
 
   const handleLogin = (role: Role, id: string, pass: string) => {
