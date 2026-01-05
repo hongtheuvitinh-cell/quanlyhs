@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Users, GraduationCap, ClipboardList, ShieldAlert, LayoutDashboard, LogOut,
-  Send, Plus, Loader2, BookOpen, UserCheck, Settings, Database, ChevronRight, Lock, Shield, X, Save, Calendar
+  Send, Plus, Loader2, BookOpen, UserCheck, Settings, Database, ChevronRight, Lock, Shield, X, Save, Calendar, Book
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './services/supabaseClient';
 import { Role, AppState, Student, Grade, Assignment, LearningLog, Discipline, AcademicYear, Class, ViolationRule, AssignmentTask, Teacher, SchoolPlan, ChatMessage } from './types';
@@ -115,18 +115,18 @@ const App: React.FC = () => {
   useEffect(() => {
     if (state.currentUser && !(state.currentUser as any).MaHS) {
       const teacher = state.currentUser as Teacher;
-      const currentAs = assignments.find(a => 
+      const myAs = assignments.filter(a => 
         a.MaGV === teacher.MaGV && 
         a.MaLop === state.selectedClass && 
         a.MaNienHoc === state.selectedYear &&
         a.LoaiPhanCong === state.currentRole
       );
       
-      if (currentAs) {
-        setState(p => ({ 
-          ...p, 
-          selectedSubject: state.currentRole === Role.CHU_NHIEM ? 'SHL' : (currentAs.MaMonHoc || 'SHL') 
-        }));
+      if (myAs.length > 0) {
+        // Nếu chuyển sang Chủ nhiệm, mặc định chọn SHL
+        // Nếu chuyển sang Giảng dạy, mặc định chọn môn đầu tiên trong danh sách phân công lớp đó
+        const autoSub = state.currentRole === Role.CHU_NHIEM ? 'SHL' : (myAs[0].MaMonHoc || 'SHL');
+        setState(p => ({ ...p, selectedSubject: autoSub }));
       }
     }
   }, [state.selectedClass, state.currentRole, state.selectedYear, assignments]);
@@ -141,6 +141,20 @@ const App: React.FC = () => {
     return classes.filter(c => assignedClassIds.includes(c.MaLop));
   }, [classes, assignments, state.currentUser, state.currentRole, state.selectedYear]);
 
+  // Danh sách các môn giáo viên dạy ở lớp đã chọn
+  const mySubjectsInClass = useMemo(() => {
+    if (!state.currentUser || (state.currentUser as any).MaHS) return [];
+    const teacherID = (state.currentUser as Teacher).MaGV;
+    return assignments
+      .filter(a => 
+        a.MaGV === teacherID && 
+        a.MaLop === state.selectedClass && 
+        a.MaNienHoc === state.selectedYear &&
+        a.LoaiPhanCong === state.currentRole
+      )
+      .map(a => a.MaMonHoc || 'SHL');
+  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole]);
+
   useEffect(() => {
     if (filteredClasses.length > 0 && (!state.selectedClass || !filteredClasses.some(c => c.MaLop === state.selectedClass))) {
       setState(p => ({ ...p, selectedClass: filteredClasses[0].MaLop }));
@@ -153,9 +167,10 @@ const App: React.FC = () => {
       a.MaGV === (state.currentUser as Teacher).MaGV && 
       a.MaLop === state.selectedClass && 
       a.MaNienHoc === state.selectedYear &&
-      a.LoaiPhanCong === state.currentRole
+      a.LoaiPhanCong === state.currentRole &&
+      (state.currentRole === Role.CHU_NHIEM ? true : a.MaMonHoc === state.selectedSubject)
     );
-  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole]);
+  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole, state.selectedSubject]);
 
   const handleSendMessage = async (content: string) => {
     if (!state.currentUser || !state.selectedClass) return;
@@ -305,19 +320,32 @@ const App: React.FC = () => {
 
       <main className="flex-1 flex flex-col min-w-0 bg-white">
         <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-2 shrink-0">
               <span className="text-[10px] font-black text-slate-400 uppercase">Niên học:</span>
               <select value={state.selectedYear} onChange={(e: any) => setState(p => ({...p, selectedYear: parseInt(e.target.value)}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}</select>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <span className="text-[10px] font-black text-slate-400 uppercase">Lớp:</span>
               <select value={state.selectedClass} onChange={(e: any) => setState(p => ({...p, selectedClass: e.target.value}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{filteredClasses.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}</select>
             </div>
+            
+            {/* SUBJECT SELECTOR - Dành cho giáo viên khi ở chế độ GD hoặc dạy nhiều môn */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[10px] font-black text-slate-400 uppercase">Môn:</span>
+              <select 
+                value={state.selectedSubject || ''} 
+                onChange={(e: any) => setState(p => ({...p, selectedSubject: e.target.value}))} 
+                className={`font-black border-none outline-none px-2 py-1 rounded-lg ${state.currentRole === Role.CHU_NHIEM ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'}`}
+              >
+                {state.currentRole === Role.CHU_NHIEM && <option value="SHL">S.Hoạt lớp</option>}
+                {mySubjectsInClass.filter(s => s !== 'SHL').map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
           </div>
-          <div className="flex items-center gap-4 cursor-pointer p-1 px-3 rounded-xl hover:bg-slate-50" onClick={() => setIsPasswordModalOpen(true)}>
-             <div className="text-right">
-                <p className="text-[11px] font-bold text-slate-800">{(state.currentUser as Teacher)?.Hoten}</p>
+          <div className="flex items-center gap-4 cursor-pointer p-1 px-3 rounded-xl hover:bg-slate-50 shrink-0" onClick={() => setIsPasswordModalOpen(true)}>
+             <div className="text-right hidden sm:block">
+                <p className="text-[11px] font-bold text-slate-800 truncate max-w-[100px]">{(state.currentUser as Teacher)?.Hoten}</p>
                 <p className="text-[9px] font-bold text-slate-400 uppercase">Giáo viên</p>
              </div>
              <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold border border-indigo-100">{(state.currentUser as Teacher)?.Hoten?.charAt(0)}</div>
