@@ -239,8 +239,9 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                                     <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight leading-tight">{p.TieuDe}</h4>
                                     <span className="text-[9px] font-bold text-slate-400 uppercase bg-slate-50 px-2 py-0.5 rounded-lg">{p.TuNgay} → {p.DenNgay}</span>
                                  </div>
-                                 <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-50">
-                                    <p className="text-[11px] text-slate-600 font-medium italic leading-relaxed whitespace-pre-line">"{p.NoiDung}"</p>
+                                 {/* SỬA LỖI: Thêm whitespace-pre-line */}
+                                 <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-50 whitespace-pre-line">
+                                    <p className="text-[11px] text-slate-600 font-medium italic leading-relaxed">"{p.NoiDung}"</p>
                                  </div>
                                  
                                  {/* SỬA LỖI IPAD: Hiển thị link rõ ràng hơn */}
@@ -370,7 +371,8 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                            </div>
                            <div>
                               <h4 className={`font-black text-base uppercase leading-tight mb-2 ${isDone ? 'text-emerald-700' : 'text-slate-800'}`}>{task.TieuDe}</h4>
-                              <p className="text-[12px] text-slate-500 font-medium italic leading-relaxed">"{task.MoTa}"</p>
+                              {/* SỬA LỖI: Thêm whitespace-pre-line */}
+                              <p className="text-[12px] text-slate-500 font-medium italic leading-relaxed whitespace-pre-line">"{task.MoTa}"</p>
                            </div>
                         </div>
                         
@@ -428,7 +430,8 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                                 <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">-{d.DiemTruTaiThoiDiemDo}đ</span>
                              </div>
                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">{d.NgayViPham}</p>
-                             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-[11px] font-medium text-slate-600 italic">"{d.NoiDungChiTiet}"</div>
+                             {/* SỬA LỖI: Thêm whitespace-pre-line */}
+                             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-[11px] font-medium text-slate-600 italic whitespace-pre-line">"{d.NoiDungChiTiet}"</div>
                           </div>
                        </div>
                        <div className="md:text-right shrink-0">
@@ -476,7 +479,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                       <div className="space-y-4">
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <input type="password" value={passwordForm.old} onChange={(e: any) => setPasswordForm({...passwordForm, old: e.target.value})} placeholder="Mật khẩu cũ" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
-                            <input type="password" value={passwordForm.new} onChange={(e: any) => setPasswordForm({...passwordForm, new: e.target.value})} placeholder="Mật khẩu mới" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
+                            <input type="password" value={passwordForm.new} onChange={(e: any) => setPasswordForm({...passwordForm, new: e.target.value})} placeholder="Mật khẩu mới" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold text-sm" />
                          </div>
                          <input type="password" value={passwordForm.confirm} onChange={(e: any) => setPasswordForm({...passwordForm, confirm: e.target.value})} placeholder="Xác nhận mật khẩu mới" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
                          <button onClick={handleUpdatePassword} disabled={isUpdating} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3">
