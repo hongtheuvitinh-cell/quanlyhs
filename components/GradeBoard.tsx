@@ -43,8 +43,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const [tempGrades, setTempGrades] = useState<Grade[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Bộ phát sinh ID duy nhất để tránh xung đột MaDiem
-  const lastIdRef = useRef<number>(Date.now());
+  // Bộ phát sinh ID duy nhất - SỬA LỖI: Chia cho 1000 để vừa kiểu dữ liệu INTEGER của Postgres
+  const lastIdRef = useRef<number>(Math.floor(Date.now() / 1000));
   const generateUniqueId = () => {
     lastIdRef.current += 1;
     return lastIdRef.current;
@@ -83,6 +83,36 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     [...txColumns, 'ĐGGK', 'ĐGCK'], 
     [txColumns]
   );
+
+  const handleExportCsv = () => {
+    const BOM = "\uFEFF";
+    // Header CSV
+    const headers = "MaHS,Hoten," + allColumns.join(",") + ",TrungBinh\n";
+    
+    // Dữ liệu từng dòng
+    const rows = filteredStudents.map(s => {
+      const rowGrades = allColumns.map(type => {
+        const g = tempGrades.find(tg => 
+          tg.MaHS === s.MaHS && 
+          tg.MaMonHoc === selectedSubject && 
+          tg.HocKy === selectedHK && 
+          tg.MaNienHoc === state.selectedYear &&
+          tg.LoaiDiem === type
+        );
+        return g && g.DiemSo !== null ? g.DiemSo : "";
+      });
+      const tb = calculateSubjectAvg(s.MaHS, selectedSubject, selectedHK);
+      return [s.MaHS, s.Hoten, ...rowGrades, tb !== null ? tb.toFixed(1) : ""].join(",");
+    }).join("\n");
+
+    const blob = new Blob([BOM + headers + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `BangDiem_${selectedSubject}_Lop${state.selectedClass}_HK${selectedHK}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleCsvGradeImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -142,7 +172,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       if (changesDetected) {
         setTempGrades(newGrades);
         setHasChanges(true);
-        alert(`Đã nạp bảng điểm từ file CSV. Hãy nhấn "Lưu" để đồng bộ lên máy chủ.`);
+        alert(`Đã nạp bảng điểm từ file CSV. Hãy nhấn "Đồng bộ ngay" để lưu vĩnh viễn.`);
       }
       e.target.value = '';
     };
@@ -253,9 +283,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       const toUpsert = currentContextGrades.filter(g => g.DiemSo !== null && g.DiemSo !== undefined);
       const toDelete = currentContextGrades.filter(g => g.DiemSo === null || g.DiemSo === undefined);
 
-      // Thực hiện đồng bộ theo lô (batch) để tăng tốc và tránh lỗi mạng
       if (toUpsert.length > 0) {
-        // Đảm bảo không có ID trùng lặp trong mảng gửi đi (đề phòng)
         const uniqueUpsert = Array.from(new Map(toUpsert.map(item => [item.MaDiem, item])).values());
         const { error: upsertError } = await supabase.from('grades').upsert(uniqueUpsert);
         if (upsertError) throw upsertError;
@@ -325,6 +353,13 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
              </div>
              
              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleExportCsv}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-bold uppercase border border-slate-200 hover:bg-slate-100 transition-all"
+                >
+                  <Download size={14} />
+                  Xuất CSV
+                </button>
                 <label className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold uppercase border border-emerald-100 cursor-pointer hover:bg-emerald-100 transition-all">
                   <FileUp size={14} />
                   Nhập CSV
