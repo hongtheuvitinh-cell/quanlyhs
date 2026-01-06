@@ -85,6 +85,7 @@ export interface ChatMessage {
   senderName: string;
   senderRole: Role;
   content: string;
+  attachment?: string; // Link đính kèm hoặc ảnh
   created_at: string;
 }
 
