@@ -21,7 +21,6 @@ const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'grades' | 'discipline' | 'logs' | 'tasks' | 'system' | 'plans'>('dashboard');
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -43,8 +42,6 @@ const App: React.FC = () => {
     selectedYear: 0,
     selectedSubject: null
   });
-
-  const [passwordForm, setPasswordForm] = useState({ old: '', new: '', confirm: '' });
 
   const fetchData = async () => {
     if (!isSupabaseConfigured) { setIsLoading(false); return; }
@@ -95,7 +92,6 @@ const App: React.FC = () => {
     fetchData(); 
   }, []);
 
-  // HÀM LỌC HỌC SINH QUAN TRỌNG: Không bao giờ dùng slice() và so sánh nới lỏng
   const currentClassStudents = useMemo(() => {
     if (!state.selectedClass || !students) return [];
     const target = state.selectedClass.toString().trim().toLowerCase();
@@ -104,18 +100,6 @@ const App: React.FC = () => {
       return sClass === target;
     });
   }, [students, state.selectedClass]);
-
-  const currentAssignment = useMemo(() => {
-    if (!state.currentUser || (state.currentUser as any).MaHS || !state.selectedClass) return null;
-    const teacher = state.currentUser as Teacher;
-    return assignments.find(a => 
-      a.MaGV === teacher.MaGV && 
-      (a.MaLop || "").toString().trim().toLowerCase() === state.selectedClass.toString().trim().toLowerCase() && 
-      a.MaNienHoc === state.selectedYear &&
-      a.LoaiPhanCong === state.currentRole &&
-      (state.currentRole === Role.CHU_NHIEM ? true : a.MaMonHoc === state.selectedSubject)
-    ) || null;
-  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole, state.selectedSubject]);
 
   const filteredClasses = useMemo(() => {
     if (!state.currentUser || (state.currentUser as any).MaHS) return [];
@@ -126,19 +110,6 @@ const App: React.FC = () => {
       .map(a => a.MaLop.toString().trim().toLowerCase());
     return classes.filter(c => assignedClassIds.includes(c.MaLop.toString().trim().toLowerCase()));
   }, [classes, assignments, state.currentUser, state.currentRole, state.selectedYear]);
-
-  const mySubjectsInClass = useMemo(() => {
-    if (!state.currentUser || (state.currentUser as any).MaHS) return [];
-    const teacherID = (state.currentUser as Teacher).MaGV;
-    return assignments
-      .filter(a => 
-        a.MaGV === teacherID && 
-        a.MaLop.toString().trim().toLowerCase() === state.selectedClass.toString().trim().toLowerCase() && 
-        a.MaNienHoc === state.selectedYear &&
-        a.LoaiPhanCong === state.currentRole
-      )
-      .map(a => a.MaMonHoc || 'SHL');
-  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole]);
 
   const handleLogin = (role: Role, id: string, pass: string) => {
     if (role === Role.STUDENT) {
@@ -162,7 +133,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSendMessage = async (content: string, attachment?: string) => {
+  const handleSendMessage = async (content: string) => {
     if (!state.currentUser || !state.selectedClass) return;
     const user = state.currentUser as any;
     const newMessage = {
@@ -171,11 +142,10 @@ const App: React.FC = () => {
       senderId: user.MaGV || user.MaHS,
       senderName: user.Hoten,
       senderRole: state.currentRole,
-      content: content,
-      attachment: attachment || null
+      content: content
     };
-    const { error } = await supabase.from('messages').insert([newMessage]);
-    if (error) alert("Lỗi gửi tin nhắn: " + error.message);
+    await supabase.from('messages').insert([newMessage]);
+    fetchData();
   };
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>;
@@ -186,24 +156,9 @@ const App: React.FC = () => {
       <aside className="w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm relative z-20">
         <div className="p-5 flex items-center gap-2.5 border-b border-slate-50">
           <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg"><GraduationCap size={18} /></div>
-          <h1 className="font-bold text-base text-slate-800 tracking-tight">EduManager</h1>
+          <h1 className="font-bold text-base text-slate-800 tracking-tight uppercase italic">EduManager</h1>
         </div>
-        <div className="p-4">
-           <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100">
-              <p className="text-[9px] font-bold uppercase text-slate-400 mb-2 px-1 tracking-widest text-center">Chế độ làm việc</p>
-              <div className="flex p-1 bg-white rounded-xl border border-slate-100">
-                <button 
-                  onClick={() => setState(p => ({...p, currentRole: Role.CHU_NHIEM}))}
-                  className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase ${state.currentRole === Role.CHU_NHIEM ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}
-                >CN</button>
-                <button 
-                  onClick={() => setState(p => ({...p, currentRole: Role.GIANG_DAY}))}
-                  className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase ${state.currentRole === Role.GIANG_DAY ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}
-                >GD</button>
-              </div>
-           </div>
-        </div>
-        <nav className="flex-1 px-3 space-y-1 pt-2 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 px-3 space-y-1 pt-4 overflow-y-auto custom-scrollbar">
           {[
             { id: 'dashboard', label: 'Bàn làm việc', icon: LayoutDashboard },
             { id: 'plans', label: 'Kế hoạch tuần', icon: Calendar },
@@ -217,8 +172,8 @@ const App: React.FC = () => {
               <item.icon size={16} /> <span className="flex-1 text-left">{item.label}</span>
             </button>
           ))}
-          <button onClick={() => setActiveTab('system')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-bold mt-4 ${activeTab === 'system' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>
-            <Settings size={16} /> <span>Cấu hình hệ thống</span>
+          <button onClick={() => setActiveTab('system')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold mt-4 transition-all ${activeTab === 'system' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+            <Settings size={16} /> <span className="flex-1 text-left">Cấu hình hệ thống</span>
           </button>
         </nav>
         <div className="p-4 mt-auto border-t border-slate-50">
@@ -236,17 +191,16 @@ const App: React.FC = () => {
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase">Môn:</span>
-              <select value={state.selectedSubject || ''} onChange={(e) => setState(p => ({...p, selectedSubject: e.target.value}))} className="font-black border-none outline-none px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600">
-                {state.currentRole === Role.CHU_NHIEM && <option value="SHL">S.Hoạt lớp</option>}
-                {mySubjectsInClass.filter(s => s !== 'SHL').map(s => <option key={s} value={s}>{s}</option>)}
+              <span className="text-[10px] font-black text-slate-400 uppercase">Niên học:</span>
+              <select value={state.selectedYear} onChange={(e) => setState(p => ({...p, selectedYear: parseInt(e.target.value)}))} className="font-black border-none outline-none px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600">
+                {years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}
               </select>
             </div>
           </div>
           <div className="flex items-center gap-3 px-3 py-1 rounded-xl bg-slate-50 border border-slate-200">
              <div className="text-right">
                 <p className="text-[11px] font-bold text-slate-800">{(state.currentUser as Teacher)?.Hoten}</p>
-                <p className="text-[9px] font-bold text-slate-400 uppercase">{state.currentRole === Role.CHU_NHIEM ? 'GV Chủ nhiệm' : 'GV Giảng dạy'}</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{state.currentRole === Role.CHU_NHIEM ? 'GV Chủ nhiệm' : 'GV Giảng dạy'}</p>
              </div>
              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-black">{(state.currentUser as Teacher)?.Hoten?.charAt(0)}</div>
           </div>
@@ -256,9 +210,9 @@ const App: React.FC = () => {
           {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} grades={grades} disciplines={disciplines} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} />}
           {activeTab === 'students' && <StudentList state={state} students={currentClassStudents} grades={grades} disciplines={disciplines} logs={logs} violationRules={violationRules} onUpdateStudent={(s) => supabase.from('students').upsert(s).then(() => fetchData())} onDeleteStudent={(id) => supabase.from('students').delete().eq('MaHS', id).then(() => fetchData())} />}
           {activeTab === 'grades' && <GradeBoard state={state} students={currentClassStudents} grades={grades} onUpdateGrades={() => fetchData()} />}
-          {activeTab === 'tasks' && <TaskManager state={state} students={currentClassStudents} tasks={tasks} onUpdateTasks={(newTasks) => supabase.from('tasks').upsert(newTasks).then(() => fetchData())} onDeleteTask={(id) => supabase.from('tasks').delete().eq('MaNhiemVu', id).then(() => fetchData())} />}
-          {activeTab === 'discipline' && <DisciplineManager state={state} students={currentClassStudents} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={(d) => supabase.from('disciplines').upsert(d).then(() => fetchData())} onDeleteDiscipline={(id) => supabase.from('discipline').delete().eq('MaKyLuat', id).then(() => fetchData())} onUpdateRules={(r) => supabase.from('violation_rules').upsert(r).then(() => fetchData())} />}
-          {activeTab === 'logs' && currentAssignment && <LearningLogs state={state} students={currentClassStudents} logs={logs} assignment={currentAssignment} onUpdateLogs={(l) => supabase.from('learning_logs').upsert(l).then(() => fetchData())} onDeleteLog={(id) => supabase.from('learning_logs').delete().eq('MaTheoDoi', id).then(() => fetchData())} />}
+          {activeTab === 'tasks' && <TaskManager state={state} students={currentClassStudents} tasks={tasks} onUpdateTasks={(t) => supabase.from('tasks').upsert(t).then(() => fetchData())} onDeleteTask={(id) => supabase.from('tasks').delete().eq('MaNhiemVu', id).then(() => fetchData())} />}
+          {activeTab === 'discipline' && <DisciplineManager state={state} students={currentClassStudents} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={(d) => supabase.from('disciplines').upsert(d).then(() => fetchData())} onDeleteDiscipline={(id) => supabase.from('disciplines').delete().eq('MaKyLuat', id).then(() => fetchData())} onUpdateRules={(r) => supabase.from('violation_rules').upsert(r).then(() => fetchData())} />}
+          {activeTab === 'logs' && <LearningLogs state={state} students={currentClassStudents} logs={logs} assignment={assignments.find(a => a.MaLop === state.selectedClass) as any} onUpdateLogs={(l) => supabase.from('learning_logs').upsert(l).then(() => fetchData())} onDeleteLog={(id) => supabase.from('learning_logs').delete().eq('MaTheoDoi', id).then(() => fetchData())} />}
           {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={() => fetchData()} students={students} />}
           {activeTab === 'plans' && <SchoolPlans state={state} plans={plans} classes={classes} onUpdatePlan={(p) => supabase.from('school_plans').upsert(p).then(() => fetchData())} onDeletePlan={(id) => supabase.from('school_plans').delete().eq('MaKeHoach', id).then(() => fetchData())} />}
         </div>
