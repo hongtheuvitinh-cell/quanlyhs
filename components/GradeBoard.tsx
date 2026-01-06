@@ -20,7 +20,6 @@ const subjects = [
 ];
 
 const ITEMS_PER_PAGE = 15;
-// Hệ thống hỗ trợ tối đa 5 cột TX, 1 GK, 1 CK
 const GRADE_COLUMNS = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
 
 const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }) => {
@@ -53,7 +52,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   const calculateAvg = (maHS: string, hk: number, subjectId: string, currentLocalGrades?: Record<string, number | null>) => {
     let sourceGrades: Record<string, number | null> = {};
-    
     if (currentLocalGrades) {
       sourceGrades = currentLocalGrades;
     } else {
@@ -63,14 +61,12 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         Number(g.HocKy) === Number(hk) && 
         Number(g.MaNienHoc) === Number(state.selectedYear)
       );
-      if (records.length === 0) return null;
       records.forEach(r => sourceGrades[r.LoaiDiem] = r.DiemSo);
     }
 
     const tx = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5']
       .map(key => sourceGrades[key])
       .filter(v => v !== null && v !== undefined) as number[];
-      
     const gk = sourceGrades['ĐGGK'];
     const ck = sourceGrades['ĐGCK'];
 
@@ -148,26 +144,20 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
       if (lines.length < 2) return;
 
-      const header = lines[0].split(',').map(h => h.trim().toUpperCase());
       const rows = lines.slice(1);
-      const upsertData: any[] = [];
-
-      // Phân tích cấu trúc file dựa trên số lượng cột điểm (cột 0: MaHS, 1: HoTen)
-      // Nếu file có tổng 8 cột -> Điểm ở index 2,3,4,5 (TX), 6 (GK), 7 (CK) -> Thiếu TX5
-      // Nếu file có tổng 9 cột -> Điểm ở index 2,3,4,5,6 (TX), 7 (GK), 8 (CK) -> Đủ TX5
+      
+      // SỬ DỤNG MAP ĐỂ LOẠI BỎ TRÙNG LẶP NGAY TRONG MẢNG DỮ LIỆU GỬI ĐI
+      // Key: maHS + loaiDiem -> Đảm bảo mỗi học sinh chỉ có 1 bản ghi cho 1 loại điểm trong 1 lần upsert
+      const upsertMap = new Map<string, any>();
 
       rows.forEach(row => {
         const cols = row.split(',').map(c => c.trim());
         if (cols.length >= 6) {
           const maHS = cols[0];
-          
-          // Xác định danh sách loại điểm tương ứng với vị trí cột trong file thực tế
           let mapping: string[] = [];
           if (cols.length === 8) {
-            // File 6 cột điểm: TX1, TX2, TX3, TX4, GK, CK
             mapping = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'];
           } else {
-            // File 7 cột điểm (hoặc nhiều hơn): TX1, TX2, TX3, TX4, TX5, GK, CK
             mapping = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
           }
 
@@ -183,8 +173,10 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                   Number(g.MaNienHoc) === Number(state.selectedYear) && 
                   g.LoaiDiem === type
                 );
-                upsertData.push({
-                  ...(old ? { MaDiem: old.MaDiem } : { MaDiem: Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000) }),
+
+                const key = `${maHS}_${type}`;
+                upsertMap.set(key, {
+                  ...(old ? { MaDiem: old.MaDiem } : { MaDiem: Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000000) }),
                   MaHS: maHS, MaMonHoc: selectedSubject, MaNienHoc: state.selectedYear, 
                   HocKy: selectedHK, LoaiDiem: type, DiemSo: num
                 });
@@ -194,13 +186,17 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         }
       });
 
-      if (upsertData.length > 0) {
+      const finalUpsertData = Array.from(upsertMap.values());
+
+      if (finalUpsertData.length > 0) {
         setIsProcessing(true);
-        const { error } = await supabase.from('grades').upsert(upsertData);
-        if (error) alert(error.message);
-        else {
+        const { error } = await supabase.from('grades').upsert(finalUpsertData);
+        if (error) {
+          console.error(error);
+          alert("Lỗi dữ liệu: " + error.message);
+        } else {
            await onUpdateGrades();
-           alert(`Đã nhập xong ${upsertData.length} đầu điểm cho HK${selectedHK}.`);
+           alert(`Thành công! Đã nhập ${finalUpsertData.length} đầu điểm.`);
         }
         setIsProcessing(false);
       }
@@ -222,7 +218,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Nút chọn Học kỳ chính */}
           <div className="flex bg-slate-800 p-0.5 border border-slate-700 rounded-none">
             {[1, 2].map(hk => (
               <button 
@@ -270,7 +265,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               <tr className="bg-[#1e293b] text-white text-[8px] font-black uppercase tracking-tighter border-b border-slate-700">
                 <th className="p-2 w-8 text-center border-r border-slate-700">STT</th>
                 <th className="p-2 w-20 border-r border-slate-700">Mã HS</th>
-                <th className="p-2 border-r border-slate-700">Học và Tên Học Sinh</th>
+                <th className="p-2 border-r border-slate-700">Họ và Tên Học Sinh</th>
                 <th className="p-2 text-center w-20 border-r border-slate-700">ĐTB HK1</th>
                 <th className="p-2 text-center w-20 border-r border-slate-700">ĐTB HK2</th>
                 <th className="p-2 text-center w-24 bg-orange-600 border-r border-orange-700 font-black">Cả Năm</th>
@@ -317,7 +312,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       {editingStudent && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-none animate-in fade-in">
           <div className="bg-white w-full max-w-5xl shadow-2xl rounded-none overflow-hidden animate-in zoom-in-95 border-t-4 border-orange-500 flex flex-col max-h-[95vh]">
-            {/* Header Modal - Navy */}
             <div className="bg-[#0f172a] text-white p-3 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-500 flex items-center justify-center font-black text-lg rounded-none">{editingStudent.Hoten.charAt(0)}</div>
@@ -329,7 +323,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               <button onClick={() => setEditingStudent(null)} className="p-2 hover:bg-slate-800 text-slate-400 transition-colors rounded-none"><X size={20} /></button>
             </div>
 
-            {/* Body Modal - 2 Cột cạnh nhau */}
             <div className="flex-1 overflow-y-auto p-4 bg-slate-50 flex flex-col md:flex-row gap-4 custom-scrollbar">
               {[1, 2].map(hk => (
                 <div key={hk} className="flex-1 bg-white border border-slate-200 p-4 rounded-none shadow-none">
@@ -365,7 +358,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               ))}
             </div>
 
-            {/* Footer Modal */}
             <div className="bg-white p-4 flex flex-col md:flex-row items-center justify-between border-t border-slate-200 gap-4 shrink-0">
                <div className="flex items-center gap-6">
                   <div className="text-center">
