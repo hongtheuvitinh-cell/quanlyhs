@@ -19,7 +19,7 @@ interface Props {
   tasks: AssignmentTask[];
   plans: SchoolPlan[];
   messages: ChatMessage[];
-  onSendMessage: (content: string) => Promise<void>;
+  onSendMessage: (content: string, attachment?: string) => Promise<void>;
   // Fix: changed onLogout from void to () => void to correctly match usage as an event callback
   onLogout: () => void;
   onToggleTask: (taskId: number, link?: string) => Promise<void>;
@@ -268,7 +268,7 @@ const StudentPortal: React.FC<Props> = ({ student, grades, disciplines, violatio
                       </div>
                    </div>
 
-                   {/* THẢO LUẬN NHÓM - Dành cho học sinh */}
+                   {/* THÔNG BÁO NHANH - Dành cho học sinh */}
                    <GroupChat state={portalState as any} messages={messages} onSendMessage={onSendMessage} />
                 </div>
 
