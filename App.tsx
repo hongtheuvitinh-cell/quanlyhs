@@ -151,22 +151,33 @@ const App: React.FC = () => {
       .map(a => a.MaMonHoc || 'SHL');
   }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole]);
 
+  // Fix: Added currentAssignment useMemo to provide the context needed for LearningLogs and other components
+  const currentAssignment = useMemo(() => {
+    if (!state.currentUser || (state.currentUser as any).MaHS || !state.selectedClass) return null;
+    const teacher = state.currentUser as Teacher;
+    return assignments.find(a => 
+      a.MaGV === teacher.MaGV && 
+      a.MaLop === state.selectedClass && 
+      a.MaNienHoc === state.selectedYear &&
+      a.LoaiPhanCong === state.currentRole &&
+      (state.currentRole === Role.CHU_NHIEM ? a.MaMonHoc === null : a.MaMonHoc === state.selectedSubject)
+    ) || null;
+  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole, state.selectedSubject]);
+
   useEffect(() => {
     if (filteredClasses.length > 0 && (!state.selectedClass || !filteredClasses.some(c => c.MaLop === state.selectedClass))) {
       setState(p => ({ ...p, selectedClass: filteredClasses[0].MaLop }));
     }
   }, [filteredClasses, state.selectedClass]);
 
-  const currentAssignment = useMemo(() => {
-    if (!state.currentUser || (state.currentUser as any).MaHS) return null;
-    return assignments.find(a => 
-      a.MaGV === (state.currentUser as Teacher).MaGV && 
-      a.MaLop === state.selectedClass && 
-      a.MaNienHoc === state.selectedYear &&
-      a.LoaiPhanCong === state.currentRole &&
-      (state.currentRole === Role.CHU_NHIEM ? true : a.MaMonHoc === state.selectedSubject)
+  // HÀM HELPER LỌC HỌC SINH MỘT CÁCH CHÍNH XÁC (KHÔNG BỎ SÓT DỮ LIỆU)
+  const currentClassStudents = useMemo(() => {
+    if (!state.selectedClass) return [];
+    const target = state.selectedClass.trim().toUpperCase();
+    return students.filter(s => 
+      s.MaLopHienTai?.toString().trim().toUpperCase() === target
     );
-  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole, state.selectedSubject]);
+  }, [students, state.selectedClass]);
 
   const handleSendMessage = async (content: string, attachment?: string) => {
     if (!state.currentUser || !state.selectedClass) return;
@@ -349,13 +360,13 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
-          {activeTab === 'dashboard' && <Dashboard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} disciplines={disciplines} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} />}
+          {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} grades={grades} disciplines={disciplines} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} />}
           {activeTab === 'plans' && <SchoolPlans state={state} plans={plans} classes={classes} onUpdatePlan={(p) => supabase.from('school_plans').upsert(p).then(() => fetchData())} onDeletePlan={(id) => supabase.from('school_plans').delete().eq('MaKeHoach', id).then(() => fetchData())} />}
           {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={() => fetchData()} students={students} />}
           {activeTab === 'students' && (
             <StudentList 
               state={state} 
-              students={students.filter(s => s.MaLopHienTai === state.selectedClass)} 
+              students={currentClassStudents} 
               grades={grades} 
               disciplines={disciplines}
               logs={logs}
@@ -376,10 +387,10 @@ const App: React.FC = () => {
               }} 
             />
           )}
-          {activeTab === 'grades' && <GradeBoard state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} grades={grades} onUpdateGrades={() => fetchData()} />}
-          {activeTab === 'tasks' && <TaskManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} tasks={tasks} onUpdateTasks={(newTasks) => supabase.from('tasks').upsert(newTasks).then(() => fetchData())} onDeleteTask={(id) => supabase.from('tasks').delete().eq('MaNhiemVu', id).then(() => fetchData())} />}
-          {activeTab === 'discipline' && <DisciplineManager state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={(d) => supabase.from('disciplines').upsert(d).then(() => fetchData())} onDeleteDiscipline={(id) => supabase.from('disciplines').delete().eq('MaKyLuat', id).then(() => fetchData())} onUpdateRules={(r) => supabase.from('violation_rules').upsert(r).then(() => fetchData())} />}
-          {activeTab === 'logs' && currentAssignment && <LearningLogs state={state} students={students.filter(s => s.MaLopHienTai === state.selectedClass)} logs={logs} assignment={currentAssignment} onUpdateLogs={(l) => supabase.from('learning_logs').upsert(l).then(() => fetchData())} onDeleteLog={(id) => supabase.from('learning_logs').delete().eq('MaTheoDoi', id).then(() => fetchData())} />}
+          {activeTab === 'grades' && <GradeBoard state={state} students={currentClassStudents} grades={grades} onUpdateGrades={() => fetchData()} />}
+          {activeTab === 'tasks' && <TaskManager state={state} students={currentClassStudents} tasks={tasks} onUpdateTasks={(newTasks) => supabase.from('tasks').upsert(newTasks).then(() => fetchData())} onDeleteTask={(id) => supabase.from('tasks').delete().eq('MaNhiemVu', id).then(() => fetchData())} />}
+          {activeTab === 'discipline' && <DisciplineManager state={state} students={currentClassStudents} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={(d) => supabase.from('disciplines').upsert(d).then(() => fetchData())} onDeleteDiscipline={(id) => supabase.from('disciplines').delete().eq('MaKyLuat', id).then(() => fetchData())} onUpdateRules={(r) => supabase.from('violation_rules').upsert(r).then(() => fetchData())} />}
+          {activeTab === 'logs' && currentAssignment && <LearningLogs state={state} students={currentClassStudents} logs={logs} assignment={currentAssignment} onUpdateLogs={(l) => supabase.from('learning_logs').upsert(l).then(() => fetchData())} onDeleteLog={(id) => supabase.from('learning_logs').delete().eq('MaTheoDoi', id).then(() => fetchData())} />}
         </div>
       </main>
 
