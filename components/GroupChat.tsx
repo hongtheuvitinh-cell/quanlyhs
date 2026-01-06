@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, MessageSquare, User, ShieldCheck, Clock, Bell, Link as LinkIcon, ExternalLink, Image as ImageIcon, X, Loader2, Paperclip, CheckCircle, AlertTriangle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Send, MessageSquare, User, ShieldCheck, Clock, Bell, Link as LinkIcon, ExternalLink, Image as ImageIcon, X, Loader2, Paperclip, CheckCircle, AlertTriangle, Sparkles } from 'lucide-react';
 import { AppState, ChatMessage, Role, Teacher, Student } from '../types';
 import { supabase } from '../services/supabaseClient';
 
@@ -15,16 +15,12 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
   const [attachmentUrl, setAttachmentUrl] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canPost = state.currentRole === Role.CHU_NHIEM;
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
+  // Đảo ngược danh sách tin nhắn để tin mới nhất lên đầu
+  const reversedMessages = [...messages].reverse();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -41,14 +37,13 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
       const fileName = `${state.selectedClass}/${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // Upload lên bucket 'attachments'
       const { data, error } = await supabase.storage
         .from('attachments')
         .upload(filePath, file);
 
       if (error) {
         if (error.message.includes('bucket not found')) {
-          throw new Error("Chưa tạo Bucket 'attachments' trong Supabase Storage. Hãy tạo bucket này trước!");
+          throw new Error("Chưa tạo Bucket 'attachments' trong Supabase Storage.");
         }
         throw error;
       }
@@ -100,34 +95,40 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
             <Bell size={20} />
           </div>
           <div>
-            <h3 className="text-xs font-black uppercase tracking-widest">Thông báo nhanh từ GVCN</h3>
-            <p className="text-[9px] text-white/70 font-bold uppercase tracking-widest mt-0.5">Lớp {state.selectedClass} • Bảng tin nội bộ</p>
+            <h3 className="text-xs font-black uppercase tracking-widest">Thông báo từ GVCN</h3>
+            <p className="text-[9px] text-white/70 font-bold uppercase tracking-widest mt-0.5">Lớp {state.selectedClass} • Tin mới nhất ở trên đầu</p>
           </div>
         </div>
       </div>
 
-      <div 
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto p-5 space-y-6 bg-slate-50/30 custom-scrollbar"
-      >
-        {messages.length > 0 ? messages.map((msg) => {
+      <div className="flex-1 overflow-y-auto p-5 space-y-6 bg-slate-50/30 custom-scrollbar">
+        {reversedMessages.length > 0 ? reversedMessages.map((msg, index) => {
           const isTeacher = msg.senderRole === Role.CHU_NHIEM || msg.senderRole === Role.GIANG_DAY;
+          const isLatest = index === 0;
           
           return (
-            <div key={msg.id} className="flex flex-col items-start animate-in fade-in slide-in-from-bottom-2">
+            <div key={msg.id} className={`flex flex-col items-start animate-in fade-in slide-in-from-top-2 duration-500`}>
               <div className="flex items-start gap-3 w-full">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border-2 ${isTeacher ? 'bg-indigo-600 text-white border-indigo-100 shadow-lg shadow-indigo-100' : 'bg-white text-slate-400 border-slate-100'}`}>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border-2 ${isTeacher ? 'bg-indigo-600 text-white border-indigo-100 shadow-lg' : 'bg-white text-slate-400 border-slate-100'}`}>
                   {isTeacher ? <ShieldCheck size={18} /> : <span className="text-[11px] font-black">{getInitials(msg.senderName)}</span>}
                 </div>
                 <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <p className="text-[10px] font-black uppercase tracking-tight text-slate-800">{msg.senderName}</p>
-                    <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">
-                       {new Date(msg.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • {new Date(msg.created_at).toLocaleDateString('vi-VN')}
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[10px] font-black uppercase tracking-tight text-slate-800">{msg.senderName}</p>
+                      <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">
+                        {new Date(msg.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    {isLatest && (
+                      <div className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-lg border border-amber-200 animate-pulse">
+                        <Sparkles size={8} />
+                        <span className="text-[8px] font-black uppercase tracking-widest">Mới nhất</span>
+                      </div>
+                    )}
                   </div>
                   
-                  <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 shadow-sm space-y-3">
+                  <div className={`p-4 rounded-2xl rounded-tl-none border shadow-sm space-y-3 ${isLatest ? 'bg-white border-indigo-200 ring-2 ring-indigo-50' : 'bg-white border-slate-100'}`}>
                     <p className="text-[12px] text-slate-700 font-medium leading-relaxed whitespace-pre-line">{msg.content}</p>
                     
                     {msg.attachment && (
@@ -147,7 +148,7 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
                             className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-all shadow-inner"
                           >
                             <div className="p-2 bg-white rounded-lg shadow-sm"><Paperclip size={18} /></div>
-                            <span className="text-[10px] font-black uppercase truncate flex-1 tracking-tight">Tải về tệp đính kèm</span>
+                            <span className="text-[10px] font-black uppercase truncate flex-1 tracking-tight">Tài liệu đính kèm</span>
                             <ExternalLink size={16} />
                           </a>
                         )}
@@ -161,7 +162,7 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
         }) : (
           <div className="h-full flex flex-col items-center justify-center text-center opacity-30 px-6">
             <div className="p-6 bg-white rounded-full mb-4 shadow-inner"><Bell size={48} className="text-slate-200" /></div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">Chưa có thông báo nhanh nào<br/>từ Giáo viên chủ nhiệm</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">Chưa có thông báo nào</p>
           </div>
         )}
       </div>
@@ -173,7 +174,7 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
                {isUploading ? (
                  <div className="flex items-center gap-3 text-indigo-600 py-1">
                     <Loader2 size={18} className="animate-spin" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Đang tải tệp lên máy chủ...</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest">Đang tải tệp...</span>
                  </div>
                ) : (
                  <>
@@ -181,8 +182,7 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
                        {isImage(attachmentUrl) ? <ImageIcon size={20}/> : <Paperclip size={20}/>}
                     </div>
                     <div className="flex-1 min-w-0">
-                       <p className="text-[10px] font-black text-indigo-800 uppercase truncate">Tệp đã sẵn sàng để đăng</p>
-                       <p className="text-[8px] text-indigo-400 truncate tracking-tight">{attachmentUrl}</p>
+                       <p className="text-[10px] font-black text-indigo-800 uppercase truncate">Tệp sẵn sàng</p>
                     </div>
                     <button onClick={() => setAttachmentUrl('')} className="p-2 text-rose-500 hover:bg-rose-100 rounded-xl transition-all shadow-sm bg-white">
                        <X size={18} />
@@ -206,7 +206,7 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
                 disabled={isUploading || isSending}
                 onClick={() => fileInputRef.current?.click()}
                 className={`p-3.5 rounded-2xl transition-all flex items-center justify-center border shadow-sm ${isUploading ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-slate-50 text-indigo-600 border-slate-200 hover:bg-white hover:border-indigo-300'}`}
-                title="Đính kèm ảnh hoặc tài liệu"
+                title="Đính kèm file"
               >
                 <ImageIcon size={22} />
               </button>
@@ -216,7 +216,7 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
                   rows={1}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  placeholder="Nhập nội dung thông báo nhanh..."
+                  placeholder="Nhập thông báo mới nhất..."
                   className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-[12px] font-bold outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner resize-none min-h-[50px] max-h-[150px]"
                 />
               </div>
@@ -234,22 +234,21 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
               {isSending ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  Đang xử lý...
+                  Đang đăng...
                 </>
               ) : (
                 <>
                   <CheckCircle size={18} />
-                  Đăng thông báo nhanh
+                  Đăng thông báo ngay
                 </>
               )}
             </button>
           </form>
-          <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest text-center opacity-60">Tính năng dành riêng cho Giáo viên chủ nhiệm</p>
         </div>
       ) : (
         <div className="p-5 bg-slate-100 border-t border-slate-200 shrink-0 flex items-center justify-center gap-3">
            <ShieldCheck size={16} className="text-slate-400" />
-           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Bạn đang ở chế độ xem thông báo từ nhà trường</p>
+           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Xem thông báo từ Giáo viên chủ nhiệm</p>
         </div>
       )}
     </div>
