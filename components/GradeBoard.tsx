@@ -43,6 +43,13 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const [tempGrades, setTempGrades] = useState<Grade[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
 
+  // Bộ phát sinh ID duy nhất để tránh xung đột MaDiem
+  const lastIdRef = useRef<number>(Date.now());
+  const generateUniqueId = () => {
+    lastIdRef.current += 1;
+    return lastIdRef.current;
+  };
+
   useEffect(() => { 
     setTempGrades(grades); 
     setHasChanges(false); 
@@ -87,7 +94,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       if (lines.length < 2) return;
 
       const newGrades: Grade[] = [...tempGrades];
-      let updateCount = 0;
+      let changesDetected = false;
 
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCsvLine(lines[i]);
@@ -113,27 +120,30 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                 g.LoaiDiem === loaiDiemSystem
               );
 
-              const newGrade: Grade = {
-                MaDiem: existingIdx > -1 ? newGrades[existingIdx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000000) + updateCount,
-                MaHS: maHS,
-                MaMonHoc: selectedSubject,
-                MaNienHoc: state.selectedYear,
-                HocKy: selectedHK,
-                LoaiDiem: loaiDiemSystem,
-                DiemSo: diemSo
-              };
-
-              if (existingIdx > -1) newGrades[existingIdx] = newGrade;
-              else newGrades.push(newGrade);
-              updateCount++;
+              if (existingIdx > -1) {
+                newGrades[existingIdx] = { ...newGrades[existingIdx], DiemSo: diemSo };
+              } else {
+                newGrades.push({
+                  MaDiem: generateUniqueId(),
+                  MaHS: maHS,
+                  MaMonHoc: selectedSubject,
+                  MaNienHoc: state.selectedYear,
+                  HocKy: selectedHK,
+                  LoaiDiem: loaiDiemSystem,
+                  DiemSo: diemSo
+                });
+              }
+              changesDetected = true;
             }
           }
         });
       }
 
-      setTempGrades(newGrades);
-      setHasChanges(true);
-      alert(`Đã xử lý xong dữ liệu điểm từ file CSV! Nhấn "Lưu" để hoàn tất.`);
+      if (changesDetected) {
+        setTempGrades(newGrades);
+        setHasChanges(true);
+        alert(`Đã nạp bảng điểm từ file CSV. Hãy nhấn "Lưu" để đồng bộ lên máy chủ.`);
+      }
       e.target.value = '';
     };
     reader.readAsText(file, 'UTF-8');
@@ -150,31 +160,29 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         g.LoaiDiem === type
       );
 
-      // Nếu người dùng xóa trắng ô nhập
       if (rawValue === '') {
         if (idx > -1) {
-          // Gán DiemSo là null thay vì 0 để đánh dấu cần xóa khỏi DB
           updated[idx] = { ...updated[idx], DiemSo: null as any };
         }
         return updated;
       }
 
       let val = parseFloat(rawValue);
-      // Hỗ trợ nhập nhanh 85 -> 8.5
       if (!rawValue.includes('.') && val > 10 && val <= 100) val = val / 10;
       
-      const newGrade: Grade = { 
-        MaDiem: idx > -1 ? updated[idx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000), 
-        MaHS: studentId, 
-        MaMonHoc: selectedSubject, 
-        MaNienHoc: state.selectedYear, 
-        HocKy: selectedHK, 
-        LoaiDiem: type, 
-        DiemSo: val 
-      };
-
-      if (idx > -1) updated[idx] = newGrade;
-      else updated.push(newGrade);
+      if (idx > -1) {
+        updated[idx] = { ...updated[idx], DiemSo: val };
+      } else {
+        updated.push({ 
+          MaDiem: generateUniqueId(), 
+          MaHS: studentId, 
+          MaMonHoc: selectedSubject, 
+          MaNienHoc: state.selectedYear, 
+          HocKy: selectedHK, 
+          LoaiDiem: type, 
+          DiemSo: val 
+        });
+      }
       
       return updated;
     });
@@ -203,98 +211,67 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                 g.LoaiDiem === res.LoaiDiem
               );
               
-              const newGrade = {
-                MaDiem: idx > -1 ? updated[idx].MaDiem : Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000),
-                MaHS: res.MaHS,
-                MaMonHoc: selectedSubject,
-                MaNienHoc: state.selectedYear,
-                HocKy: selectedHK,
-                LoaiDiem: res.LoaiDiem,
-                DiemSo: res.DiemSo
-              };
-
-              if (idx > -1) updated[idx] = newGrade;
-              else updated.push(newGrade);
+              if (idx > -1) {
+                updated[idx] = { ...updated[idx], DiemSo: res.DiemSo };
+              } else {
+                updated.push({
+                  MaDiem: generateUniqueId(),
+                  MaHS: res.MaHS,
+                  MaMonHoc: selectedSubject,
+                  MaNienHoc: state.selectedYear,
+                  HocKy: selectedHK,
+                  LoaiDiem: res.LoaiDiem,
+                  DiemSo: res.DiemSo
+                });
+              }
             });
             return updated;
           });
           setHasChanges(true);
-          alert(`AI đã nhận diện thành công ${results.length} đầu điểm!`);
+          alert(`AI đã trích xuất thành công ${results.length} đầu điểm.`);
         } else {
-          alert("AI không nhận diện được bảng điểm nào trong ảnh.");
+          alert("AI không nhận diện được bảng điểm.");
         }
-      };
-      reader.onerror = () => {
-        alert("Lỗi đọc file ảnh.");
-        setIsAiLoading(false);
       };
       reader.readAsDataURL(file);
     } catch (err) {
-      alert("AI không thể đọc được bảng điểm từ file này.");
+      alert("Lỗi phân tích AI.");
     } finally {
       setTimeout(() => setIsAiLoading(false), 2000);
     }
   };
 
-  const downloadGradeTemplate = () => {
-    const BOM = "\uFEFF";
-    const headers = "MAHS,HOTEN,TX1,TX2,TX3,TX4,TX5,GK,CK\n";
-    let dataRows = "";
-    students.forEach(s => {
-      const getG = (type: string) => {
-        const found = tempGrades.find(g => g.MaHS === s.MaHS && g.MaMonHoc === selectedSubject && g.HocKy === selectedHK && g.MaNienHoc === state.selectedYear && g.LoaiDiem === type);
-        return (found && found.DiemSo !== null) ? found.DiemSo : "";
-      };
-      const tx1 = getG('ĐGTX1');
-      const tx2 = getG('ĐGTX2');
-      const tx3 = getG('ĐGTX3');
-      const tx4 = getG('ĐGTX4');
-      const tx5 = getG('ĐGTX5');
-      const gk = getG('ĐGGK');
-      const ck = getG('ĐGCK');
-      dataRows += `${s.MaHS},${s.Hoten},${tx1},${tx2},${tx3},${tx4},${tx5},${gk},${ck}\n`;
-    });
-    const blob = new Blob([BOM + headers + dataRows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Bang_Diem_${selectedSubject}_HK${selectedHK}_Lop_${state.selectedClass}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
-      // 1. Lọc danh sách điểm thuộc ngữ cảnh hiện tại
       const currentContextGrades = tempGrades.filter(g => 
         g.MaMonHoc === selectedSubject && 
         g.HocKy === selectedHK &&
         g.MaNienHoc === state.selectedYear
       );
 
-      // 2. Tách thành danh sách cần cập nhật và danh sách cần xóa
       const toUpsert = currentContextGrades.filter(g => g.DiemSo !== null && g.DiemSo !== undefined);
       const toDelete = currentContextGrades.filter(g => g.DiemSo === null || g.DiemSo === undefined);
 
-      // 3. Thực hiện lưu những điểm có giá trị
+      // Thực hiện đồng bộ theo lô (batch) để tăng tốc và tránh lỗi mạng
       if (toUpsert.length > 0) {
-        const { error: upsertError } = await supabase.from('grades').upsert(toUpsert, { onConflict: 'MaDiem' });
+        // Đảm bảo không có ID trùng lặp trong mảng gửi đi (đề phòng)
+        const uniqueUpsert = Array.from(new Map(toUpsert.map(item => [item.MaDiem, item])).values());
+        const { error: upsertError } = await supabase.from('grades').upsert(uniqueUpsert);
         if (upsertError) throw upsertError;
       }
 
-      // 4. Thực hiện xóa những điểm đã bị xóa trắng trong UI
       if (toDelete.length > 0) {
         const idsToDelete = toDelete.map(g => g.MaDiem);
         const { error: deleteError } = await supabase.from('grades').delete().in('MaDiem', idsToDelete);
         if (deleteError) throw deleteError;
       }
 
-      await onUpdateGrades(tempGrades.filter(g => g.DiemSo !== null));
+      onUpdateGrades(tempGrades.filter(g => g.DiemSo !== null));
       setHasChanges(false);
-      alert("Đã đồng bộ bảng điểm thành công!");
+      alert("Đã đồng bộ toàn bộ bảng điểm lên hệ thống!");
     } catch (e: any) {
-      alert("Lỗi lưu dữ liệu: " + e.message);
+      alert("Lỗi đồng bộ: " + e.message);
     } finally {
       setIsSaving(false);
     }
@@ -330,7 +307,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               </div>
               <div className="text-center">
                  <p className="text-[11px] font-black text-slate-800 uppercase tracking-widest">AI đang đọc bảng điểm...</p>
-                 <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Đang xử lý thị giác máy tính</p>
+                 <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Đang xử lý dữ liệu</p>
               </div>
            </div>
         </div>
@@ -348,9 +325,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
              </div>
              
              <div className="flex items-center gap-2">
-                <button onClick={downloadGradeTemplate} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-bold uppercase border border-slate-100 hover:bg-slate-100 transition-all">
-                  <Download size={14}/> Tải Mẫu CSV
-                </button>
                 <label className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold uppercase border border-emerald-100 cursor-pointer hover:bg-emerald-100 transition-all">
                   <FileUp size={14} />
                   Nhập CSV
@@ -369,7 +343,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               <button 
                 key={sub.id} 
                 onClick={() => setSelectedSubject(sub.id)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase transition-all border ${selectedSubject === sub.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100' : 'bg-white text-slate-500 border-slate-100 hover:border-indigo-200'}`}
+                className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase transition-all border ${selectedSubject === sub.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-white text-slate-500 border-slate-100 hover:border-indigo-200'}`}
               >
                 {sub.name}
               </button>
@@ -483,7 +457,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
           <div className="bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Dữ liệu chưa lưu</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Dữ liệu chưa đồng bộ</span>
             </div>
             <button 
               disabled={isSaving}
@@ -491,7 +465,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg"
             >
               {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              Lưu bảng điểm
+              Đồng bộ ngay
             </button>
           </div>
         </div>
