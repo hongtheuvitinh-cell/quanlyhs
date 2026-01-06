@@ -42,8 +42,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const [tempGrades, setTempGrades] = useState<Grade[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Bộ phát sinh ID duy nhất - PostgreSQL Integer max là 2,147,483,647
-  // Trừ đi 1.7 tỷ để số luôn nhỏ (~40 triệu) và an toàn tuyệt đối
   const counterRef = useRef(0);
   const generateUniqueId = () => {
     counterRef.current += 1;
@@ -78,18 +76,16 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const txColumns = useMemo(() => ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5'], []);
   const allColumns = useMemo(() => [...txColumns, 'ĐGGK', 'ĐGCK'], [txColumns]);
 
-  // Sắp xếp theo MaHS tăng dần và lọc chính xác MaLop
+  // SẮP XẾP VÀ LỌC LẠI CHÍNH XÁC (KHÔNG BỎ SÓT BẤT KỲ AI)
   const sortedStudents = useMemo(() => {
     return students
       .filter(s => {
-        // Fix: So sánh lớp dùng trim() và check null
-        const isCorrectClass = s.MaLopHienTai?.trim() === state.selectedClass?.trim();
         const matchesSearch = s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()) || 
                              s.MaHS.toLowerCase().includes(searchTerm.toLowerCase());
-        return isCorrectClass && matchesSearch;
+        return matchesSearch;
       })
       .sort((a, b) => a.MaHS.localeCompare(b.MaHS, undefined, { numeric: true, sensitivity: 'base' }));
-  }, [students, searchTerm, state.selectedClass]);
+  }, [students, searchTerm]);
 
   const handleExportCsv = () => {
     const BOM = "\uFEFF";
@@ -399,7 +395,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         </div>
       </div>
 
-      <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse">
             <thead>
