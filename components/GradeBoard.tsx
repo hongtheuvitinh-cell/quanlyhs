@@ -43,11 +43,14 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   const [tempGrades, setTempGrades] = useState<Grade[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Bộ phát sinh ID duy nhất - SỬA LỖI: Chia cho 1000 để vừa kiểu dữ liệu INTEGER của Postgres
-  const lastIdRef = useRef<number>(Math.floor(Date.now() / 1000));
+  // Bộ phát sinh ID duy nhất - Đảm bảo trong ngưỡng INTEGER (max ~2.1 tỷ)
+  // Sử dụng mốc thời gian trừ đi một khoảng (để số nhỏ hơn) và kết hợp counter
+  const counterRef = useRef(0);
   const generateUniqueId = () => {
-    lastIdRef.current += 1;
-    return lastIdRef.current;
+    counterRef.current += 1;
+    // Mốc 1,700,000,000 là khoảng năm 2024, giúp ID gọn hơn
+    const base = Math.floor(Date.now() / 1000);
+    return base + counterRef.current;
   };
 
   useEffect(() => { 
@@ -84,13 +87,20 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     [txColumns]
   );
 
+  // Quan trọng: Sắp xếp học sinh theo MaHS tăng dần
+  const sortedStudents = useMemo(() => {
+    return [...students]
+      .filter(s => s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()) || s.MaHS.toLowerCase().includes(searchTerm.toLowerCase()))
+      .sort((a, b) => a.MaHS.localeCompare(b.MaHS, undefined, { numeric: true, sensitivity: 'base' }));
+  }, [students, searchTerm]);
+
   const handleExportCsv = () => {
     const BOM = "\uFEFF";
     // Header CSV
     const headers = "MaHS,Hoten," + allColumns.join(",") + ",TrungBinh\n";
     
-    // Dữ liệu từng dòng
-    const rows = filteredStudents.map(s => {
+    // Dữ liệu từng dòng (sử dụng danh sách đã sắp xếp)
+    const rows = sortedStudents.map(s => {
       const rowGrades = allColumns.map(type => {
         const g = tempGrades.find(tg => 
           tg.MaHS === s.MaHS && 
@@ -284,6 +294,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       const toDelete = currentContextGrades.filter(g => g.DiemSo === null || g.DiemSo === undefined);
 
       if (toUpsert.length > 0) {
+        // Loại bỏ các ID trùng lặp trong bộ nhớ tạm trước khi gửi lên Supabase
         const uniqueUpsert = Array.from(new Map(toUpsert.map(item => [item.MaDiem, item])).values());
         const { error: upsertError } = await supabase.from('grades').upsert(uniqueUpsert);
         if (upsertError) throw upsertError;
@@ -321,8 +332,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     }
     return null;
   };
-
-  const filteredStudents = students.filter(s => s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
     <div className="space-y-4 pb-32 animate-in fade-in">
@@ -408,7 +417,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -431,7 +440,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredStudents.map((s, idx) => {
+              {sortedStudents.map((s, idx) => {
                 const tb = calculateSubjectAvg(s.MaHS, selectedSubject, selectedHK);
                 return (
                   <tr key={s.MaHS} className="hover:bg-indigo-50/10 transition-colors group">
