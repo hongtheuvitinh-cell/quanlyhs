@@ -72,14 +72,14 @@ const App: React.FC = () => {
       if (clData) setClasses(clData);
       if (tcData) setTeachers(tcData);
       if (asData) setAssignments(asData);
-      if (stData) setStudents(stData);
-      if (grData) setGrades(grData);
-      if (dsData) setDisciplines(dsData);
-      if (lgData) setLogs(lgData);
-      if (tkData) setTasks(tkData);
-      if (rlData) setViolationRules(rlData);
-      if (plData) setPlans(plData);
-      if (msData) setMessages(msData);
+      if (stData) setStudents(stData || []);
+      if (grData) setGrades(grData || []);
+      if (dsData) setDisciplines(dsData || []);
+      if (lgData) setLogs(lgData || []);
+      if (tkData) setTasks(tkData || []);
+      if (rlData) setViolationRules(rlData || []);
+      if (plData) setPlans(plData || []);
+      if (msData) setMessages(msData || []);
 
       if (yrData?.length && state.selectedYear === 0) {
         setState(p => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
@@ -93,40 +93,29 @@ const App: React.FC = () => {
 
   useEffect(() => { 
     fetchData(); 
-
-    if (isSupabaseConfigured) {
-      const channel = supabase
-        .channel('realtime_messages')
-        .on('postgres_changes', { event: 'INSERT', table: 'messages' }, (payload) => {
-          setMessages((prev) => {
-            if (prev.some(m => m.id === payload.new.id)) return prev;
-            return [...prev, payload.new as ChatMessage];
-          });
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
   }, []);
 
-  useEffect(() => {
-    if (state.currentUser && !(state.currentUser as any).MaHS) {
-      const teacher = state.currentUser as Teacher;
-      const myAs = assignments.filter(a => 
-        a.MaGV === teacher.MaGV && 
-        a.MaLop === state.selectedClass && 
-        a.MaNienHoc === state.selectedYear &&
-        a.LoaiPhanCong === state.currentRole
-      );
-      
-      if (myAs.length > 0) {
-        const autoSub = state.currentRole === Role.CHU_NHIEM ? 'SHL' : (myAs[0].MaMonHoc || 'SHL');
-        setState(p => ({ ...p, selectedSubject: autoSub }));
-      }
-    }
-  }, [state.selectedClass, state.currentRole, state.selectedYear, assignments]);
+  // HÀM LỌC HỌC SINH QUAN TRỌNG: Không bao giờ dùng slice() và so sánh nới lỏng
+  const currentClassStudents = useMemo(() => {
+    if (!state.selectedClass || !students) return [];
+    const target = state.selectedClass.toString().trim().toLowerCase();
+    return students.filter(s => {
+      const sClass = (s.MaLopHienTai || "").toString().trim().toLowerCase();
+      return sClass === target;
+    });
+  }, [students, state.selectedClass]);
+
+  const currentAssignment = useMemo(() => {
+    if (!state.currentUser || (state.currentUser as any).MaHS || !state.selectedClass) return null;
+    const teacher = state.currentUser as Teacher;
+    return assignments.find(a => 
+      a.MaGV === teacher.MaGV && 
+      (a.MaLop || "").toString().trim().toLowerCase() === state.selectedClass.toString().trim().toLowerCase() && 
+      a.MaNienHoc === state.selectedYear &&
+      a.LoaiPhanCong === state.currentRole &&
+      (state.currentRole === Role.CHU_NHIEM ? true : a.MaMonHoc === state.selectedSubject)
+    ) || null;
+  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole, state.selectedSubject]);
 
   const filteredClasses = useMemo(() => {
     if (!state.currentUser || (state.currentUser as any).MaHS) return [];
@@ -134,8 +123,8 @@ const App: React.FC = () => {
     const myAssignments = assignments.filter(a => a.MaGV === teacherID && a.MaNienHoc === state.selectedYear);
     const assignedClassIds = myAssignments
       .filter(a => a.LoaiPhanCong === state.currentRole)
-      .map(a => a.MaLop);
-    return classes.filter(c => assignedClassIds.includes(c.MaLop));
+      .map(a => a.MaLop.toString().trim().toLowerCase());
+    return classes.filter(c => assignedClassIds.includes(c.MaLop.toString().trim().toLowerCase()));
   }, [classes, assignments, state.currentUser, state.currentRole, state.selectedYear]);
 
   const mySubjectsInClass = useMemo(() => {
@@ -144,56 +133,12 @@ const App: React.FC = () => {
     return assignments
       .filter(a => 
         a.MaGV === teacherID && 
-        a.MaLop === state.selectedClass && 
+        a.MaLop.toString().trim().toLowerCase() === state.selectedClass.toString().trim().toLowerCase() && 
         a.MaNienHoc === state.selectedYear &&
         a.LoaiPhanCong === state.currentRole
       )
       .map(a => a.MaMonHoc || 'SHL');
   }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole]);
-
-  // Fix: Added currentAssignment useMemo to provide the context needed for LearningLogs and other components
-  const currentAssignment = useMemo(() => {
-    if (!state.currentUser || (state.currentUser as any).MaHS || !state.selectedClass) return null;
-    const teacher = state.currentUser as Teacher;
-    return assignments.find(a => 
-      a.MaGV === teacher.MaGV && 
-      a.MaLop === state.selectedClass && 
-      a.MaNienHoc === state.selectedYear &&
-      a.LoaiPhanCong === state.currentRole &&
-      (state.currentRole === Role.CHU_NHIEM ? a.MaMonHoc === null : a.MaMonHoc === state.selectedSubject)
-    ) || null;
-  }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole, state.selectedSubject]);
-
-  useEffect(() => {
-    if (filteredClasses.length > 0 && (!state.selectedClass || !filteredClasses.some(c => c.MaLop === state.selectedClass))) {
-      setState(p => ({ ...p, selectedClass: filteredClasses[0].MaLop }));
-    }
-  }, [filteredClasses, state.selectedClass]);
-
-  // HÀM HELPER LỌC HỌC SINH MỘT CÁCH CHÍNH XÁC (KHÔNG BỎ SÓT DỮ LIỆU)
-  const currentClassStudents = useMemo(() => {
-    if (!state.selectedClass) return [];
-    const target = state.selectedClass.trim().toUpperCase();
-    return students.filter(s => 
-      s.MaLopHienTai?.toString().trim().toUpperCase() === target
-    );
-  }, [students, state.selectedClass]);
-
-  const handleSendMessage = async (content: string, attachment?: string) => {
-    if (!state.currentUser || !state.selectedClass) return;
-    const user = state.currentUser as any;
-    const newMessage = {
-      MaLop: state.selectedClass,
-      MaNienHoc: state.selectedYear,
-      senderId: user.MaGV || user.MaHS,
-      senderName: user.Hoten,
-      senderRole: state.currentRole,
-      content: content,
-      attachment: attachment || null
-    };
-    const { error } = await supabase.from('messages').insert([newMessage]);
-    if (error) alert("Lỗi gửi tin nhắn: " + error.message);
-  };
 
   const handleLogin = (role: Role, id: string, pass: string) => {
     if (role === Role.STUDENT) {
@@ -217,69 +162,24 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpdateTeacherPassword = async () => {
-    const t = state.currentUser as Teacher;
-    if (!t) return;
-    if (passwordForm.new !== passwordForm.confirm) { alert("Mật khẩu không khớp!"); return; }
-    if (passwordForm.old !== (t.MatKhau || '123456')) { alert("Mật khẩu cũ sai!"); return; }
-    setIsLoading(true);
-    try {
-      await supabase.from('teachers').update({ MatKhau: passwordForm.new }).eq('MaGV', t.MaGV);
-      alert("Đã đổi mật khẩu!");
-      setIsPasswordModalOpen(false);
-      fetchData();
-    } catch (e: any) { alert(e.message); }
-    finally { setIsLoading(false); }
-  };
-
-  const handleToggleTask = async (taskId: number, link?: string) => {
-    const student = state.currentUser as Student;
-    if (!student) return;
-    const task = tasks.find(t => t.MaNhiemVu === taskId);
-    if (!task) return;
-
-    let newDoneList = [...task.DanhSachHoanThanh];
-    let newReports = { ...task.BaoCaoNhiemVu };
-
-    if (newDoneList.includes(student.MaHS)) {
-      newDoneList = newDoneList.filter(id => id !== student.MaHS);
-      delete newReports[student.MaHS];
-    } else {
-      newDoneList.push(student.MaHS);
-      if (link) newReports[student.MaHS] = link;
-    }
-
-    try {
-      await supabase.from('tasks').update({ 
-        DanhSachHoanThanh: newDoneList,
-        BaoCaoNhiemVu: newReports
-      }).eq('MaNhiemVu', taskId);
-      fetchData();
-    } catch (e) {
-      alert("Lỗi cập nhật bài tập");
-    }
+  const handleSendMessage = async (content: string, attachment?: string) => {
+    if (!state.currentUser || !state.selectedClass) return;
+    const user = state.currentUser as any;
+    const newMessage = {
+      MaLop: state.selectedClass,
+      MaNienHoc: state.selectedYear,
+      senderId: user.MaGV || user.MaHS,
+      senderName: user.Hoten,
+      senderRole: state.currentRole,
+      content: content,
+      attachment: attachment || null
+    };
+    const { error } = await supabase.from('messages').insert([newMessage]);
+    if (error) alert("Lỗi gửi tin nhắn: " + error.message);
   };
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>;
   if (!isLoggedIn) return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
-
-  if (state.currentRole === Role.STUDENT) {
-    return (
-      <StudentPortal 
-        student={state.currentUser as Student}
-        grades={grades}
-        disciplines={disciplines}
-        violationRules={violationRules}
-        tasks={tasks.filter(t => t.MaLop === state.selectedClass && t.DanhSachGiao.includes((state.currentUser as Student).MaHS))}
-        plans={plans}
-        messages={messages.filter(m => m.MaLop === state.selectedClass)}
-        onSendMessage={handleSendMessage}
-        onLogout={() => setIsLoggedIn(false)}
-        onToggleTask={handleToggleTask}
-        onUpdateProfile={() => fetchData()}
-      />
-    );
-  }
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden text-[13px] font-normal text-slate-600">
@@ -313,7 +213,7 @@ const App: React.FC = () => {
             { id: 'discipline', label: 'Kỷ luật', icon: ShieldAlert },
             { id: 'logs', label: 'Nhật ký', icon: ClipboardList },
           ].map((item: any) => (
-            <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-bold transition-all ${activeTab === item.id ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'}`}>
+            <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold transition-all ${activeTab === item.id ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50'}`}>
               <item.icon size={16} /> <span className="flex-1 text-left">{item.label}</span>
             </button>
           ))}
@@ -326,90 +226,43 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 bg-white">
+      <main className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
         <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-[10px] font-black text-slate-400 uppercase">Niên học:</span>
-              <select value={state.selectedYear} onChange={(e: any) => setState(p => ({...p, selectedYear: parseInt(e.target.value)}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{years.map(y => <option key={y.MaNienHoc} value={y.MaNienHoc}>{y.TenNienHoc}</option>)}</select>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
               <span className="text-[10px] font-black text-slate-400 uppercase">Lớp:</span>
-              <select value={state.selectedClass} onChange={(e: any) => setState(p => ({...p, selectedClass: e.target.value}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{filteredClasses.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}</select>
+              <select value={state.selectedClass} onChange={(e) => setState(p => ({...p, selectedClass: e.target.value}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">
+                {filteredClasses.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}
+              </select>
             </div>
-            
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2">
               <span className="text-[10px] font-black text-slate-400 uppercase">Môn:</span>
-              <select 
-                value={state.selectedSubject || ''} 
-                onChange={(e: any) => setState(p => ({...p, selectedSubject: e.target.value}))} 
-                className={`font-black border-none outline-none px-2 py-1 rounded-lg ${state.currentRole === Role.CHU_NHIEM ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'}`}
-              >
+              <select value={state.selectedSubject || ''} onChange={(e) => setState(p => ({...p, selectedSubject: e.target.value}))} className="font-black border-none outline-none px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600">
                 {state.currentRole === Role.CHU_NHIEM && <option value="SHL">S.Hoạt lớp</option>}
                 {mySubjectsInClass.filter(s => s !== 'SHL').map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
-          <div className="flex items-center gap-4 cursor-pointer p-1 px-3 rounded-xl hover:bg-slate-50 shrink-0" onClick={() => setIsPasswordModalOpen(true)}>
-             <div className="text-right hidden sm:block">
-                <p className="text-[11px] font-bold text-slate-800 truncate max-w-[100px]">{(state.currentUser as Teacher)?.Hoten}</p>
-                <p className="text-[9px] font-bold text-slate-400 uppercase">Giáo viên</p>
+          <div className="flex items-center gap-3 px-3 py-1 rounded-xl bg-slate-50 border border-slate-200">
+             <div className="text-right">
+                <p className="text-[11px] font-bold text-slate-800">{(state.currentUser as Teacher)?.Hoten}</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase">{state.currentRole === Role.CHU_NHIEM ? 'GV Chủ nhiệm' : 'GV Giảng dạy'}</p>
              </div>
-             <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold border border-indigo-100">{(state.currentUser as Teacher)?.Hoten?.charAt(0)}</div>
+             <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-black">{(state.currentUser as Teacher)?.Hoten?.charAt(0)}</div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 custom-scrollbar">
           {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} grades={grades} disciplines={disciplines} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} />}
-          {activeTab === 'plans' && <SchoolPlans state={state} plans={plans} classes={classes} onUpdatePlan={(p) => supabase.from('school_plans').upsert(p).then(() => fetchData())} onDeletePlan={(id) => supabase.from('school_plans').delete().eq('MaKeHoach', id).then(() => fetchData())} />}
-          {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={() => fetchData()} students={students} />}
-          {activeTab === 'students' && (
-            <StudentList 
-              state={state} 
-              students={currentClassStudents} 
-              grades={grades} 
-              disciplines={disciplines}
-              logs={logs}
-              violationRules={violationRules}
-              onUpdateStudent={(s) => supabase.from('students').upsert(s).then(() => fetchData())} 
-              onDeleteStudent={async (id) => {
-                if (!confirm(`Xóa học sinh ${id} sẽ xóa toàn bộ điểm số, kỷ luật và nhật ký liên quan. Bạn có chắc chắn?`)) return;
-                setIsLoading(true);
-                try {
-                  await supabase.from('grades').delete().eq('MaHS', id);
-                  await supabase.from('disciplines').delete().eq('MaHS', id);
-                  await supabase.from('learning_logs').delete().eq('MaHS', id);
-                  const { error: errStudent } = await supabase.from('students').delete().eq('MaHS', id);
-                  if (errStudent) throw new Error("Lỗi xóa học sinh: " + errStudent.message);
-                  await fetchData();
-                  alert("Đã xóa thành công.");
-                } catch (err: any) { alert(err.message); } finally { setIsLoading(false); }
-              }} 
-            />
-          )}
+          {activeTab === 'students' && <StudentList state={state} students={currentClassStudents} grades={grades} disciplines={disciplines} logs={logs} violationRules={violationRules} onUpdateStudent={(s) => supabase.from('students').upsert(s).then(() => fetchData())} onDeleteStudent={(id) => supabase.from('students').delete().eq('MaHS', id).then(() => fetchData())} />}
           {activeTab === 'grades' && <GradeBoard state={state} students={currentClassStudents} grades={grades} onUpdateGrades={() => fetchData()} />}
           {activeTab === 'tasks' && <TaskManager state={state} students={currentClassStudents} tasks={tasks} onUpdateTasks={(newTasks) => supabase.from('tasks').upsert(newTasks).then(() => fetchData())} onDeleteTask={(id) => supabase.from('tasks').delete().eq('MaNhiemVu', id).then(() => fetchData())} />}
-          {activeTab === 'discipline' && <DisciplineManager state={state} students={currentClassStudents} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={(d) => supabase.from('disciplines').upsert(d).then(() => fetchData())} onDeleteDiscipline={(id) => supabase.from('disciplines').delete().eq('MaKyLuat', id).then(() => fetchData())} onUpdateRules={(r) => supabase.from('violation_rules').upsert(r).then(() => fetchData())} />}
+          {activeTab === 'discipline' && <DisciplineManager state={state} students={currentClassStudents} disciplines={disciplines} violationRules={violationRules} onUpdateDisciplines={(d) => supabase.from('disciplines').upsert(d).then(() => fetchData())} onDeleteDiscipline={(id) => supabase.from('discipline').delete().eq('MaKyLuat', id).then(() => fetchData())} onUpdateRules={(r) => supabase.from('violation_rules').upsert(r).then(() => fetchData())} />}
           {activeTab === 'logs' && currentAssignment && <LearningLogs state={state} students={currentClassStudents} logs={logs} assignment={currentAssignment} onUpdateLogs={(l) => supabase.from('learning_logs').upsert(l).then(() => fetchData())} onDeleteLog={(id) => supabase.from('learning_logs').delete().eq('MaTheoDoi', id).then(() => fetchData())} />}
+          {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={() => fetchData()} students={students} />}
+          {activeTab === 'plans' && <SchoolPlans state={state} plans={plans} classes={classes} onUpdatePlan={(p) => supabase.from('school_plans').upsert(p).then(() => fetchData())} onDeletePlan={(id) => supabase.from('school_plans').delete().eq('MaKeHoach', id).then(() => fetchData())} />}
         </div>
       </main>
-
-      {isPasswordModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-md rounded-[32px] shadow-2xl p-6">
-             <h3 className="font-black text-sm text-slate-800 uppercase mb-4">Đổi mật khẩu Giáo viên</h3>
-             <div className="space-y-3">
-                <input type="password" placeholder="Mật khẩu cũ" value={passwordForm.old} onChange={(e: any) => setPasswordForm({...passwordForm, old: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none" />
-                <input type="password" placeholder="Mật khẩu mới" value={passwordForm.new} onChange={(e: any) => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none" />
-                <input type="password" placeholder="Xác nhận" value={passwordForm.confirm} onChange={(e: any) => setPasswordForm({...passwordForm, confirm: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none" />
-             </div>
-             <div className="mt-6 flex gap-3">
-                <button onClick={() => setIsPasswordModalOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase">Hủy</button>
-                <button onClick={handleUpdateTeacherPassword} className="flex-[2] py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg">Cập nhật</button>
-             </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
