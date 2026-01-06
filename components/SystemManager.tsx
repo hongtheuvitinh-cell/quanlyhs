@@ -38,33 +38,39 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
   };
 
   const handleDeleteYear = async (id: number) => {
-    if (!confirm("Xóa niên học này sẽ ảnh hưởng đến mọi dữ liệu phân công liên quan?")) return;
+    if (!confirm("Xóa niên học này? Lưu ý: Mọi dữ liệu phân công thuộc niên học này sẽ bị ảnh hưởng.")) return;
     await supabase.from('academic_years').delete().eq('MaNienHoc', id);
+    await onUpdate();
+  };
+
+  const handleDeleteClass = async (id: string) => {
+    if (!confirm("Xóa lớp học này khỏi hệ thống?")) return;
+    await supabase.from('classes').delete().eq('MaLop', id);
     await onUpdate();
   };
 
   return (
     <div className="space-y-6 animate-in fade-in pb-20">
-      {/* Sub Navigation */}
+      {/* Sub Tab Navigation */}
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-[28px] border border-slate-200 w-fit shadow-sm">
-        <button onClick={() => setActiveSubTab('YEARS')} className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'YEARS' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
-          <Calendar size={16} /> Quản lý Niên học
+        <button onClick={() => setActiveSubTab('YEARS')} className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'YEARS' ? 'bg-slate-900 text-white shadow-xl scale-[1.02]' : 'text-slate-400 hover:bg-slate-50'}`}>
+          <Calendar size={16} /> Niên học
         </button>
-        <button onClick={() => setActiveSubTab('CLASSES')} className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'CLASSES' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
-          <Layers size={16} /> Danh mục Lớp học
+        <button onClick={() => setActiveSubTab('CLASSES')} className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'CLASSES' ? 'bg-slate-900 text-white shadow-xl scale-[1.02]' : 'text-slate-400 hover:bg-slate-50'}`}>
+          <Layers size={16} /> Lớp học
         </button>
-        <button onClick={() => setActiveSubTab('ASSIGN')} className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'ASSIGN' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
-          <BookOpen size={16} /> Phân công Giáo viên
+        <button onClick={() => setActiveSubTab('ASSIGN')} className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'ASSIGN' ? 'bg-slate-900 text-white shadow-xl scale-[1.02]' : 'text-slate-400 hover:bg-slate-50'}`}>
+          <BookOpen size={16} /> Phân công
         </button>
       </div>
 
-      <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-sm">
+      <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-sm min-h-[500px]">
         {activeSubTab === 'YEARS' && (
           <div className="p-8 space-y-10 animate-in slide-in-from-left-4 duration-500">
             <div className="bg-slate-50 p-8 rounded-[32px] border border-slate-100 flex flex-col md:flex-row gap-8 items-end shadow-inner">
               <div className="flex-1 space-y-2 w-full">
-                <label className="text-[10px] font-black text-slate-400 uppercase px-2 tracking-widest">Tên niên học (VD: 2024-2025)</label>
-                <input type="text" value={newYearName} onChange={e => setNewYearName(e.target.value)} placeholder="Nhập tên niên học..." className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:border-indigo-400 transition-all shadow-sm" />
+                <label className="text-[10px] font-black text-slate-400 uppercase px-2 tracking-widest">Tên niên học mới (Ví dụ: 2024-2025)</label>
+                <input type="text" value={newYearName} onChange={e => setNewYearName(e.target.value)} placeholder="Nhập tên..." className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:border-indigo-400 transition-all shadow-sm" />
               </div>
               <button disabled={isSubmitting} onClick={handleAddYear} className="px-10 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-indigo-700 shadow-xl shadow-indigo-100 active:scale-95 transition-all">
                 <Plus size={18}/> Thêm niên học
@@ -93,15 +99,15 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
              <div className="bg-slate-50 p-8 rounded-[32px] border border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-6 items-end shadow-inner">
                 <div className="space-y-2">
                    <label className="text-[10px] font-black text-slate-400 uppercase px-2">Mã lớp</label>
-                   <input type="text" value={newClass.MaLop} onChange={e => setNewClass({...newClass, MaLop: e.target.value})} placeholder="10A1" className="w-full p-3.5 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none" />
+                   <input type="text" value={newClass.MaLop} onChange={e => setNewClass({...newClass, MaLop: e.target.value})} placeholder="VD: 10A1" className="w-full p-3.5 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none" />
                 </div>
                 <div className="space-y-2">
                    <label className="text-[10px] font-black text-slate-400 uppercase px-2">Tên lớp</label>
-                   <input type="text" value={newClass.TenLop} onChange={e => setNewClass({...newClass, TenLop: e.target.value})} placeholder="10A1" className="w-full p-3.5 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none" />
+                   <input type="text" value={newClass.TenLop} onChange={e => setNewClass({...newClass, TenLop: e.target.value})} placeholder="VD: Lớp 10A1" className="w-full p-3.5 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none" />
                 </div>
                 <div className="space-y-2">
                    <label className="text-[10px] font-black text-slate-400 uppercase px-2">Khối</label>
-                   <select value={newClass.Khoi} onChange={e => setNewClass({...newClass, Khoi: parseInt(e.target.value)})} className="w-full p-3.5 bg-white border border-slate-200 rounded-2xl text-xs font-black outline-none">
+                   <select value={newClass.Khoi} onChange={e => setNewClass({...newClass, Khoi: parseInt(e.target.value)})} className="w-full p-3.5 bg-white border border-slate-200 rounded-2xl text-xs font-black outline-none shadow-sm">
                       <option value={10}>Khối 10</option><option value={11}>Khối 11</option><option value={12}>Khối 12</option>
                    </select>
                 </div>
@@ -110,10 +116,10 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
              
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {classes.map(c => (
-                   <div key={c.MaLop} className="p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:border-indigo-400 transition-all">
+                   <div key={c.MaLop} className="p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:border-indigo-400 transition-all relative group">
                       <div className="flex justify-between items-start mb-4">
                          <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase border border-indigo-100">Khối {c.Khoi}</span>
-                         <button className="text-slate-200 hover:text-rose-500 transition-colors"><Trash2 size={16}/></button>
+                         <button onClick={() => handleDeleteClass(c.MaLop)} className="text-slate-200 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
                       </div>
                       <h4 className="font-black text-slate-800 text-base uppercase mb-1">{c.TenLop}</h4>
                       <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Mã lớp: {c.MaLop}</p>
@@ -125,10 +131,10 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
 
         {activeSubTab === 'ASSIGN' && (
            <div className="p-32 text-center flex flex-col items-center justify-center gap-6 animate-in zoom-in">
-              <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-200"><BookOpen size={40}/></div>
+              <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-200 shadow-inner"><BookOpen size={40}/></div>
               <div className="space-y-2">
-                 <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">Tính năng Phân công</h4>
-                 <p className="text-xs text-slate-400 max-w-sm font-medium">Bạn có thể quản lý danh sách phân công trực tiếp thông qua cơ sở dữ liệu Supabase để đảm bảo tính nhất quán của niên học.</p>
+                 <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cấu hình phân công giáo viên</h4>
+                 <p className="text-xs text-slate-400 max-w-sm font-medium mx-auto">Vui lòng quản lý phân công giảng dạy thông qua cơ sở dữ liệu Supabase để đảm bảo bảo mật và tính chính xác cao nhất cho niên học hiện tại.</p>
               </div>
            </div>
         )}
