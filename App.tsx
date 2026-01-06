@@ -15,6 +15,7 @@ import TaskManager from './components/TaskManager';
 import SystemManager from './components/SystemManager';
 import Login from './components/Login';
 import SchoolPlans from './components/SchoolPlans';
+import StudentPortal from './components/StudentPortal';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -103,7 +104,10 @@ const App: React.FC = () => {
         setState(p => ({ ...p, selectedClass: filteredClasses[0].MaLop }));
       }
     } else {
-      setState(p => ({ ...p, selectedClass: '' }));
+      // Đối với học sinh, selectedClass được giữ nguyên từ hồ sơ
+      if (state.currentRole !== Role.STUDENT) {
+        setState(p => ({ ...p, selectedClass: '' }));
+      }
     }
   }, [filteredClasses, state.currentRole]);
 
@@ -116,7 +120,13 @@ const App: React.FC = () => {
     if (role === Role.STUDENT) {
       const s = students.find(x => x.MaHS === id);
       if (s && (s.MatKhau || '123456') === pass) {
-        setState(p => ({ ...p, currentUser: s, currentRole: Role.STUDENT, selectedClass: s.MaLopHienTai, selectedYear: s.MaNienHoc }));
+        setState(p => ({ 
+          ...p, 
+          currentUser: s, 
+          currentRole: Role.STUDENT, 
+          selectedClass: s.MaLopHienTai, 
+          selectedYear: s.MaNienHoc 
+        }));
         setIsLoggedIn(true);
       } else alert("Sai thông tin đăng nhập!");
     } else {
@@ -135,21 +145,69 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, attachment?: string) => {
     if (!state.currentUser || !state.selectedClass) return;
     const user = state.currentUser as any;
     const newMessage = {
-      MaLop: state.selectedClass, MaNienHoc: state.selectedYear,
-      senderId: user.MaGV || user.MaHS, senderName: user.Hoten,
-      senderRole: state.currentRole, content: content
+      MaLop: state.selectedClass, 
+      MaNienHoc: state.selectedYear,
+      senderId: user.MaGV || user.MaHS, 
+      senderName: user.Hoten,
+      senderRole: state.currentRole, 
+      content: content,
+      attachment: attachment
     };
     await supabase.from('messages').insert([newMessage]);
+    fetchData();
+  };
+
+  const handleToggleTask = async (taskId: number, link?: string) => {
+    if (state.currentRole !== Role.STUDENT || !state.currentUser) return;
+    const studentId = (state.currentUser as Student).MaHS;
+    const task = tasks.find(t => t.MaNhiemVu === taskId);
+    if (!task) return;
+
+    let newDone = [...task.DanhSachHoanThanh];
+    let newReports = { ...(task.BaoCaoNhiemVu || {}) };
+
+    if (newDone.includes(studentId)) {
+      // Nếu đã xong thì cập nhật link hoặc giữ nguyên
+      if (link) newReports[studentId] = link;
+    } else {
+      newDone.push(studentId);
+      if (link) newReports[studentId] = link;
+    }
+
+    await supabase.from('tasks').update({ 
+      DanhSachHoanThanh: newDone,
+      BaoCaoNhiemVu: newReports 
+    }).eq('MaNhiemVu', taskId);
     fetchData();
   };
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>;
   if (!isLoggedIn) return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
 
+  // NẾU LÀ HỌC SINH -> TRẢ VỀ PORTAL RIÊNG
+  if (state.currentRole === Role.STUDENT) {
+    return (
+      <StudentPortal 
+        student={state.currentUser as Student}
+        grades={grades.filter(g => g.MaHS === (state.currentUser as Student).MaHS)}
+        disciplines={disciplines.filter(d => d.MaHS === (state.currentUser as Student).MaHS)}
+        violationRules={violationRules}
+        tasks={tasks.filter(t => t.MaLop === state.selectedClass && t.DanhSachGiao?.includes((state.currentUser as Student).MaHS))}
+        plans={plans}
+        messages={messages.filter(m => m.MaLop === state.selectedClass)}
+        onSendMessage={handleSendMessage}
+        onLogout={() => setIsLoggedIn(false)}
+        onToggleTask={handleToggleTask}
+        onUpdateProfile={() => fetchData()}
+      />
+    );
+  }
+
+  // NẾU LÀ GIÁO VIÊN -> TRẢ VỀ DASHBOARD QUẢN LÝ
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden text-[13px] font-normal text-slate-600">
       <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm relative z-20">
@@ -159,15 +217,13 @@ const App: React.FC = () => {
         </div>
         
         <nav className="flex-1 px-4 space-y-1.5 pt-6 overflow-y-auto custom-scrollbar">
-          {state.currentRole !== Role.STUDENT && (
-            <div className="mb-6 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
-               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Chế độ làm việc</p>
-               <div className="flex p-1 bg-white border rounded-xl shadow-sm">
-                  <button onClick={() => setState(p => ({...p, currentRole: Role.CHU_NHIEM}))} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${state.currentRole === Role.CHU_NHIEM ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Chủ nhiệm</button>
-                  <button onClick={() => setState(p => ({...p, currentRole: Role.GIANG_DAY}))} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${state.currentRole === Role.GIANG_DAY ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Giảng dạy</button>
-               </div>
-            </div>
-          )}
+          <div className="mb-6 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
+             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Chế độ làm việc</p>
+             <div className="flex p-1 bg-white border rounded-xl shadow-sm">
+                <button onClick={() => setState(p => ({...p, currentRole: Role.CHU_NHIEM}))} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${state.currentRole === Role.CHU_NHIEM ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Chủ nhiệm</button>
+                <button onClick={() => setState(p => ({...p, currentRole: Role.GIANG_DAY}))} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${state.currentRole === Role.GIANG_DAY ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Giảng dạy</button>
+             </div>
+          </div>
 
           {[
             { id: 'dashboard', label: 'Bàn làm việc', icon: LayoutDashboard },
