@@ -89,22 +89,14 @@ const App: React.FC = () => {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Lọc các lớp mà GV có quyền truy cập dựa trên Vai trò hiện tại và Niên học
   const filteredClasses = useMemo(() => {
     if (!state.currentUser || (state.currentUser as any).MaHS) return [];
     const teacherID = (state.currentUser as Teacher).MaGV;
-    
     const myAs = assignments.filter(a => a.MaGV === teacherID && a.MaNienHoc === state.selectedYear);
-    
-    // Lấy ID các lớp phù hợp với vai trò đang chọn (Chủ nhiệm hoặc Giảng dạy)
-    const validClassIds = myAs
-      .filter(a => a.LoaiPhanCong === state.currentRole)
-      .map(a => a.MaLop);
-      
+    const validClassIds = myAs.filter(a => a.LoaiPhanCong === state.currentRole).map(a => a.MaLop);
     return classes.filter(c => validClassIds.includes(c.MaLop));
   }, [classes, assignments, state.currentUser, state.currentRole, state.selectedYear]);
 
-  // Cập nhật lớp khi danh sách lớp thay đổi hoặc đổi vai trò
   useEffect(() => {
     if (filteredClasses.length > 0) {
       if (!state.selectedClass || !filteredClasses.some(c => c.MaLop === state.selectedClass)) {
@@ -131,16 +123,11 @@ const App: React.FC = () => {
       const t = teachers.find(x => x.MaGV === id);
       if (t && (t.MatKhau || '123456') === pass) {
         const myAs = assignments.filter(a => a.MaGV === id);
-        if (myAs.length === 0) { alert("Giáo viên này chưa có phân công trong hệ thống!"); return; }
-        
+        if (myAs.length === 0) { alert("Giáo viên này chưa có phân công!"); return; }
         const initialRole = myAs.some(a => a.LoaiPhanCong === Role.CHU_NHIEM) ? Role.CHU_NHIEM : Role.GIANG_DAY;
-        const firstClass = myAs.find(a => a.LoaiPhanCong === initialRole)?.MaLop || myAs[0].MaLop;
-        
         setState(p => ({ 
-          ...p, 
-          currentUser: t, 
-          currentRole: initialRole, 
-          selectedClass: firstClass, 
+          ...p, currentUser: t, currentRole: initialRole, 
+          selectedClass: myAs.find(a => a.LoaiPhanCong === initialRole)?.MaLop || myAs[0].MaLop,
           selectedYear: myAs[0].MaNienHoc || state.selectedYear 
         }));
         setIsLoggedIn(true);
@@ -165,7 +152,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden text-[13px] font-normal text-slate-600">
-      {/* SIDEBAR - Đảm bảo vai trò được phục hồi */}
       <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm relative z-20">
         <div className="p-6 flex items-center gap-3 border-b border-slate-50">
           <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg"><GraduationCap size={20} /></div>
@@ -173,19 +159,12 @@ const App: React.FC = () => {
         </div>
         
         <nav className="flex-1 px-4 space-y-1.5 pt-6 overflow-y-auto custom-scrollbar">
-          {/* Bộ chuyển vai trò quan trọng cho GV */}
           {state.currentRole !== Role.STUDENT && (
             <div className="mb-6 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Chế độ làm việc</p>
                <div className="flex p-1 bg-white border rounded-xl shadow-sm">
-                  <button 
-                    onClick={() => setState(p => ({...p, currentRole: Role.CHU_NHIEM}))}
-                    className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${state.currentRole === Role.CHU_NHIEM ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                  >Chủ nhiệm</button>
-                  <button 
-                    onClick={() => setState(p => ({...p, currentRole: Role.GIANG_DAY}))}
-                    className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${state.currentRole === Role.GIANG_DAY ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                  >Giảng dạy</button>
+                  <button onClick={() => setState(p => ({...p, currentRole: Role.CHU_NHIEM}))} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${state.currentRole === Role.CHU_NHIEM ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Chủ nhiệm</button>
+                  <button onClick={() => setState(p => ({...p, currentRole: Role.GIANG_DAY}))} className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${state.currentRole === Role.GIANG_DAY ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Giảng dạy</button>
                </div>
             </div>
           )}
@@ -210,20 +189,17 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-6 border-t border-slate-50 mt-auto">
-          <button onClick={() => setIsLoggedIn(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-rose-500 font-black uppercase text-[10px] tracking-widest hover:bg-rose-50 rounded-2xl transition-all">
-            <LogOut size={18}/> Đăng xuất
-          </button>
+          <button onClick={() => setIsLoggedIn(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-rose-500 font-black uppercase text-[10px] tracking-widest hover:bg-rose-50 rounded-2xl transition-all"><LogOut size={18}/> Đăng xuất</button>
         </div>
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
-        {/* HEADER - Khôi phục Niên học và Lớp */}
         <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0 relative z-10">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Lớp học:</span>
               <select value={state.selectedClass} onChange={(e) => setState(p => ({...p, selectedClass: e.target.value}))} className="font-black text-slate-800 border-none outline-none bg-slate-50 px-3 py-1.5 rounded-xl text-xs shadow-inner cursor-pointer">
-                {filteredClasses.length > 0 ? filteredClasses.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>) : <option value="">Chưa có lớp</option>}
+                {filteredClasses.length > 0 ? filteredClasses.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>) : <option value="">---</option>}
               </select>
             </div>
             <div className="w-px h-6 bg-slate-100"></div>
@@ -234,20 +210,16 @@ const App: React.FC = () => {
               </select>
             </div>
           </div>
-          
           <div className="flex items-center gap-4">
              <div className="text-right hidden sm:block">
                 <p className="text-[11px] font-black text-slate-800 uppercase">{(state.currentUser as Teacher)?.Hoten}</p>
                 <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">{state.currentRole === Role.CHU_NHIEM ? 'GV Chủ nhiệm' : 'GV Giảng dạy'}</p>
              </div>
-             <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black shadow-lg shadow-indigo-100">
-               {(state.currentUser as Teacher)?.Hoten?.charAt(0)}
-             </div>
+             <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black shadow-lg shadow-indigo-100">{(state.currentUser as Teacher)?.Hoten?.charAt(0)}</div>
           </div>
         </header>
 
-        {/* CONTENT AREA - Đảm bảo cuộn không bị lỗi */}
-        <div className="flex-1 overflow-y-auto p-8 bg-slate-50/40 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC] custom-scrollbar">
           {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} grades={grades} disciplines={disciplines} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} />}
           {activeTab === 'students' && <StudentList state={state} students={currentClassStudents} grades={grades} disciplines={disciplines} logs={logs} violationRules={violationRules} onUpdateStudent={(s) => supabase.from('students').upsert(s).then(() => fetchData())} onDeleteStudent={(id) => supabase.from('students').delete().eq('MaHS', id).then(() => fetchData())} />}
           {activeTab === 'grades' && <GradeBoard state={state} students={currentClassStudents} grades={grades} onUpdateGrades={() => fetchData()} />}
