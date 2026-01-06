@@ -111,7 +111,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // TỰ ĐỘNG ĐỒNG BỘ MÔN HỌC KHI ĐỔI LỚP HOẶC VAI TRÒ
   useEffect(() => {
     if (state.currentUser && !(state.currentUser as any).MaHS) {
       const teacher = state.currentUser as Teacher;
@@ -123,8 +122,6 @@ const App: React.FC = () => {
       );
       
       if (myAs.length > 0) {
-        // Nếu chuyển sang Chủ nhiệm, mặc định chọn SHL
-        // Nếu chuyển sang Giảng dạy, mặc định chọn môn đầu tiên trong danh sách phân công lớp đó
         const autoSub = state.currentRole === Role.CHU_NHIEM ? 'SHL' : (myAs[0].MaMonHoc || 'SHL');
         setState(p => ({ ...p, selectedSubject: autoSub }));
       }
@@ -141,7 +138,6 @@ const App: React.FC = () => {
     return classes.filter(c => assignedClassIds.includes(c.MaLop));
   }, [classes, assignments, state.currentUser, state.currentRole, state.selectedYear]);
 
-  // Danh sách các môn giáo viên dạy ở lớp đã chọn
   const mySubjectsInClass = useMemo(() => {
     if (!state.currentUser || (state.currentUser as any).MaHS) return [];
     const teacherID = (state.currentUser as Teacher).MaGV;
@@ -172,7 +168,7 @@ const App: React.FC = () => {
     );
   }, [assignments, state.currentUser, state.selectedClass, state.selectedYear, state.currentRole, state.selectedSubject]);
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, attachment?: string) => {
     if (!state.currentUser || !state.selectedClass) return;
     const user = state.currentUser as any;
     const newMessage = {
@@ -181,7 +177,8 @@ const App: React.FC = () => {
       senderId: user.MaGV || user.MaHS,
       senderName: user.Hoten,
       senderRole: state.currentRole,
-      content: content
+      content: content,
+      attachment: attachment || null
     };
     const { error } = await supabase.from('messages').insert([newMessage]);
     if (error) alert("Lỗi gửi tin nhắn: " + error.message);
@@ -330,7 +327,6 @@ const App: React.FC = () => {
               <select value={state.selectedClass} onChange={(e: any) => setState(p => ({...p, selectedClass: e.target.value}))} className="font-bold border-none outline-none bg-slate-50 px-2 py-1 rounded-lg text-slate-700">{filteredClasses.map(c => <option key={c.MaLop} value={c.MaLop}>{c.TenLop}</option>)}</select>
             </div>
             
-            {/* SUBJECT SELECTOR - Dành cho giáo viên khi ở chế độ GD hoặc dạy nhiều môn */}
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-[10px] font-black text-slate-400 uppercase">Môn:</span>
               <select 
