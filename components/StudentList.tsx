@@ -61,13 +61,12 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     return result.map(v => v.replace(/^"|"$/g, '').trim());
   };
 
-  // Hàm chuẩn hóa ngày tháng về YYYY-MM-DD - Trả về null nếu không hợp lệ để tránh lỗi DB
+  // Hàm chuẩn hóa ngày tháng về YYYY-MM-DD
   const formatDateToDB = (dateStr: string) => {
     if (!dateStr || dateStr.trim() === '') return null;
     const clean = dateStr.trim();
     
     try {
-      // Trường hợp 1: DD/MM/YYYY
       if (clean.includes('/')) {
         const parts = clean.split('/');
         if (parts.length === 3) {
@@ -77,20 +76,16 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
         }
       }
       
-      // Trường hợp 2: DD-MM-YYYY
       if (clean.includes('-')) {
         const parts = clean.split('-');
         if (parts.length === 3) {
-          // Nếu đã là YYYY-MM-DD
           if (parts[0].length === 4) return clean;
-          // Nếu là DD-MM-YYYY
           const [d, m, y] = parts;
           const year = y.length === 2 ? `20${y}` : y;
           return `${year.padStart(4, '20')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
         }
       }
 
-      // Kiểm tra nếu là YYYYMMDD hoặc các định dạng khác
       const dateObj = new Date(clean);
       if (!isNaN(dateObj.getTime())) {
         return dateObj.toISOString().split('T')[0];
@@ -116,12 +111,11 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCsvLine(lines[i]);
         
-        // KIỂM TRA BẮT BUỘC: Phải có Mã HS (cols[0]) và Họ Tên (cols[1])
         if (cols[0] && cols[0].trim() !== '' && cols[1] && cols[1].trim() !== '') {
           const student: any = {
             MaHS: cols[0].replace(/\s+/g, ''), 
             Hoten: cols[1].trim(),
-            NgaySinh: formatDateToDB(cols[2]), // Sẽ là null nếu trống
+            NgaySinh: formatDateToDB(cols[2]),
             GioiTinh: cols[3] === '1' || cols[3]?.toLowerCase() === 'nam' || cols[3]?.toLowerCase() === 'true',
             SDT_LinkHe: cols[4] || null,
             Email: cols[5] || null,
@@ -139,7 +133,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
           count++;
         } else {
           errorCount++;
-          console.warn(`Dòng ${i+1} bị bỏ qua do thiếu MaHS hoặc Hoten:`, lines[i]);
         }
       }
       
@@ -151,10 +144,15 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
     reader.readAsText(file, 'UTF-8');
   };
 
-  const filteredStudents = (students || []).filter(s => 
-    s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.MaHS.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // QUAN TRỌNG: Sắp xếp học sinh theo MaHS tăng dần
+  const sortedStudents = useMemo(() => {
+    return (students || [])
+      .filter(s => 
+        s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        s.MaHS.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .sort((a, b) => a.MaHS.localeCompare(b.MaHS, undefined, { numeric: true, sensitivity: 'base' }));
+  }, [students, searchTerm]);
 
   const getSpecificGrade = (maHS: string, maMon: string, semester: number, type: string) => {
     const g = grades.find(g => g.MaHS === maHS && g.MaMonHoc === maMon && g.HocKy === semester && g.MaNienHoc === state.selectedYear && g.LoaiDiem === type);
@@ -337,13 +335,13 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
             <Download size={14}/> Mẫu HS
           </button>
           
-          <label className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl cursor-pointer hover:bg-emerald-100 transition-all border border-emerald-100 text-[10px] font-bold uppercase tracking-widest" title="Nhập danh sách học sinh nhanh từ file CSV">
+          <label className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl cursor-pointer hover:bg-emerald-100 transition-all border border-emerald-100 text-[10px] font-bold uppercase tracking-widest">
              <FileUp size={16} />
              Nhập CSV
              <input type="file" className="hidden" accept=".csv" onChange={handleCsvImport} />
           </label>
 
-          <label className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl cursor-pointer hover:bg-indigo-100 transition-all border border-indigo-100 text-[10px] font-bold uppercase tracking-widest" title="AI quét danh sách từ ảnh/PDF">
+          <label className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl cursor-pointer hover:bg-indigo-100 transition-all border border-indigo-100 text-[10px] font-bold uppercase tracking-widest">
              <Camera size={16} />
              Quét AI
              <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleAiImport} />
@@ -356,7 +354,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filteredStudents.map((student) => {
+        {sortedStudents.map((student) => {
           const sGrades = grades.filter(g => g.MaHS === student.MaHS && g.MaNienHoc === state.selectedYear);
           const avg = sGrades.length > 0 ? (sGrades.reduce((sum, g) => sum + g.DiemSo, 0) / sGrades.length).toFixed(1) : '--';
           return (
@@ -392,7 +390,7 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                    <button onClick={(e) => { e.stopPropagation(); setFormData(student); setIsFormOpen(true); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl" title="Sửa học sinh"><Edit2 size={16}/></button>
-                   <button onClick={(e) => { e.stopPropagation(); if(confirm("Xóa vĩnh viễn học sinh này và toàn bộ dữ liệu liên quan?")) onDeleteStudent(student.MaHS); }} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl" title="Xóa học sinh"><Trash2 size={16}/></button>
+                   <button onClick={(e) => { e.stopPropagation(); if(confirm("Xóa vĩnh viễn học sinh này?")) onDeleteStudent(student.MaHS); }} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl" title="Xóa học sinh"><Trash2 size={16}/></button>
                 </div>
               </div>
             </div>
@@ -655,7 +653,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                           )}
                           <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleFileChange} />
                        </div>
-                       {formData.Anh && <button onClick={() => setFormData({...formData, Anh: ''})} className="w-full py-1.5 text-[8px] font-black text-rose-500 uppercase hover:underline">Xóa ảnh hiện tại</button>}
                     </div>
                   </div>
 
@@ -685,21 +682,6 @@ const StudentList: React.FC<Props> = ({ state, students, grades, disciplines, lo
                            <InputField label="Nghề nghiệp Cha" value={formData.NgheNghiepCha} onChange={v => setFormData({...formData, NgheNghiepCha: v})} placeholder="Nghề nghiệp" colSpan={2} />
                            <InputField label="Họ tên Mẹ" value={formData.TenMe} onChange={v => setFormData({...formData, TenMe: v})} placeholder="Tên mẹ" colSpan={2} />
                            <InputField label="Nghề nghiệp Mẹ" value={formData.NgheNghiepMe} onChange={v => setFormData({...formData, NgheNghiepMe: v})} placeholder="Nghề nghiệp" colSpan={2} />
-                        </div>
-                     </section>
-
-                     <section className="space-y-4">
-                        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                           <FileText size={14} className="text-slate-400" />
-                           <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ghi chú & Lưu ý</h5>
-                        </div>
-                        <div className="space-y-1.5">
-                           <textarea 
-                             value={formData.GhiChuKhac} 
-                             onChange={e => setFormData({...formData, GhiChuKhac: e.target.value})} 
-                             className="w-full p-5 bg-white border border-slate-200 rounded-[32px] text-[12px] font-medium outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all min-h-[160px]" 
-                             placeholder="Các lưu ý đặc biệt..."
-                           ></textarea>
                         </div>
                      </section>
                   </div>
