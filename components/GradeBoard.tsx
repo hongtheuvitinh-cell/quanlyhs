@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   GraduationCap, Save, Loader2, Search, FileUp, Eye, X, User, ChevronLeft, ChevronRight, Lock, ShieldCheck, Book
 } from 'lucide-react';
@@ -9,9 +9,7 @@ import { supabase } from '../services/supabaseClient';
 interface Props {
   state: AppState;
   students: Student[];
-  grades: Grade[];
   assignments: Assignment[];
-  onUpdateGrades: () => Promise<void>;
 }
 
 const subjectsList = [
@@ -23,13 +21,16 @@ const subjectsList = [
 const ITEMS_PER_PAGE = 15;
 const GRADE_COLUMNS = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
 
-const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onUpdateGrades }) => {
+const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
   const [selectedHK, setSelectedHK] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Dữ liệu điểm cục bộ cho lớp/môn đang chọn
+  const [classGrades, setClassGrades] = useState<Grade[]>([]);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [localGrades, setLocalGrades] = useState<Record<string, Record<string, number | null>>>({
     '1': {}, '2': {}
@@ -39,54 +40,69 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
   const isAdmin = currentUser?.quanly === true;
   const isHomeroom = state.currentRole === Role.CHU_NHIEM;
 
-  // LOGIC PHÂN QUYỀN HIỂN THỊ MÔN HỌC
+  // PHÂN QUYỀN MÔN HỌC
   const visibleSubjects = useMemo(() => {
     if (isAdmin || isHomeroom) return subjectsList;
-
     const myAssignedSubjects = (assignments || [])
-      .filter(a => 
-        a.MaGV === currentUser.MaGV && 
-        a.MaLop === state.selectedClass && 
-        a.LoaiPhanCong === Role.GIANG_DAY
-      )
+      .filter(a => a.MaGV === currentUser.MaGV && a.MaLop === state.selectedClass && a.LoaiPhanCong === Role.GIANG_DAY)
       .map(a => String(a.MaMonHoc).toUpperCase());
-
     return subjectsList.filter(s => myAssignedSubjects.includes(s.id.toUpperCase()));
   }, [assignments, currentUser.MaGV, state.selectedClass, isAdmin, isHomeroom]);
 
   const [selectedSubject, setSelectedSubject] = useState(visibleSubjects[0]?.id || subjectsList[0].id);
 
-  useMemo(() => {
+  useEffect(() => {
     if (visibleSubjects.length > 0 && !visibleSubjects.some(s => s.id === selectedSubject)) {
       setSelectedSubject(visibleSubjects[0].id);
     }
   }, [visibleSubjects]);
 
+  // TRUY VẤN DỮ LIỆU ĐIỂM (CHỈ LẤY LỚP/MÔN/NĂM NÀY)
+  const fetchClassGrades = async () => {
+    if (!state.selectedClass || !selectedSubject || students.length === 0) {
+      setClassGrades([]);
+      return;
+    }
+    setIsInitialLoading(true);
+    try {
+      const studentIds = students.map(s => s.MaHS);
+      // Chia nhỏ list MaHS nếu quá dài (Supabase giới hạn URL length)
+      const { data, error } = await supabase
+        .from('grades')
+        .select('*')
+        .eq('MaMonHoc', selectedSubject)
+        .eq('MaNienHoc', state.selectedYear)
+        .in('MaHS', studentIds);
+
+      if (error) throw error;
+      setClassGrades(data || []);
+    } catch (e) {
+      console.error("Lỗi tải điểm:", e);
+    } finally {
+      setIsInitialLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClassGrades();
+  }, [state.selectedClass, selectedSubject, state.selectedYear, students]);
+
   const canEdit = useMemo(() => {
     if (isAdmin) return true;
     if (isHomeroom) return false;
-
-    const isMySubject = (assignments || [])
-      .some(a => 
-        a.MaGV === currentUser.MaGV && 
-        a.MaLop === state.selectedClass && 
-        String(a.MaMonHoc).toUpperCase() === String(selectedSubject).toUpperCase() &&
-        a.LoaiPhanCong === Role.GIANG_DAY
-      );
-
-    return isMySubject;
+    return (assignments || []).some(a => 
+      a.MaGV === currentUser.MaGV && a.MaLop === state.selectedClass && 
+      String(a.MaMonHoc).toUpperCase() === String(selectedSubject).toUpperCase() &&
+      a.LoaiPhanCong === Role.GIANG_DAY
+    );
   }, [isAdmin, isHomeroom, assignments, currentUser.MaGV, state.selectedClass, selectedSubject]);
 
   const filteredStudents = useMemo(() => {
     return (students || [])
-      .filter(s => 
-        s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        s.MaHS.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      .filter(s => s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()) || s.MaHS.toLowerCase().includes(searchTerm.toLowerCase()))
       .sort((a, b) => a.MaHS.localeCompare(b.MaHS, undefined, { numeric: true }));
   }, [students, searchTerm]);
 
-  const totalPages = Math.ceil(filteredStudents.length / ITEMS_PER_PAGE);
   const paginatedStudents = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredStudents.slice(start, start + ITEMS_PER_PAGE);
@@ -97,32 +113,20 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
     if (currentLocalGrades) {
       sourceGrades = currentLocalGrades;
     } else {
-      // ÉP KIỂU VÀ TRIM KHI LỌC DỮ LIỆU ĐỂ TRÁNH LỖI MÀN HÌNH TRẮNG / KHÔNG HIỂN THỊ
-      const records = (grades || []).filter(g => 
-        String(g.MaHS).trim() === String(maHS).trim() && 
-        String(g.MaMonHoc).trim().toUpperCase() === String(subjectId).trim().toUpperCase() && 
-        Number(g.HocKy) === Number(hk) && 
-        Number(g.MaNienHoc) === Number(state.selectedYear)
-      );
-      records.forEach(r => {
-        const typeKey = String(r.LoaiDiem).trim();
-        sourceGrades[typeKey] = Number(r.DiemSo);
-      });
+      const records = classGrades.filter(g => String(g.MaHS) === String(maHS) && Number(g.HocKy) === Number(hk));
+      records.forEach(r => { sourceGrades[r.LoaiDiem] = Number(r.DiemSo); });
     }
 
-    const tx = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5']
-      .map(key => sourceGrades[key])
-      .filter(v => v !== null && v !== undefined && !isNaN(v)) as number[];
+    const tx = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5'].map(key => sourceGrades[key]).filter(v => v !== null && v !== undefined && !isNaN(v)) as number[];
     const gk = sourceGrades['ĐGGK'];
     const ck = sourceGrades['ĐGCK'];
 
-    if (tx.length === 0 && (gk === null || gk === undefined) && (ck === null || ck === undefined)) return null;
+    if (tx.length === 0 && gk == null && ck == null) return null;
 
-    let totalScore = 0;
-    let totalWeight = 0;
+    let totalScore = 0; let totalWeight = 0;
     tx.forEach(v => { totalScore += v; totalWeight += 1; });
-    if (gk !== null && gk !== undefined) { totalScore += (gk * 2); totalWeight += 2; }
-    if (ck !== null && ck !== undefined) { totalScore += (ck * 3); totalWeight += 3; }
+    if (gk != null) { totalScore += (gk * 2); totalWeight += 2; }
+    if (ck != null) { totalScore += (ck * 3); totalWeight += 3; }
 
     return totalWeight > 0 ? totalScore / totalWeight : null;
   };
@@ -131,16 +135,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
     const data: Record<string, Record<string, number | null>> = { '1': {}, '2': {} };
     [1, 2].forEach(hk => {
       GRADE_COLUMNS.forEach(col => data[hk.toString()][col] = null);
-      const currentGrades = (grades || []).filter(g => 
-        String(g.MaHS).trim() === String(student.MaHS).trim() && 
-        String(g.MaMonHoc).trim().toUpperCase() === String(selectedSubject).trim().toUpperCase() && 
-        Number(g.HocKy) === Number(hk) && 
-        Number(g.MaNienHoc) === Number(state.selectedYear)
-      );
-      currentGrades.forEach(g => {
-        const typeKey = String(g.LoaiDiem).trim();
-        data[hk.toString()][typeKey] = Number(g.DiemSo);
-      });
+      const sGrades = classGrades.filter(g => g.MaHS === student.MaHS && Number(g.HocKy) === hk);
+      sGrades.forEach(g => { data[hk.toString()][g.LoaiDiem] = Number(g.DiemSo); });
     });
     setLocalGrades(data);
     setEditingStudent(student);
@@ -154,16 +150,10 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
       [1, 2].forEach(hk => {
         GRADE_COLUMNS.forEach(type => {
           const val = localGrades[hk.toString()][type];
-          if (val !== null && val !== undefined && !isNaN(val)) {
-            const old = (grades || []).find(g => 
-              String(g.MaHS).trim() === String(editingStudent.MaHS).trim() && 
-              String(g.MaMonHoc).trim().toUpperCase() === String(selectedSubject).trim().toUpperCase() && 
-              Number(g.HocKy) === Number(hk) && 
-              Number(g.MaNienHoc) === Number(state.selectedYear) && 
-              String(g.LoaiDiem).trim() === String(type).trim()
-            );
+          if (val !== null && !isNaN(val)) {
+            const old = classGrades.find(g => g.MaHS === editingStudent.MaHS && g.HocKy === hk && g.LoaiDiem === type);
             upsertData.push({
-              ...(old ? { MaDiem: old.MaDiem } : { MaDiem: Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000) }),
+              MaDiem: old ? old.MaDiem : (Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000)),
               MaHS: editingStudent.MaHS, MaMonHoc: selectedSubject, MaNienHoc: state.selectedYear, 
               HocKy: hk, LoaiDiem: type, DiemSo: val
             });
@@ -173,7 +163,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
 
       if (upsertData.length > 0) {
         await supabase.from('grades').upsert(upsertData);
-        await onUpdateGrades();
+        await fetchClassGrades();
       }
       setEditingStudent(null);
     } catch (e: any) {
@@ -187,38 +177,26 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
     if (!canEdit) return;
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = async (evt) => {
       const text = evt.target?.result as string;
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
       if (lines.length < 2) return;
       const rows = lines.slice(1);
-      const upsertMap = new Map<string, any>();
-
+      const upsertList: any[] = [];
       rows.forEach(row => {
         const cols = row.split(',').map(c => c.trim());
         if (cols.length >= 6) {
           const maHS = cols[0];
-          let mapping = cols.length === 8 
-            ? ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK']
-            : ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
-
+          const mapping = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
           mapping.forEach((type, idx) => {
             const val = cols[idx + 2];
             if (val !== undefined && val !== '') {
               const num = parseFloat(val);
               if (!isNaN(num)) {
-                const old = grades.find(g => 
-                  String(g.MaHS).trim() === String(maHS).trim() && 
-                  String(g.MaMonHoc).trim().toUpperCase() === String(selectedSubject).trim().toUpperCase() && 
-                  Number(g.HocKy) === Number(selectedHK) && 
-                  Number(g.MaNienHoc) === Number(state.selectedYear) && 
-                  String(g.LoaiDiem).trim() === String(type).trim()
-                );
-                const key = `${maHS}_${type}`;
-                upsertMap.set(key, {
-                  ...(old ? { MaDiem: old.MaDiem } : { MaDiem: Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000000) }),
+                const old = classGrades.find(g => g.MaHS === maHS && g.HocKy === selectedHK && g.LoaiDiem === type);
+                upsertList.push({
+                  MaDiem: old ? old.MaDiem : (Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000000)),
                   MaHS: maHS, MaMonHoc: selectedSubject, MaNienHoc: state.selectedYear, 
                   HocKy: selectedHK, LoaiDiem: type, DiemSo: num
                 });
@@ -227,13 +205,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
           });
         }
       });
-
-      const finalUpsertData = Array.from(upsertMap.values());
-      if (finalUpsertData.length > 0) {
+      if (upsertList.length > 0) {
         setIsProcessing(true);
-        const { error } = await supabase.from('grades').upsert(finalUpsertData);
+        const { error } = await supabase.from('grades').upsert(upsertList);
         if (error) alert("Lỗi: " + error.message);
-        else { await onUpdateGrades(); alert(`Thành công! Đã nhập ${finalUpsertData.length} đầu điểm.`); }
+        else { await fetchClassGrades(); alert(`Thành công! Đã nhập ${upsertList.length} đầu điểm.`); }
         setIsProcessing(false);
       }
     };
@@ -244,19 +220,9 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
   return (
     <div className="max-w-7xl mx-auto space-y-2 pb-20 animate-in fade-in">
       <div className="flex flex-wrap gap-0.5 bg-slate-100 p-1 rounded-t-xl">
-        {visibleSubjects.length > 0 ? visibleSubjects.map(s => (
-          <button 
-            key={s.id} 
-            onClick={() => { setSelectedSubject(s.id); setCurrentPage(1); }} 
-            className={`px-3 py-2 text-[10px] font-black uppercase transition-all rounded-lg border-2 ${selectedSubject === s.id ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'bg-white text-slate-500 border-white hover:border-indigo-100'}`}
-          >
-            {s.name}
-          </button>
-        )) : (
-          <div className="p-3 bg-rose-50 text-rose-500 border border-rose-100 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-            <Lock size={12}/> Bạn chưa được phân công môn học nào tại lớp này
-          </div>
-        )}
+        {visibleSubjects.map(s => (
+          <button key={s.id} onClick={() => { setSelectedSubject(s.id); setCurrentPage(1); }} className={`px-3 py-2 text-[10px] font-black uppercase transition-all rounded-lg border-2 ${selectedSubject === s.id ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'bg-white text-slate-500 border-white hover:border-indigo-100'}`}>{s.name}</button>
+        ))}
       </div>
 
       <div className="bg-[#0f172a] text-white p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-700 shadow-sm relative overflow-hidden">
@@ -265,11 +231,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
           <div>
             <h2 className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
               Môn: {subjectsList.find(s => s.id === selectedSubject)?.name}
-              {canEdit ? (
-                <span className="px-2 py-0.5 bg-emerald-500 text-white rounded-md text-[8px] tracking-tight">Quyền chỉnh sửa</span>
-              ) : (
-                <span className="px-2 py-0.5 bg-slate-600 text-slate-300 rounded-md text-[8px] tracking-tight">Chế độ xem</span>
-              )}
+              {canEdit ? <span className="px-2 py-0.5 bg-emerald-500 text-white rounded-md text-[8px] tracking-tight">Quyền chỉnh sửa</span> : <span className="px-2 py-0.5 bg-slate-600 text-slate-300 rounded-md text-[8px] tracking-tight">Chế độ xem</span>}
             </h2>
             <p className="text-[9px] text-slate-400 font-bold uppercase">Niên học: {state.selectedYear} • Lớp: {state.selectedClass}</p>
           </div>
@@ -293,7 +255,13 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
         <div className="absolute top-0 right-0 p-8 opacity-5"><ShieldCheck size={120} /></div>
       </div>
 
-      <div className="bg-white border border-slate-200 overflow-hidden shadow-sm rounded-b-xl">
+      <div className="bg-white border border-slate-200 overflow-hidden shadow-sm rounded-b-xl min-h-[400px] relative">
+        {isInitialLoading && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-3">
+             <Loader2 className="animate-spin text-indigo-600" size={32} />
+             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Đang truy xuất điểm số...</p>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -321,27 +289,19 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
                     <td className="p-3 text-center border-r text-slate-500">{tb2 ? tb2.toFixed(1) : '--'}</td>
                     <td className="p-3 text-center bg-orange-50/50 font-black text-orange-600 border-r">{cn ? cn.toFixed(1) : '--'}</td>
                     <td className="p-3 text-center">
-                      <button onClick={() => handleOpenDetail(s)} className={`p-2 rounded-xl transition-all shadow-sm flex items-center justify-center mx-auto ${canEdit ? 'bg-slate-900 text-white hover:bg-indigo-600' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
-                        {canEdit ? <Book size={14} /> : <Eye size={14} />}
-                      </button>
+                      <button onClick={() => handleOpenDetail(s)} className={`p-2 rounded-xl transition-all shadow-sm flex items-center justify-center mx-auto ${canEdit ? 'bg-slate-900 text-white hover:bg-indigo-600' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{canEdit ? <Book size={14} /> : <Eye size={14} />}</button>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          {paginatedStudents.length === 0 && (
-            <div className="py-20 text-center opacity-30 flex flex-col items-center">
-               <GraduationCap size={48} className="text-slate-200 mb-4" />
-               <p className="text-[10px] font-black uppercase tracking-widest">Không có dữ liệu học sinh</p>
-            </div>
-          )}
         </div>
         <div className="p-3 bg-slate-50 border-t flex items-center justify-between">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Trang {currentPage} / {totalPages || 1}</span>
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Trang {currentPage} / {Math.ceil(filteredStudents.length / ITEMS_PER_PAGE) || 1}</span>
           <div className="flex gap-2">
             <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 bg-white border border-slate-200 text-slate-400 rounded-xl hover:bg-slate-100 disabled:opacity-30"><ChevronLeft size={14} /></button>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 bg-white border border-slate-200 text-slate-400 rounded-xl hover:bg-slate-100 disabled:opacity-30"><ChevronRight size={14} /></button>
+            <button onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredStudents.length/ITEMS_PER_PAGE), p + 1))} disabled={currentPage >= Math.ceil(filteredStudents.length/ITEMS_PER_PAGE)} className="p-2 bg-white border border-slate-200 text-slate-400 rounded-xl hover:bg-slate-100 disabled:opacity-30"><ChevronRight size={14} /></button>
           </div>
         </div>
       </div>
@@ -368,10 +328,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
               {[1, 2].map(hk => (
                 <div key={hk} className={`flex-1 bg-white border rounded-[32px] p-6 shadow-sm ${!canEdit ? 'opacity-90' : ''}`}>
                   <div className="flex items-center justify-between border-b border-slate-50 pb-4 mb-6">
-                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                      <span className="w-2 h-6 bg-indigo-600 rounded-full"></span>
-                      Học kỳ {hk}
-                    </h4>
+                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2"><span className="w-2 h-6 bg-indigo-600 rounded-full"></span>Học kỳ {hk}</h4>
                     <div className="text-right">
                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">ĐTB Dự kiến</p>
                        <p className="text-xl font-black text-indigo-600">{calculateAvg(editingStudent.MaHS, hk, selectedSubject, localGrades[hk.toString()])?.toFixed(1) || '--'}</p>
@@ -381,20 +338,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
                     {GRADE_COLUMNS.map(col => (
                       <div key={col} className="space-y-1.5">
                         <label className="text-[10px] font-black text-slate-400 uppercase block px-1 tracking-tighter">{col}</label>
-                        <input 
-                          type="number" 
-                          step="0.1" 
-                          min="0" 
-                          max="10" 
-                          disabled={!canEdit}
-                          value={localGrades[hk.toString()][col] ?? ''} 
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? null : parseFloat(e.target.value);
-                            if (val !== null && (val < 0 || val > 10)) return;
-                            setLocalGrades(prev => ({ ...prev, [hk.toString()]: { ...prev[hk.toString()], [col]: val } }));
-                          }} 
-                          className={`w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-base font-black text-slate-800 text-center focus:border-indigo-400 focus:bg-white outline-none transition-all shadow-inner ${!canEdit ? 'bg-slate-100 cursor-not-allowed text-slate-400' : ''}`} 
-                        />
+                        <input type="number" step="0.1" min="0" max="10" disabled={!canEdit} value={localGrades[hk.toString()][col] ?? ''} onChange={(e) => {
+                          const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                          if (val !== null && (val < 0 || val > 10)) return;
+                          setLocalGrades(prev => ({ ...prev, [hk.toString()]: { ...prev[hk.toString()], [col]: val } }));
+                        }} className={`w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-base font-black text-slate-800 text-center focus:border-indigo-400 focus:bg-white outline-none transition-all shadow-inner ${!canEdit ? 'bg-slate-100 cursor-not-allowed text-slate-400' : ''}`} />
                       </div>
                     ))}
                   </div>
@@ -406,29 +354,22 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
                <div className="flex items-center gap-6">
                   <div className="text-center md:text-left">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cả năm dự kiến</p>
-                    <p className="text-4xl font-black text-slate-900 leading-none mt-1">
-                      {(() => {
-                        const tb1 = calculateAvg(editingStudent.MaHS, 1, selectedSubject, localGrades['1']);
-                        const tb2 = calculateAvg(editingStudent.MaHS, 2, selectedSubject, localGrades['2']);
-                        return (tb1 !== null && tb2 !== null) ? ((tb1 + tb2 * 2) / 3).toFixed(1) : '--';
-                      })()}
-                    </p>
+                    <p className="text-4xl font-black text-slate-900 leading-none mt-1">{(() => {
+                      const tb1 = calculateAvg(editingStudent.MaHS, 1, selectedSubject, localGrades['1']);
+                      const tb2 = calculateAvg(editingStudent.MaHS, 2, selectedSubject, localGrades['2']);
+                      return (tb1 !== null && tb2 !== null) ? ((tb1 + tb2 * 2) / 3).toFixed(1) : '--';
+                    })()}</p>
                   </div>
                   {!canEdit && (
-                    <div className="px-6 py-3 bg-amber-50 text-amber-600 border border-amber-100 rounded-2xl flex items-center gap-3 animate-pulse">
-                      <Lock size={20}/>
-                      <div className="text-left">
-                        <p className="text-[10px] font-black uppercase tracking-widest">Chế độ chỉ xem</p>
-                        <p className="text-[9px] font-bold opacity-70">Bạn không có quyền sửa điểm môn này</p>
-                      </div>
+                    <div className="px-6 py-3 bg-amber-50 text-amber-600 border border-amber-100 rounded-2xl flex items-center gap-3">
+                      <Lock size={20}/><div className="text-left"><p className="text-[10px] font-black uppercase tracking-widest">Chế độ xem</p><p className="text-[9px] font-bold opacity-70">Bạn không có quyền sửa điểm môn này</p></div>
                     </div>
                   )}
                </div>
-               
                <div className="flex gap-4 w-full md:w-auto">
-                 <button onClick={() => setEditingStudent(null)} className="flex-1 md:flex-none px-10 py-4 bg-slate-100 text-slate-500 rounded-2xl border border-slate-200 hover:bg-slate-200 transition-all font-black text-[11px] uppercase tracking-widest">Đóng</button>
+                 <button onClick={() => setEditingStudent(null)} className="flex-1 md:flex-none px-10 py-4 bg-slate-100 text-slate-500 rounded-2xl border border-slate-200 font-black text-[11px] uppercase tracking-widest">Đóng</button>
                  {canEdit && (
-                   <button onClick={saveDetail} disabled={isProcessing} className="flex-1 md:flex-none px-16 py-4 bg-indigo-600 text-white rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 shadow-xl shadow-indigo-100 active:scale-95 transition-all font-black text-[11px] uppercase tracking-widest">
+                   <button onClick={saveDetail} disabled={isProcessing} className="flex-1 md:flex-none px-16 py-4 bg-indigo-600 text-white rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 shadow-xl transition-all font-black text-[11px] uppercase tracking-widest">
                      {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} Xác nhận lưu điểm
                    </button>
                  )}
