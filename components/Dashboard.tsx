@@ -34,11 +34,16 @@ const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plan
   const classDisciplines = disciplines.filter(d => students.some(s => s.MaHS === d.MaHS));
   const pendingActions = classDisciplines.length;
 
+  const currentUser = state.currentUser as Teacher;
+  const isAdmin = currentUser?.quanly === true;
+
   const latestPlan = useMemo(() => {
     return [...plans]
       .filter(p => p.MaNienHoc === state.selectedYear)
+      // LOGIC LỌC MỚI: Chỉ hiện kế hoạch do chính mình tạo
+      .filter(p => isAdmin || p.MaGV === currentUser?.MaGV)
       .sort((a, b) => b.Tuan - a.Tuan)[0];
-  }, [plans, state.selectedYear]);
+  }, [plans, state.selectedYear, currentUser?.MaGV, isAdmin]);
 
   const data = [
     { name: 'Yếu', value: students.filter((_, i) => i % 5 === 0).length, color: '#f87171' },
@@ -51,7 +56,7 @@ const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plan
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 tracking-tight">Chào buổi sáng, {(state.currentUser as Teacher)?.Hoten}</h2>
+          <h2 className="text-xl font-bold text-slate-800 tracking-tight">Chào buổi sáng, {currentUser?.Hoten}</h2>
           <p className="text-xs text-slate-400 font-normal">Dưới đây là tổng quan tình hình lớp {state.selectedClass}.</p>
         </div>
         <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-100">
@@ -69,7 +74,7 @@ const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plan
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-           {latestPlan && (
+           {latestPlan ? (
              <div className="bg-white p-8 rounded-[40px] border border-indigo-100 shadow-sm relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><FileText size={120} /></div>
                 <div className="flex items-center gap-2 mb-4">
@@ -77,7 +82,7 @@ const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plan
                    <span className="text-[9px] text-slate-400 font-bold uppercase">{latestPlan.TuNgay} → {latestPlan.DenNgay}</span>
                 </div>
                 <h3 className="text-base font-black text-slate-800 uppercase mb-3 leading-tight">{latestPlan.TieuDe}</h3>
-                <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-50 mb-4">
+                <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-50 mb-4 shadow-inner">
                    <p className="text-[11px] text-slate-500 font-medium italic whitespace-pre-line leading-relaxed">
                      "{latestPlan.NoiDung}"
                    </p>
@@ -94,8 +99,13 @@ const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plan
                         <LinkIcon size={14} /> Mở file đính kèm
                       </a>
                    ) : <div />}
-                   <button className="flex items-center gap-1.5 text-[10px] font-black text-indigo-600 uppercase hover:underline">Chi tiết kế hoạch <ChevronRight size={14}/></button>
+                   <button className="flex items-center gap-1.5 text-[10px] font-black text-indigo-600 uppercase hover:underline">Xem tất cả kế hoạch của tôi <ChevronRight size={14}/></button>
                 </div>
+             </div>
+           ) : (
+             <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center opacity-40">
+                <FileText size={48} className="text-slate-200 mb-4" />
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Bạn chưa có kế hoạch tuần nào cho lớp này</p>
              </div>
            )}
 
