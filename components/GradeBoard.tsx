@@ -29,7 +29,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Dữ liệu điểm cục bộ cho lớp/môn đang chọn
   const [classGrades, setClassGrades] = useState<Grade[]>([]);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [localGrades, setLocalGrades] = useState<Record<string, Record<string, number | null>>>({
@@ -40,7 +39,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
   const isAdmin = currentUser?.quanly === true;
   const isHomeroom = state.currentRole === Role.CHU_NHIEM;
 
-  // PHÂN QUYỀN MÔN HỌC
   const visibleSubjects = useMemo(() => {
     if (isAdmin || isHomeroom) return subjectsList;
     const myAssignedSubjects = (assignments || [])
@@ -57,35 +55,26 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
     }
   }, [visibleSubjects]);
 
-  // TRUY VẤN DỮ LIỆU ĐIỂM (CHỈ LẤY LỚP/MÔN/NĂM NÀY)
   const fetchClassGrades = async () => {
     if (!state.selectedClass || !selectedSubject || students.length === 0) {
-      setClassGrades([]);
-      return;
+      setClassGrades([]); return;
     }
     setIsInitialLoading(true);
     try {
       const studentIds = students.map(s => s.MaHS);
-      // Chia nhỏ list MaHS nếu quá dài (Supabase giới hạn URL length)
       const { data, error } = await supabase
         .from('grades')
         .select('*')
         .eq('MaMonHoc', selectedSubject)
         .eq('MaNienHoc', state.selectedYear)
         .in('MaHS', studentIds);
-
       if (error) throw error;
       setClassGrades(data || []);
-    } catch (e) {
-      console.error("Lỗi tải điểm:", e);
-    } finally {
-      setIsInitialLoading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setIsInitialLoading(false); }
   };
 
-  useEffect(() => {
-    fetchClassGrades();
-  }, [state.selectedClass, selectedSubject, state.selectedYear, students]);
+  useEffect(() => { fetchClassGrades(); }, [state.selectedClass, selectedSubject, state.selectedYear, students]);
 
   const canEdit = useMemo(() => {
     if (isAdmin) return true;
@@ -97,18 +86,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
     );
   }, [isAdmin, isHomeroom, assignments, currentUser.MaGV, state.selectedClass, selectedSubject]);
 
-  const filteredStudents = useMemo(() => {
-    return (students || [])
-      .filter(s => s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()) || s.MaHS.toLowerCase().includes(searchTerm.toLowerCase()))
-      .sort((a, b) => a.MaHS.localeCompare(b.MaHS, undefined, { numeric: true }));
-  }, [students, searchTerm]);
-
-  const paginatedStudents = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredStudents.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredStudents, currentPage]);
-
-  const calculateAvg = (maHS: string, hk: number, subjectId: string, currentLocalGrades?: Record<string, number | null>) => {
+  const calculateAvg = (maHS: string, hk: number, currentLocalGrades?: Record<string, number | null>) => {
     let sourceGrades: Record<string, number | null> = {};
     if (currentLocalGrades) {
       sourceGrades = currentLocalGrades;
@@ -116,18 +94,14 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
       const records = classGrades.filter(g => String(g.MaHS) === String(maHS) && Number(g.HocKy) === Number(hk));
       records.forEach(r => { sourceGrades[r.LoaiDiem] = Number(r.DiemSo); });
     }
-
     const tx = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5'].map(key => sourceGrades[key]).filter(v => v !== null && v !== undefined && !isNaN(v)) as number[];
     const gk = sourceGrades['ĐGGK'];
     const ck = sourceGrades['ĐGCK'];
-
     if (tx.length === 0 && gk == null && ck == null) return null;
-
     let totalScore = 0; let totalWeight = 0;
     tx.forEach(v => { totalScore += v; totalWeight += 1; });
     if (gk != null) { totalScore += (gk * 2); totalWeight += 2; }
     if (ck != null) { totalScore += (ck * 3); totalWeight += 3; }
-
     return totalWeight > 0 ? totalScore / totalWeight : null;
   };
 
@@ -160,17 +134,12 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
           }
         });
       });
-
       if (upsertData.length > 0) {
         await supabase.from('grades').upsert(upsertData);
         await fetchClassGrades();
       }
       setEditingStudent(null);
-    } catch (e: any) {
-      alert("Lỗi: " + e.message);
-    } finally {
-      setIsProcessing(false);
-    }
+    } catch (e: any) { alert("Lỗi: " + e.message); } finally { setIsProcessing(false); }
   };
 
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,6 +185,17 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
     reader.readAsText(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const filteredStudents = useMemo(() => {
+    return (students || [])
+      .filter(s => s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()) || s.MaHS.toLowerCase().includes(searchTerm.toLowerCase()))
+      .sort((a, b) => a.MaHS.localeCompare(b.MaHS, undefined, { numeric: true }));
+  }, [students, searchTerm]);
+
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredStudents.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredStudents, currentPage]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-2 pb-20 animate-in fade-in">
@@ -277,8 +257,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {paginatedStudents.map((s, idx) => {
-                const tb1 = calculateAvg(s.MaHS, 1, selectedSubject);
-                const tb2 = calculateAvg(s.MaHS, 2, selectedSubject);
+                const tb1 = calculateAvg(s.MaHS, 1);
+                const tb2 = calculateAvg(s.MaHS, 2);
                 const cn = (tb1 !== null && tb2 !== null) ? (tb1 + tb2 * 2) / 3 : null;
                 return (
                   <tr key={s.MaHS} className="hover:bg-indigo-50/20 transition-all text-[11px] font-bold group">
@@ -331,7 +311,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
                     <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2"><span className="w-2 h-6 bg-indigo-600 rounded-full"></span>Học kỳ {hk}</h4>
                     <div className="text-right">
                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">ĐTB Dự kiến</p>
-                       <p className="text-xl font-black text-indigo-600">{calculateAvg(editingStudent.MaHS, hk, selectedSubject, localGrades[hk.toString()])?.toFixed(1) || '--'}</p>
+                       <p className="text-xl font-black text-indigo-600">{calculateAvg(editingStudent.MaHS, hk, localGrades[hk.toString()])?.toFixed(1) || '--'}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -355,8 +335,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
                   <div className="text-center md:text-left">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cả năm dự kiến</p>
                     <p className="text-4xl font-black text-slate-900 leading-none mt-1">{(() => {
-                      const tb1 = calculateAvg(editingStudent.MaHS, 1, selectedSubject, localGrades['1']);
-                      const tb2 = calculateAvg(editingStudent.MaHS, 2, selectedSubject, localGrades['2']);
+                      const tb1 = calculateAvg(editingStudent.MaHS, 1, localGrades['1']);
+                      const tb2 = calculateAvg(editingStudent.MaHS, 2, localGrades['2']);
                       return (tb1 !== null && tb2 !== null) ? ((tb1 + tb2 * 2) / 3).toFixed(1) : '--';
                     })()}</p>
                   </div>
