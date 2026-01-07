@@ -1,11 +1,12 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
-  Users, TrendingUp, AlertCircle, Calendar, CheckCircle2, FileText, ChevronRight, Link as LinkIcon, Lock, Loader2
+  Users, TrendingUp, AlertCircle, Calendar, CheckCircle2, FileText, ChevronRight, Link as LinkIcon, Lock, Loader2, Bell
 } from 'lucide-react';
 import { AppState, Student, Teacher, SchoolPlan, ChatMessage, Role } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { supabase } from '../services/supabaseClient';
+import GroupChat from './GroupChat';
 
 interface Props {
   state: AppState;
@@ -81,8 +82,8 @@ const Dashboard: React.FC<Props> = ({ state, students, plans, messages, onSendMe
         <StatCard icon={<CheckCircle2 size={20} />} label="Hiện diện" value={stats.attendance} subValue="Hôm nay" color="sky" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-8 space-y-6">
            {latestPlan ? (
              <div className="bg-white p-8 rounded-[40px] border border-indigo-100 shadow-sm relative overflow-hidden group">
                 <div className="flex items-center gap-2 mb-4">
@@ -118,9 +119,8 @@ const Dashboard: React.FC<Props> = ({ state, students, plans, messages, onSendMe
            </div>
         </div>
 
-        <div className="bg-white p-10 rounded-[32px] border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center opacity-40 h-full">
-            <div className="p-6 bg-slate-50 rounded-full mb-4"><Lock size={48} className="text-slate-200" /></div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-8 leading-loose">Hệ thống thông báo thông minh đang cập nhật phiên bản mới</p>
+        <div className="lg:col-span-4 h-full">
+            <GroupChat state={state} messages={messages} onSendMessage={onSendMessage} />
         </div>
       </div>
     </div>
