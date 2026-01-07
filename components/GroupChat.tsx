@@ -17,7 +17,7 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
   const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canPost = state.currentRole === Role.CHU_NHIEM;
+  const isTeacher = state.currentRole !== Role.STUDENT;
 
   // Đảo ngược danh sách tin nhắn để tin mới nhất lên đầu
   const reversedMessages = [...messages].reverse();
@@ -95,7 +95,9 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
             <Bell size={20} />
           </div>
           <div>
-            <h3 className="text-xs font-black uppercase tracking-widest">Thông báo từ GVCN</h3>
+            <h3 className="text-xs font-black uppercase tracking-widest">
+              {isTeacher ? "Thông báo của tôi" : "Thông báo từ GVCN"}
+            </h3>
             <p className="text-[9px] text-white/70 font-bold uppercase tracking-widest mt-0.5">Lớp {state.selectedClass} • Tin mới nhất ở trên đầu</p>
           </div>
         </div>
@@ -103,14 +105,14 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
 
       <div className="flex-1 overflow-y-auto p-5 space-y-6 bg-slate-50/30 custom-scrollbar">
         {reversedMessages.length > 0 ? reversedMessages.map((msg, index) => {
-          const isTeacher = msg.senderRole === Role.CHU_NHIEM || msg.senderRole === Role.GIANG_DAY;
+          const isMsgTeacher = msg.senderRole === Role.CHU_NHIEM || msg.senderRole === Role.GIANG_DAY;
           const isLatest = index === 0;
           
           return (
             <div key={msg.id} className={`flex flex-col items-start animate-in fade-in slide-in-from-top-2 duration-500`}>
               <div className="flex items-start gap-3 w-full">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border-2 ${isTeacher ? 'bg-indigo-600 text-white border-indigo-100 shadow-lg' : 'bg-white text-slate-400 border-slate-100'}`}>
-                  {isTeacher ? <ShieldCheck size={18} /> : <span className="text-[11px] font-black">{getInitials(msg.senderName)}</span>}
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border-2 ${isMsgTeacher ? 'bg-indigo-600 text-white border-indigo-100 shadow-lg' : 'bg-white text-slate-400 border-slate-100'}`}>
+                  {isMsgTeacher ? <ShieldCheck size={18} /> : <span className="text-[11px] font-black">{getInitials(msg.senderName)}</span>}
                 </div>
                 <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="flex items-center justify-between">
@@ -167,7 +169,7 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
         )}
       </div>
 
-      {canPost ? (
+      {isTeacher ? (
         <div className="p-4 border-t border-slate-100 bg-white shrink-0 space-y-4">
           {(isUploading || attachmentUrl) && (
             <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-2xl border border-indigo-100 animate-in slide-in-from-bottom-2 shadow-sm">
