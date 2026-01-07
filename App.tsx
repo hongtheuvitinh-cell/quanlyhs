@@ -94,7 +94,6 @@ const App: React.FC = () => {
   const filteredClasses = useMemo(() => {
     if (!state.currentUser || (state.currentUser as any).MaHS) return [];
     
-    // Nếu là Admin toàn quyền, cho phép chọn tất cả các lớp
     if ((state.currentUser as Teacher).quanly) return classes;
 
     const teacherID = (state.currentUser as Teacher).MaGV;
@@ -136,10 +135,9 @@ const App: React.FC = () => {
     } else {
       const t = teachers.find(x => x.MaGV === id);
       if (t && (t.MatKhau || '123456') === pass) {
-        // Kiểm tra quyền quản lý (Admin)
         if (t.quanly) {
           setState(p => ({ 
-            ...p, currentUser: t, currentRole: Role.CHU_NHIEM, // Mặc định role khi vào
+            ...p, currentUser: t, currentRole: Role.CHU_NHIEM,
             selectedClass: classes[0]?.MaLop || '',
             selectedYear: years[0]?.MaNienHoc || state.selectedYear 
           }));
@@ -222,6 +220,13 @@ const App: React.FC = () => {
     );
   }
 
+  // LOGIC LỌC NGHIÊM NGẶT: Chỉ hiện tin nhắn do chính GV này tạo VỚI VAI TRÒ CHỦ NHIỆM
+  const teacherMessages = messages.filter(m => 
+    m.MaLop === state.selectedClass && 
+    m.senderId === currentUserAsTeacher?.MaGV &&
+    m.senderRole === Role.CHU_NHIEM
+  );
+
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden text-[13px] font-normal text-slate-600">
       <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm relative z-20">
@@ -253,7 +258,6 @@ const App: React.FC = () => {
             </button>
           ))}
           
-          {/* Menu DS Giáo Viên cho Admin */}
           {currentUserAsTeacher?.quanly && (
             <button onClick={() => setActiveTab('teachers')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest mt-6 transition-all ${activeTab === 'teachers' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
               <Shield size={18} /> DS Giáo Viên
@@ -297,7 +301,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC] custom-scrollbar">
-          {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} grades={grades} disciplines={disciplines} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} />}
+          {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} grades={grades} disciplines={disciplines} plans={plans} messages={teacherMessages} onSendMessage={handleSendMessage} />}
           {activeTab === 'students' && <StudentList state={state} students={currentClassStudents} grades={grades} disciplines={disciplines} logs={logs} violationRules={violationRules} onUpdateStudent={(s) => supabase.from('students').upsert(s).then(() => fetchData())} onDeleteStudent={(id) => supabase.from('students').delete().eq('MaHS', id).then(() => fetchData())} />}
           {activeTab === 'grades' && <GradeBoard state={state} students={currentClassStudents} grades={grades} onUpdateGrades={() => fetchData()} />}
           {activeTab === 'tasks' && <TaskManager state={state} students={currentClassStudents} tasks={tasks} onUpdateTasks={(t) => supabase.from('tasks').upsert(t).then(() => fetchData())} onDeleteTask={(id) => supabase.from('tasks').delete().eq('MaNhiemVu', id).then(() => fetchData())} />}
