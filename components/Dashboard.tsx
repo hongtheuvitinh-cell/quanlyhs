@@ -8,9 +8,10 @@ import {
   CheckCircle2,
   FileText,
   ChevronRight,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Lock
 } from 'lucide-react';
-import { AppState, Student, Grade, Discipline, Teacher, SchoolPlan, ChatMessage } from '../types';
+import { AppState, Student, Grade, Discipline, Teacher, SchoolPlan, ChatMessage, Role } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import GroupChat from './GroupChat';
 
@@ -25,31 +26,30 @@ interface Props {
 }
 
 const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plans, messages, onSendMessage }) => {
-  const totalStudents = students.length;
-  const classGrades = grades.filter(g => students.some(s => s.MaHS === g.MaHS));
+  const totalStudents = students?.length || 0;
+  const classGrades = (grades || []).filter(g => (students || []).some(s => s.MaHS === g.MaHS));
   const avgGrade = classGrades.length > 0 
     ? (classGrades.reduce((sum, g) => sum + g.DiemSo, 0) / classGrades.length).toFixed(1)
     : '0.0';
   
-  const classDisciplines = disciplines.filter(d => students.some(s => s.MaHS === d.MaHS));
+  const classDisciplines = (disciplines || []).filter(d => (students || []).some(s => s.MaHS === d.MaHS));
   const pendingActions = classDisciplines.length;
 
   const currentUser = state.currentUser as Teacher;
   const isAdmin = currentUser?.quanly === true;
 
   const latestPlan = useMemo(() => {
-    return [...plans]
+    return [...(plans || [])]
       .filter(p => p.MaNienHoc === state.selectedYear)
-      // LOGIC LỌC MỚI: Chỉ hiện kế hoạch do chính mình tạo
       .filter(p => isAdmin || p.MaGV === currentUser?.MaGV)
       .sort((a, b) => b.Tuan - a.Tuan)[0];
   }, [plans, state.selectedYear, currentUser?.MaGV, isAdmin]);
 
   const data = [
-    { name: 'Yếu', value: students.filter((_, i) => i % 5 === 0).length, color: '#f87171' },
-    { name: 'Trung Bình', value: students.filter((_, i) => i % 3 === 0).length, color: '#fbbf24' },
-    { name: 'Khá', value: students.filter((_, i) => i % 2 === 0).length, color: '#60a5fa' },
-    { name: 'Giỏi', value: Math.max(0, students.length - 3), color: '#34d399' },
+    { name: 'Yếu', value: (students || []).filter((_, i) => i % 5 === 0).length, color: '#f87171' },
+    { name: 'Trung Bình', value: (students || []).filter((_, i) => i % 3 === 0).length, color: '#fbbf24' },
+    { name: 'Khá', value: (students || []).filter((_, i) => i % 2 === 0).length, color: '#60a5fa' },
+    { name: 'Giỏi', value: Math.max(0, (students?.length || 0) - 3), color: '#34d399' },
   ];
 
   return (
@@ -130,7 +130,14 @@ const Dashboard: React.FC<Props> = ({ state, students, grades, disciplines, plan
         </div>
 
         <div className="space-y-6">
-          <GroupChat state={state} messages={messages} onSendMessage={onSendMessage} />
+          {state.currentRole === Role.CHU_NHIEM ? (
+            <GroupChat state={state} messages={messages || []} onSendMessage={onSendMessage} />
+          ) : (
+            <div className="bg-white p-10 rounded-[32px] border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center opacity-40 h-[600px]">
+               <div className="p-6 bg-slate-50 rounded-full mb-4"><Lock size={48} className="text-slate-200" /></div>
+               <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-8">Tính năng thông báo chỉ dành cho Giáo viên chủ nhiệm</p>
+            </div>
+          )}
           
           <div className="bg-white p-5 rounded-[32px] border border-slate-200 shadow-sm flex flex-col">
             <h3 className="text-xs font-bold mb-5 flex items-center gap-2 uppercase tracking-wider text-slate-800 px-1">
