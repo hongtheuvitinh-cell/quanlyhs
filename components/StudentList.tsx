@@ -1,10 +1,10 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Search, User, Users, Calendar, Phone, Trash2, Plus, Sparkles, X, Save, 
   Edit2, MapPin, Mail, Info, Loader2, ChevronRight, GraduationCap,
   CheckCircle, Image as ImageIcon, BrainCircuit, ShieldAlert, ClipboardList, Briefcase, Lock, FileText, PlusCircle,
-  AlertCircle, Clock, UserPlus
+  AlertCircle, Clock, UserPlus, FileUp
 } from 'lucide-react';
 import { AppState, Student, Grade, Discipline, LearningLog, ViolationRule } from '../types';
 import { analyzeStudentPerformance } from '../services/geminiService';
@@ -32,6 +32,8 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
   const [aiResult, setAiResult] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [formData, setFormData] = useState<Partial<Student>>({});
+  const [isProcessingCSV, setIsProcessingCSV] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dữ liệu chi tiết cho modal
   const [studentGrades, setStudentGrades] = useState<Grade[]>([]);
@@ -59,6 +61,50 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
     } finally {
       setIsLoadingDetails(false);
     }
+  };
+
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsProcessingCSV(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target?.result as string;
+      const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+      if (lines.length < 2) { setIsProcessingCSV(false); return; }
+      
+      const studentsToInsert: any[] = [];
+      const rows = lines.slice(1);
+      
+      rows.forEach(row => {
+        const cols = row.split(',').map(c => c.trim());
+        if (cols.length >= 2) {
+          studentsToInsert.push({
+            MaHS: cols[0] || `HS${Date.now()}${Math.floor(Math.random()*1000)}`,
+            Hoten: cols[1],
+            NgaySinh: cols[2] || '2010-01-01',
+            GioiTinh: cols[3]?.toLowerCase() === 'nam',
+            SDT_LinkHe: cols[4] || '',
+            DiaChi: cols[5] || '',
+            MaLopHienTai: state.selectedClass,
+            MaNienHoc: state.selectedYear,
+            MatKhau: '123456'
+          });
+        }
+      });
+
+      if (studentsToInsert.length > 0) {
+        const { error } = await supabase.from('students').upsert(studentsToInsert);
+        if (error) alert("Lỗi: " + error.message);
+        else {
+          alert(`Đã nhập thành công ${studentsToInsert.length} học sinh!`);
+          window.location.reload();
+        }
+      }
+      setIsProcessingCSV(false);
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const sortedStudents = useMemo(() => {
@@ -89,7 +135,18 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
 
   const handleOpenForm = (student?: Student) => {
     if (student) setFormData({ ...student });
-    else setFormData({ MaHS: `HS${Date.now().toString().slice(-6)}`, Hoten: '', NgaySinh: '2010-01-01', GioiTinh: true, DiaChi: '', SDT_LinkHe: '', MatKhau: '123456' });
+    else setFormData({ 
+      MaHS: `HS${Date.now().toString().slice(-6)}`, 
+      Hoten: '', 
+      NgaySinh: '2010-01-01', 
+      GioiTinh: true, 
+      DiaChi: '', 
+      SDT_LinkHe: '', 
+      MatKhau: '123456',
+      TenCha: '', NgheNghiepCha: '',
+      TenMe: '', NgheNghiepMe: '',
+      Email: '', GhiChuKhac: ''
+    });
     setIsFormOpen(true);
   };
 
@@ -105,6 +162,10 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
           <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <input type="text" placeholder="Tìm tên hoặc mã số..." className="pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none w-64 text-xs font-bold focus:bg-white focus:border-indigo-400 transition-all shadow-inner" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
+          <button onClick={() => fileInputRef.current?.click()} className="px-6 py-3 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-100 transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-emerald-100">
+            {isProcessingCSV ? <Loader2 size={18} className="animate-spin" /> : <FileUp size={18} />} Nhập CSV
+          </button>
+          <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
           <button onClick={() => handleOpenForm()} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl shadow-xl hover:bg-indigo-700 transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><Plus size={18} /> Thêm HS Mới</button>
         </div>
       </div>
@@ -169,8 +230,24 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                        <InfoField label="Ngày sinh" value={selectedStudent.NgaySinh} icon={<Calendar size={16}/>} />
                        <InfoField label="Số điện thoại" value={selectedStudent.SDT_LinkHe} icon={<Phone size={16}/>} />
+                       <InfoField label="Email" value={selectedStudent.Email} icon={<Mail size={16}/>} />
                        <InfoField label="Mật khẩu" value={selectedStudent.MatKhau || '123456'} icon={<Lock size={16}/>} colorClass="text-indigo-600 bg-indigo-50/50" />
                        <InfoField label="Địa chỉ" value={selectedStudent.DiaChi} icon={<MapPin size={16}/>} colSpan={2} />
+                       <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t">
+                         <div className="space-y-4">
+                            <h4 className="text-[11px] font-black uppercase text-indigo-500 tracking-widest px-2">Thông tin Cha</h4>
+                            <InfoField label="Họ tên Cha" value={selectedStudent.TenCha} icon={<User size={14}/>} />
+                            <InfoField label="Nghề nghiệp" value={selectedStudent.NgheNghiepCha} icon={<Briefcase size={14}/>} />
+                         </div>
+                         <div className="space-y-4">
+                            <h4 className="text-[11px] font-black uppercase text-rose-500 tracking-widest px-2">Thông tin Mẹ</h4>
+                            <InfoField label="Họ tên Mẹ" value={selectedStudent.TenMe} icon={<User size={14}/>} />
+                            <InfoField label="Nghề nghiệp" value={selectedStudent.NgheNghiepMe} icon={<Briefcase size={14}/>} />
+                         </div>
+                       </div>
+                       <div className="md:col-span-2 pt-4 border-t">
+                          <InfoField label="Ghi chú khác" value={selectedStudent.GhiChuKhac} icon={<FileText size={16}/>} colSpan={2} />
+                       </div>
                     </div>
                   )}
                   {activeInfoTab === 'GRADES' && (
@@ -217,13 +294,53 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
 
       {isFormOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in overflow-y-auto">
-           <div className="bg-white w-full max-w-4xl rounded-[50px] p-10 shadow-2xl my-auto max-h-[90vh] overflow-y-auto custom-scrollbar border border-white/20">
+           <div className="bg-white w-full max-w-5xl rounded-[50px] p-10 shadow-2xl my-auto border border-white/20">
               <div className="flex items-center justify-between mb-8"><div className="flex items-center gap-4"><div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg"><UserPlus size={24}/></div><h3 className="text-xl font-black text-slate-800 uppercase tracking-widest">Hồ sơ học sinh điện tử</h3></div><button onClick={() => setIsFormOpen(false)} className="p-3 hover:bg-slate-100 rounded-full"><X size={28} className="text-slate-400"/></button></div>
               <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
-                 <div className="md:col-span-4 space-y-6"><div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase px-1">Ảnh hồ sơ</label><div className="aspect-[2/3] w-full bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px] flex flex-col items-center justify-center overflow-hidden relative">{formData.Anh ? <img src={formData.Anh} className="w-full h-full object-cover" /> : <ImageIcon size={48} className="text-slate-200" />}<input type="text" placeholder="URL ảnh..." value={formData.Anh} onChange={e => setFormData({...formData, Anh: e.target.value})} className="absolute bottom-4 left-4 right-4 p-3 bg-white/90 shadow-xl border border-slate-100 rounded-2xl text-[10px] font-bold outline-none" /></div></div><InputField label="ID" value={formData.MaHS} onChange={(v:any) => setFormData({...formData, MaHS: v})} disabled={!!selectedStudent} /><InputField label="Mật khẩu" value={formData.MatKhau} onChange={(v:any) => setFormData({...formData, MatKhau: v})} /></div>
-                 <div className="md:col-span-8 space-y-8"><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><InputField label="Họ tên" value={formData.Hoten} onChange={(v:any) => setFormData({...formData, Hoten: v})} /><InputField label="Ngày sinh" value={formData.NgaySinh} onChange={(v:any) => setFormData({...formData, NgaySinh: v})} type="date" /><InputField label="Giới tính" value={formData.GioiTinh ? 'Nam' : 'Nữ'} onChange={(v:any) => setFormData({...formData, GioiTinh: v === 'Nam'})} type="select" options={['Nam', 'Nữ']} /><InputField label="Số ĐT" value={formData.SDT_LinkHe} onChange={(v:any) => setFormData({...formData, SDT_LinkHe: v})} /><InputField label="Email" value={formData.Email} onChange={(v:any) => setFormData({...formData, Email: v})} /><InputField label="Địa chỉ" value={formData.DiaChi} onChange={(v:any) => setFormData({...formData, DiaChi: v})} colSpan={2} /></div></div>
+                 <div className="md:col-span-4 space-y-6">
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-slate-400 uppercase px-1">Ảnh hồ sơ</label>
+                       <div className="aspect-[2/3] w-full bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px] flex flex-col items-center justify-center overflow-hidden relative">
+                          {formData.Anh ? <img src={formData.Anh} className="w-full h-full object-cover" /> : <ImageIcon size={48} className="text-slate-200" />}
+                          <input type="text" placeholder="URL ảnh..." value={formData.Anh || ''} onChange={e => setFormData({...formData, Anh: e.target.value})} className="absolute bottom-4 left-4 right-4 p-3 bg-white/90 shadow-xl border border-slate-100 rounded-2xl text-[10px] font-bold outline-none" />
+                       </div>
+                    </div>
+                    {/* Fixed 'id' property error: changed !!formData.id to !!selectedStudent to correctly identify edit mode based on whether a student is being viewed in detail modal */}
+                    <InputField label="Mã Học Sinh (ID)" value={formData.MaHS} onChange={(v:any) => setFormData({...formData, MaHS: v})} disabled={!!selectedStudent} />
+                    <InputField label="Mật khẩu truy cập" value={formData.MatKhau} onChange={(v:any) => setFormData({...formData, MatKhau: v})} />
+                 </div>
+                 <div className="md:col-span-8 space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                       <InputField label="Họ tên học sinh" value={formData.Hoten} onChange={(v:any) => setFormData({...formData, Hoten: v})} />
+                       <InputField label="Ngày sinh" value={formData.NgaySinh} onChange={(v:any) => setFormData({...formData, NgaySinh: v})} type="date" />
+                       <InputField label="Giới tính" value={formData.GioiTinh ? 'Nam' : 'Nữ'} onChange={(v:any) => setFormData({...formData, GioiTinh: v === 'Nam'})} type="select" options={['Nam', 'Nữ']} />
+                       <InputField label="Số điện thoại" value={formData.SDT_LinkHe} onChange={(v:any) => setFormData({...formData, SDT_LinkHe: v})} />
+                       <InputField label="Email" value={formData.Email} onChange={(v:any) => setFormData({...formData, Email: v})} />
+                       <InputField label="Địa chỉ cư trú" value={formData.DiaChi} onChange={(v:any) => setFormData({...formData, DiaChi: v})} colSpan={2} />
+                       
+                       <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t">
+                          <InputField label="Họ tên Cha" value={formData.TenCha} onChange={(v:any) => setFormData({...formData, TenCha: v})} />
+                          <InputField label="Nghề nghiệp Cha" value={formData.NgheNghiepCha} onChange={(v:any) => setFormData({...formData, NgheNghiepCha: v})} />
+                          <InputField label="Họ tên Mẹ" value={formData.TenMe} onChange={(v:any) => setFormData({...formData, TenMe: v})} />
+                          <InputField label="Nghề nghiệp Mẹ" value={formData.NgheNghiepMe} onChange={(v:any) => setFormData({...formData, NgheNghiepMe: v})} />
+                       </div>
+
+                       <div className="md:col-span-2 pt-6 border-t">
+                          <label className="text-[10px] font-black text-slate-400 uppercase px-2 mb-2 block">Ghi chú khác</label>
+                          <textarea 
+                            value={formData.GhiChuKhac || ''} 
+                            onChange={e => setFormData({...formData, GhiChuKhac: e.target.value})} 
+                            className="w-full p-5 bg-slate-50 border border-slate-200 rounded-[24px] text-[13px] font-bold outline-none h-24"
+                            placeholder="Tình trạng sức khỏe, năng khiếu, cá tính..."
+                          />
+                       </div>
+                    </div>
+                 </div>
               </div>
-              <div className="mt-12 flex gap-6 shrink-0"><button onClick={() => setIsFormOpen(false)} className="flex-1 py-5 bg-slate-50 text-slate-500 rounded-[28px] font-black text-[11px] uppercase">Đóng</button><button onClick={() => { onUpdateStudent({...formData as Student, MaLopHienTai: state.selectedClass, MaNienHoc: state.selectedYear}); setIsFormOpen(false); }} className="flex-[2] py-5 bg-indigo-600 text-white rounded-[28px] font-black text-[11px] uppercase shadow-xl flex items-center justify-center gap-3"><Save size={20}/> Lưu hồ sơ</button></div>
+              <div className="mt-12 flex gap-6 shrink-0">
+                 <button onClick={() => setIsFormOpen(false)} className="flex-1 py-5 bg-slate-50 text-slate-500 rounded-[28px] font-black text-[11px] uppercase tracking-widest hover:bg-slate-100 transition-all">Hủy bỏ</button>
+                 <button onClick={() => { onUpdateStudent({...formData as Student, MaLopHienTai: state.selectedClass, MaNienHoc: state.selectedYear}); setIsFormOpen(false); }} className="flex-[2] py-5 bg-indigo-600 text-white rounded-[28px] font-black text-[11px] uppercase shadow-xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all tracking-[2px]"><Save size={20}/> Lưu hồ sơ học sinh</button>
+              </div>
            </div>
         </div>
       )}
