@@ -1,19 +1,20 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { 
-  GraduationCap, Save, Loader2, Search, FileUp, Eye, X, User, ChevronLeft, ChevronRight
+  GraduationCap, Save, Loader2, Search, FileUp, Eye, X, User, ChevronLeft, ChevronRight, Lock, ShieldCheck, Book
 } from 'lucide-react';
-import { AppState, Student, Grade } from '../types';
+import { AppState, Student, Grade, Assignment, Teacher, Role } from '../types';
 import { supabase } from '../services/supabaseClient';
 
 interface Props {
   state: AppState;
   students: Student[];
   grades: Grade[];
+  assignments: Assignment[];
   onUpdateGrades: () => Promise<void>;
 }
 
-const subjects = [
+const subjectsList = [
   { id: 'TOAN', name: 'Toán' }, { id: 'VAN', name: 'Văn' }, { id: 'ANH', name: 'Anh' },
   { id: 'LY', name: 'Lý' }, { id: 'HOA', name: 'Hóa' }, { id: 'SINH', name: 'Sinh' },
   { id: 'DIA', name: 'Địa' }, { id: 'SU', name: 'Sử' }, { id: 'GDCD', name: 'GDCD' }
@@ -22,8 +23,7 @@ const subjects = [
 const ITEMS_PER_PAGE = 15;
 const GRADE_COLUMNS = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
 
-const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }) => {
-  const [selectedSubject, setSelectedSubject] = useState(subjects[0].id);
+const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onUpdateGrades }) => {
   const [selectedHK, setSelectedHK] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,8 +35,58 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     '1': {}, '2': {}
   });
 
+  const currentUser = state.currentUser as Teacher;
+  const isAdmin = currentUser?.quanly === true;
+  const isHomeroom = state.currentRole === Role.CHU_NHIEM;
+
+  // LOGIC PHÂN QUYỀN HIỂN THỊ MÔN HỌC
+  const visibleSubjects = useMemo(() => {
+    // 1. Nếu là Admin hoặc GVCN -> Thấy tất cả môn
+    if (isAdmin || isHomeroom) return subjectsList;
+
+    // 2. Nếu là GVBM -> Chỉ thấy môn mình dạy
+    const myAssignedSubjects = (assignments || [])
+      .filter(a => 
+        a.MaGV === currentUser.MaGV && 
+        a.MaLop === state.selectedClass && 
+        a.LoaiPhanCong === Role.GIANG_DAY
+      )
+      .map(a => a.MaMonHoc);
+
+    return subjectsList.filter(s => myAssignedSubjects.includes(s.id));
+  }, [assignments, currentUser.MaGV, state.selectedClass, isAdmin, isHomeroom]);
+
+  const [selectedSubject, setSelectedSubject] = useState(visibleSubjects[0]?.id || subjectsList[0].id);
+
+  // Tự động chuyển môn nếu môn đang chọn không nằm trong danh sách được phép
+  useMemo(() => {
+    if (visibleSubjects.length > 0 && !visibleSubjects.some(s => s.id === selectedSubject)) {
+      setSelectedSubject(visibleSubjects[0].id);
+    }
+  }, [visibleSubjects]);
+
+  // KIỂM TRA QUYỀN CHỈNH SỬA CHO MÔN ĐANG CHỌN
+  const canEdit = useMemo(() => {
+    // Admin luôn được sửa
+    if (isAdmin) return true;
+    
+    // GVCN không được sửa (Chỉ xem)
+    if (isHomeroom) return false;
+
+    // GVBM được sửa môn mình dạy
+    const isMySubject = (assignments || [])
+      .some(a => 
+        a.MaGV === currentUser.MaGV && 
+        a.MaLop === state.selectedClass && 
+        a.MaMonHoc === selectedSubject &&
+        a.LoaiPhanCong === Role.GIANG_DAY
+      );
+
+    return isMySubject;
+  }, [isAdmin, isHomeroom, assignments, currentUser.MaGV, state.selectedClass, selectedSubject]);
+
   const filteredStudents = useMemo(() => {
-    return students
+    return (students || [])
       .filter(s => 
         s.Hoten.toLowerCase().includes(searchTerm.toLowerCase()) || 
         s.MaHS.toLowerCase().includes(searchTerm.toLowerCase())
@@ -55,7 +105,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     if (currentLocalGrades) {
       sourceGrades = currentLocalGrades;
     } else {
-      const records = grades.filter(g => 
+      const records = (grades || []).filter(g => 
         g.MaHS === maHS && 
         g.MaMonHoc === subjectId && 
         Number(g.HocKy) === Number(hk) && 
@@ -85,7 +135,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
     const data: Record<string, Record<string, number | null>> = { '1': {}, '2': {} };
     [1, 2].forEach(hk => {
       GRADE_COLUMNS.forEach(col => data[hk.toString()][col] = null);
-      const currentGrades = grades.filter(g => 
+      const currentGrades = (grades || []).filter(g => 
         g.MaHS === student.MaHS && 
         g.MaMonHoc === selectedSubject && 
         Number(g.HocKy) === Number(hk) && 
@@ -98,7 +148,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   };
 
   const saveDetail = async () => {
-    if (!editingStudent) return;
+    if (!editingStudent || !canEdit) return;
     setIsProcessing(true);
     try {
       const upsertData: any[] = [];
@@ -135,6 +185,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
   };
 
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canEdit) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -143,23 +194,16 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       const text = evt.target?.result as string;
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
       if (lines.length < 2) return;
-
       const rows = lines.slice(1);
-      
-      // SỬ DỤNG MAP ĐỂ LOẠI BỎ TRÙNG LẶP NGAY TRONG MẢNG DỮ LIỆU GỬI ĐI
-      // Key: maHS + loaiDiem -> Đảm bảo mỗi học sinh chỉ có 1 bản ghi cho 1 loại điểm trong 1 lần upsert
       const upsertMap = new Map<string, any>();
 
       rows.forEach(row => {
         const cols = row.split(',').map(c => c.trim());
         if (cols.length >= 6) {
           const maHS = cols[0];
-          let mapping: string[] = [];
-          if (cols.length === 8) {
-            mapping = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK'];
-          } else {
-            mapping = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
-          }
+          let mapping = cols.length === 8 
+            ? ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK']
+            : ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
 
           mapping.forEach((type, idx) => {
             const val = cols[idx + 2];
@@ -173,7 +217,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                   Number(g.MaNienHoc) === Number(state.selectedYear) && 
                   g.LoaiDiem === type
                 );
-
                 const key = `${maHS}_${type}`;
                 upsertMap.set(key, {
                   ...(old ? { MaDiem: old.MaDiem } : { MaDiem: Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000000) }),
@@ -187,17 +230,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
       });
 
       const finalUpsertData = Array.from(upsertMap.values());
-
       if (finalUpsertData.length > 0) {
         setIsProcessing(true);
         const { error } = await supabase.from('grades').upsert(finalUpsertData);
-        if (error) {
-          console.error(error);
-          alert("Lỗi dữ liệu: " + error.message);
-        } else {
-           await onUpdateGrades();
-           alert(`Thành công! Đã nhập ${finalUpsertData.length} đầu điểm.`);
-        }
+        if (error) alert("Lỗi: " + error.message);
+        else { await onUpdateGrades(); alert(`Thành công! Đã nhập ${finalUpsertData.length} đầu điểm.`); }
         setIsProcessing(false);
       }
     };
@@ -207,88 +244,87 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
 
   return (
     <div className="max-w-7xl mx-auto space-y-2 pb-20 animate-in fade-in">
-      {/* HEADER SHARP NAVY */}
-      <div className="bg-[#0f172a] text-white p-2 flex flex-col lg:flex-row lg:items-center justify-between gap-2 border-b border-slate-700 rounded-none shadow-none">
-        <div className="flex items-center gap-3">
-          <div className="p-1.5 bg-orange-500 rounded-none"><GraduationCap size={16} /></div>
-          <div>
-            <h2 className="text-[10px] font-black uppercase tracking-widest">Bảng điểm môn: {subjects.find(s => s.id === selectedSubject)?.name}</h2>
-            <p className="text-[8px] text-slate-400 font-bold uppercase">Niên học: {state.selectedYear}</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex bg-slate-800 p-0.5 border border-slate-700 rounded-none">
-            {[1, 2].map(hk => (
-              <button 
-                key={hk} onClick={() => setSelectedHK(hk)}
-                className={`px-4 py-1 text-[8px] font-black uppercase transition-all rounded-none ${selectedHK === hk ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-                Học kỳ {hk}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" size={10} />
-            <input 
-              type="text" placeholder="Tìm kiếm..." 
-              value={searchTerm} onChange={e => setSearchTerm(e.target.value)} 
-              className="pl-6 pr-2 py-1 bg-slate-800 border border-slate-700 text-[9px] w-32 focus:ring-1 focus:ring-orange-500 outline-none text-white rounded-none" 
-            />
-          </div>
-
-          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-[8px] font-black uppercase transition-all rounded-none shadow-sm">
-            <FileUp size={12} /> Nhập CSV
-          </button>
-          <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
-        </div>
-      </div>
-
-      {/* MÔN HỌC SHARP */}
-      <div className="flex flex-wrap gap-0.5">
-        {subjects.map(s => (
+      {/* Subject Selector Bar */}
+      <div className="flex flex-wrap gap-0.5 bg-slate-100 p-1 rounded-t-xl">
+        {visibleSubjects.length > 0 ? visibleSubjects.map(s => (
           <button 
-            key={s.id} onClick={() => { setSelectedSubject(s.id); setCurrentPage(1); }} 
-            className={`px-2 py-1 text-[8px] font-black uppercase border transition-all rounded-none ${selectedSubject === s.id ? 'bg-orange-500 text-white border-orange-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+            key={s.id} 
+            onClick={() => { setSelectedSubject(s.id); setCurrentPage(1); }} 
+            className={`px-3 py-2 text-[10px] font-black uppercase transition-all rounded-lg border-2 ${selectedSubject === s.id ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'bg-white text-slate-500 border-white hover:border-indigo-100'}`}
           >
             {s.name}
           </button>
-        ))}
+        )) : (
+          <div className="p-3 bg-rose-50 text-rose-500 border border-rose-100 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+            <Lock size={12}/> Bạn chưa được phân công môn học nào tại lớp này
+          </div>
+        )}
       </div>
 
-      {/* BẢNG CHÍNH COMPACT */}
-      <div className="bg-white border border-slate-200 shadow-none overflow-hidden rounded-none">
+      <div className="bg-[#0f172a] text-white p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-700 shadow-sm relative overflow-hidden">
+        <div className="flex items-center gap-4 relative z-10">
+          <div className="p-2 bg-orange-500 rounded-xl"><GraduationCap size={20} /></div>
+          <div>
+            <h2 className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
+              Môn: {subjectsList.find(s => s.id === selectedSubject)?.name}
+              {canEdit ? (
+                <span className="px-2 py-0.5 bg-emerald-500 text-white rounded-md text-[8px] tracking-tight">Quyền chỉnh sửa</span>
+              ) : (
+                <span className="px-2 py-0.5 bg-slate-600 text-slate-300 rounded-md text-[8px] tracking-tight">Chế độ xem</span>
+              )}
+            </h2>
+            <p className="text-[9px] text-slate-400 font-bold uppercase">Niên học: {state.selectedYear} • Lớp: {state.selectedClass}</p>
+          </div>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-3 relative z-10">
+          <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
+            {[1, 2].map(hk => (
+              <button key={hk} onClick={() => setSelectedHK(hk)} className={`px-4 py-1.5 text-[9px] font-black uppercase transition-all rounded-lg ${selectedHK === hk ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Học kỳ {hk}</button>
+            ))}
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={12} />
+            <input type="text" placeholder="Tìm học sinh..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 text-[10px] w-40 focus:ring-1 focus:ring-indigo-500 outline-none text-white rounded-xl" />
+          </div>
+          {canEdit && (
+            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-[9px] font-black uppercase transition-all rounded-xl shadow-lg shadow-emerald-900/20"><FileUp size={14} /> Nhập CSV</button>
+          )}
+          <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
+        </div>
+        <div className="absolute top-0 right-0 p-8 opacity-5"><ShieldCheck size={120} /></div>
+      </div>
+
+      <div className="bg-white border border-slate-200 overflow-hidden shadow-sm rounded-b-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-[#1e293b] text-white text-[8px] font-black uppercase tracking-tighter border-b border-slate-700">
-                <th className="p-2 w-8 text-center border-r border-slate-700">STT</th>
-                <th className="p-2 w-20 border-r border-slate-700">Mã HS</th>
-                <th className="p-2 border-r border-slate-700">Họ và Tên Học Sinh</th>
-                <th className="p-2 text-center w-20 border-r border-slate-700">ĐTB HK1</th>
-                <th className="p-2 text-center w-20 border-r border-slate-700">ĐTB HK2</th>
-                <th className="p-2 text-center w-24 bg-orange-600 border-r border-orange-700 font-black">Cả Năm</th>
-                <th className="p-2 text-center w-12">Sửa</th>
+              <tr className="bg-slate-50 text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
+                <th className="p-4 w-12 text-center border-r">STT</th>
+                <th className="p-4 w-24 border-r">Mã HS</th>
+                <th className="p-4 border-r">Học và Tên Học Sinh</th>
+                <th className="p-4 text-center w-24 border-r">ĐTB HK1</th>
+                <th className="p-4 text-center w-24 border-r">ĐTB HK2</th>
+                <th className="p-4 text-center w-28 bg-orange-50 text-orange-600 font-black">Cả Năm</th>
+                <th className="p-4 text-center w-20">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-50">
               {paginatedStudents.map((s, idx) => {
                 const tb1 = calculateAvg(s.MaHS, 1, selectedSubject);
                 const tb2 = calculateAvg(s.MaHS, 2, selectedSubject);
                 const cn = (tb1 !== null && tb2 !== null) ? (tb1 + tb2 * 2) / 3 : null;
-
                 return (
-                  <tr key={s.MaHS} className="hover:bg-slate-50 transition-colors text-[9px] font-bold">
-                    <td className="p-1.5 text-center text-slate-400 border-r border-slate-100">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
-                    <td className="p-1.5 text-slate-500 border-r border-slate-100">{s.MaHS}</td>
-                    <td className="p-1.5 text-slate-800 uppercase border-r border-slate-100 truncate max-w-[150px]">{s.Hoten}</td>
-                    <td className="p-1.5 text-center border-r border-slate-100 text-slate-600">{tb1 ? tb1.toFixed(1) : '--'}</td>
-                    <td className="p-1.5 text-center border-r border-slate-100 text-slate-600">{tb2 ? tb2.toFixed(1) : '--'}</td>
-                    <td className="p-1.5 text-center bg-orange-50 font-black text-orange-700 border-r border-orange-100">{cn ? cn.toFixed(1) : '--'}</td>
-                    <td className="p-1.5 text-center">
-                      <button onClick={() => handleOpenDetail(s)} className="p-1.5 bg-slate-900 text-white hover:bg-orange-500 transition-all rounded-none shadow-sm">
-                        <Eye size={10} />
+                  <tr key={s.MaHS} className="hover:bg-indigo-50/20 transition-all text-[11px] font-bold group">
+                    <td className="p-3 text-center text-slate-300 border-r">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
+                    <td className="p-3 text-slate-500 border-r">{s.MaHS}</td>
+                    <td className="p-3 text-slate-800 uppercase border-r font-black tracking-tight">{s.Hoten}</td>
+                    <td className="p-3 text-center border-r text-slate-500">{tb1 ? tb1.toFixed(1) : '--'}</td>
+                    <td className="p-3 text-center border-r text-slate-500">{tb2 ? tb2.toFixed(1) : '--'}</td>
+                    <td className="p-3 text-center bg-orange-50/50 font-black text-orange-600 border-r">{cn ? cn.toFixed(1) : '--'}</td>
+                    <td className="p-3 text-center">
+                      <button onClick={() => handleOpenDetail(s)} className={`p-2 rounded-xl transition-all shadow-sm flex items-center justify-center mx-auto ${canEdit ? 'bg-slate-900 text-white hover:bg-indigo-600' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
+                        {canEdit ? <Book size={14} /> : <Eye size={14} />}
                       </button>
                     </td>
                   </tr>
@@ -296,60 +332,70 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               })}
             </tbody>
           </table>
+          {paginatedStudents.length === 0 && (
+            <div className="py-20 text-center opacity-30 flex flex-col items-center">
+               <GraduationCap size={48} className="text-slate-200 mb-4" />
+               <p className="text-[10px] font-black uppercase tracking-widest">Không có dữ liệu học sinh</p>
+            </div>
+          )}
         </div>
-
-        {/* PHÂN TRANG GỌN */}
-        <div className="p-1.5 bg-[#f8fafc] border-t flex items-center justify-between">
-          <span className="text-[8px] font-black text-slate-400 uppercase">Trang {currentPage} / {totalPages || 1}</span>
-          <div className="flex gap-1">
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1 bg-white border border-slate-200 text-slate-400 disabled:opacity-20 hover:border-orange-500 rounded-none transition-all"><ChevronLeft size={10} /></button>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-1 bg-white border border-slate-200 text-slate-400 disabled:opacity-20 hover:border-orange-500 rounded-none transition-all"><ChevronRight size={10} /></button>
+        <div className="p-3 bg-slate-50 border-t flex items-center justify-between">
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Trang {currentPage} / {totalPages || 1}</span>
+          <div className="flex gap-2">
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 bg-white border border-slate-200 text-slate-400 rounded-xl hover:bg-slate-100 disabled:opacity-30"><ChevronLeft size={14} /></button>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 bg-white border border-slate-200 text-slate-400 rounded-xl hover:bg-slate-100 disabled:opacity-30"><ChevronRight size={14} /></button>
           </div>
         </div>
       </div>
 
-      {/* MODAL CHI TIẾT SONG HÀNH - SHARP RECTANGLE */}
       {editingStudent && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-none animate-in fade-in">
-          <div className="bg-white w-full max-w-5xl shadow-2xl rounded-none overflow-hidden animate-in zoom-in-95 border-t-4 border-orange-500 flex flex-col max-h-[95vh]">
-            <div className="bg-[#0f172a] text-white p-3 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-500 flex items-center justify-center font-black text-lg rounded-none">{editingStudent.Hoten.charAt(0)}</div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-5xl shadow-2xl rounded-[40px] overflow-hidden animate-in zoom-in-95 border border-white/20 flex flex-col max-h-[90vh]">
+            <div className="bg-[#0f172a] text-white p-6 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-indigo-600 flex items-center justify-center font-black text-2xl rounded-2xl shadow-xl">{editingStudent.Hoten.charAt(0)}</div>
                 <div>
-                  <h3 className="text-[10px] font-black uppercase tracking-tight leading-none mb-1">{editingStudent.Hoten}</h3>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase">Mã: {editingStudent.MaHS} | Môn: {subjects.find(s => s.id === selectedSubject)?.name}</p>
+                  <h3 className="text-xl font-black uppercase tracking-tight leading-none mb-2">{editingStudent.Hoten}</h3>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase">Mã: {editingStudent.MaHS}</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-700"></span>
+                    <span className="text-[10px] text-orange-400 font-bold uppercase">Môn: {subjectsList.find(s => s.id === selectedSubject)?.name}</span>
+                  </div>
                 </div>
               </div>
-              <button onClick={() => setEditingStudent(null)} className="p-2 hover:bg-slate-800 text-slate-400 transition-colors rounded-none"><X size={20} /></button>
+              <button onClick={() => setEditingStudent(null)} className="p-3 hover:bg-slate-800 text-slate-400 rounded-full transition-colors"><X size={28} /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 bg-slate-50 flex flex-col md:flex-row gap-4 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30 flex flex-col md:flex-row gap-8 custom-scrollbar">
               {[1, 2].map(hk => (
-                <div key={hk} className="flex-1 bg-white border border-slate-200 p-4 rounded-none shadow-none">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
-                    <h4 className="text-[9px] font-black text-slate-800 uppercase tracking-widest border-l-2 border-orange-500 pl-2">Học kỳ {hk}</h4>
+                <div key={hk} className={`flex-1 bg-white border rounded-[32px] p-6 shadow-sm ${!canEdit ? 'opacity-90' : ''}`}>
+                  <div className="flex items-center justify-between border-b border-slate-50 pb-4 mb-6">
+                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                      <span className="w-2 h-6 bg-indigo-600 rounded-full"></span>
+                      Học kỳ {hk}
+                    </h4>
                     <div className="text-right">
-                       <p className="text-[7px] text-slate-400 font-bold uppercase">Điểm TB dự kiến</p>
-                       <p className="text-xs font-black text-orange-600">{calculateAvg(editingStudent.MaHS, hk, selectedSubject, localGrades[hk.toString()])?.toFixed(1) || '--'}</p>
+                       <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">ĐTB Dự kiến</p>
+                       <p className="text-xl font-black text-indigo-600">{calculateAvg(editingStudent.MaHS, hk, selectedSubject, localGrades[hk.toString()])?.toFixed(1) || '--'}</p>
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     {GRADE_COLUMNS.map(col => (
-                      <div key={col} className="space-y-1">
-                        <label className="text-[7px] font-black text-slate-400 uppercase block px-1">{col}</label>
+                      <div key={col} className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase block px-1 tracking-tighter">{col}</label>
                         <input 
-                          type="number" step="0.1" min="0" max="10"
+                          type="number" 
+                          step="0.1" 
+                          min="0" 
+                          max="10" 
+                          disabled={!canEdit}
                           value={localGrades[hk.toString()][col] ?? ''} 
                           onChange={(e) => {
                             const val = e.target.value === '' ? null : parseFloat(e.target.value);
                             if (val !== null && (val < 0 || val > 10)) return;
-                            setLocalGrades(prev => ({
-                              ...prev,
-                              [hk.toString()]: { ...prev[hk.toString()], [col]: val }
-                            }));
-                          }}
-                          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-none text-[10px] font-black text-slate-800 text-center focus:border-orange-500 focus:bg-white outline-none transition-all shadow-inner" 
+                            setLocalGrades(prev => ({ ...prev, [hk.toString()]: { ...prev[hk.toString()], [col]: val } }));
+                          }} 
+                          className={`w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-base font-black text-slate-800 text-center focus:border-indigo-400 focus:bg-white outline-none transition-all shadow-inner ${!canEdit ? 'bg-slate-100 cursor-not-allowed text-slate-400' : ''}`} 
                         />
                       </div>
                     ))}
@@ -358,11 +404,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
               ))}
             </div>
 
-            <div className="bg-white p-4 flex flex-col md:flex-row items-center justify-between border-t border-slate-200 gap-4 shrink-0">
+            <div className="bg-white p-8 flex flex-col md:flex-row items-center justify-between border-t border-slate-100 gap-6 shrink-0">
                <div className="flex items-center gap-6">
-                  <div className="text-center">
-                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Điểm Cả năm (Dự kiến)</p>
-                    <p className="text-xl font-black text-slate-900 leading-none mt-1">
+                  <div className="text-center md:text-left">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cả năm dự kiến</p>
+                    <p className="text-4xl font-black text-slate-900 leading-none mt-1">
                       {(() => {
                         const tb1 = calculateAvg(editingStudent.MaHS, 1, selectedSubject, localGrades['1']);
                         const tb2 = calculateAvg(editingStudent.MaHS, 2, selectedSubject, localGrades['2']);
@@ -370,17 +416,24 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, onUpdateGrades }
                       })()}
                     </p>
                   </div>
+                  {!canEdit && (
+                    <div className="px-6 py-3 bg-amber-50 text-amber-600 border border-amber-100 rounded-2xl flex items-center gap-3 animate-pulse">
+                      <Lock size={20}/>
+                      <div className="text-left">
+                        <p className="text-[10px] font-black uppercase tracking-widest">Chế độ chỉ xem</p>
+                        <p className="text-[9px] font-bold opacity-70">Bạn không có quyền sửa điểm môn này</p>
+                      </div>
+                    </div>
+                  )}
                </div>
-
-               <div className="flex gap-2 w-full md:w-auto">
-                 <button onClick={() => setEditingStudent(null)} className="flex-1 md:flex-none px-6 py-2.5 bg-slate-100 text-slate-500 rounded-none border border-slate-200 hover:bg-slate-200 transition-all font-black text-[10px] uppercase">Hủy bỏ</button>
-                 <button 
-                   onClick={saveDetail} 
-                   disabled={isProcessing}
-                   className="flex-[2] md:flex-none px-10 py-2.5 bg-[#0f172a] text-white rounded-none shadow-none flex items-center justify-center gap-2 hover:bg-orange-600 active:scale-95 transition-all font-black text-[10px] uppercase"
-                 >
-                   {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Lưu kết quả
-                 </button>
+               
+               <div className="flex gap-4 w-full md:w-auto">
+                 <button onClick={() => setEditingStudent(null)} className="flex-1 md:flex-none px-10 py-4 bg-slate-100 text-slate-500 rounded-2xl border border-slate-200 hover:bg-slate-200 transition-all font-black text-[11px] uppercase tracking-widest">Đóng</button>
+                 {canEdit && (
+                   <button onClick={saveDetail} disabled={isProcessing} className="flex-1 md:flex-none px-16 py-4 bg-indigo-600 text-white rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 shadow-xl shadow-indigo-100 active:scale-95 transition-all font-black text-[11px] uppercase tracking-widest">
+                     {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} Xác nhận lưu điểm
+                   </button>
+                 )}
                </div>
             </div>
           </div>
