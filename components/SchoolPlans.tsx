@@ -4,7 +4,7 @@ import {
   Calendar, Info, Plus, Trash2, Edit2, Save, X, FileText, 
   Users, Globe, ChevronRight, Clock, AlertCircle, Loader2, Link as LinkIcon 
 } from 'lucide-react';
-import { AppState, SchoolPlan, Class, Role } from '../types';
+import { AppState, SchoolPlan, Class, Teacher } from '../types';
 
 interface Props {
   state: AppState;
@@ -18,13 +18,18 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Partial<SchoolPlan> | null>(null);
-  const isAdmin = (state.currentUser as any)?.MaGV === 'GV001'; // Giả định GV001 là admin
+  
+  const currentUser = state.currentUser as Teacher;
+  const currentTeacherId = currentUser?.MaGV;
+  const isAdmin = currentUser?.quanly === true;
 
   const filteredPlans = useMemo(() => {
     return plans
       .filter(p => p.MaNienHoc === state.selectedYear)
+      // CHỈ HIỂN THỊ KẾ HOẠCH DO MÌNH TẠO (Hoặc Admin thấy hết)
+      .filter(p => isAdmin || p.MaGV === currentTeacherId)
       .sort((a, b) => b.Tuan - a.Tuan);
-  }, [plans, state.selectedYear]);
+  }, [plans, state.selectedYear, currentTeacherId, isAdmin]);
 
   const handleSave = async () => {
     if (!editingPlan?.TieuDe || !editingPlan?.Tuan) {
@@ -41,6 +46,7 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
         TuNgay: editingPlan.TuNgay || new Date().toISOString().split('T')[0],
         DenNgay: editingPlan.DenNgay || new Date().toISOString().split('T')[0],
         MaNienHoc: state.selectedYear,
+        MaGV: editingPlan.MaGV || currentTeacherId, // Gán người tạo
         DoiTuong: editingPlan.DoiTuong || null,
         DinhKem: editingPlan.DinhKem || ''
       };
@@ -58,7 +64,8 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
       Tuan: filteredPlans.length > 0 ? filteredPlans[0].Tuan + 1 : 1,
       TuNgay: new Date().toISOString().split('T')[0],
       DenNgay: new Date().toISOString().split('T')[0],
-      DoiTuong: null
+      DoiTuong: null,
+      MaGV: currentTeacherId
     });
     setIsModalOpen(true);
   };
@@ -75,23 +82,17 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
           <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100"><Calendar size={24} /></div>
           <div>
             <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Kế hoạch & Thông báo tuần</h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Niên học {state.selectedYear} • {filteredPlans.length} kế hoạch</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Niên học {state.selectedYear} • {filteredPlans.length} kế hoạch của tôi</p>
           </div>
         </div>
-        {isAdmin && (
-          <button onClick={openAdd} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2">
-            <Plus size={18} /> Đăng kế hoạch tuần
-          </button>
-        )}
+        <button onClick={openAdd} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2">
+          <Plus size={18} /> Đăng kế hoạch tuần
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredPlans.length > 0 ? filteredPlans.map(plan => {
           const isGlobal = !plan.DoiTuong || plan.DoiTuong.length === 0;
-          const isTargetedToMe = isGlobal || (state.selectedClass && plan.DoiTuong?.includes(state.selectedClass));
-          
-          if (!isAdmin && !isTargetedToMe) return null;
-
           return (
             <div key={plan.MaKeHoach} className="bg-white rounded-[40px] border border-slate-200 shadow-sm p-6 flex flex-col gap-5 hover:shadow-xl transition-all group relative overflow-hidden">
                <div className="flex justify-between items-start">
@@ -105,7 +106,7 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
                   </div>
                </div>
                
-               <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex-1">
+               <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex-1 shadow-inner">
                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium whitespace-pre-line italic">
                    {plan.NoiDung || 'Chưa có nội dung chi tiết.'}
                  </p>
@@ -115,12 +116,10 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
                   <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
                     <Clock size={12} /> {plan.TuNgay} → {plan.DenNgay}
                   </div>
-                  {isAdmin && (
-                    <div className="flex gap-1">
-                       <button onClick={() => openEdit(plan)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit2 size={16}/></button>
-                       <button onClick={() => { if(confirm("Xóa kế hoạch này?")) onDeletePlan(plan.MaKeHoach); }} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={16}/></button>
-                    </div>
-                  )}
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                     <button onClick={() => openEdit(plan)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit2 size={16}/></button>
+                     <button onClick={() => { if(confirm("Xóa kế hoạch này?")) onDeletePlan(plan.MaKeHoach); }} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={16}/></button>
+                  </div>
                </div>
 
                {plan.DinhKem && (
@@ -133,7 +132,7 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
         }) : (
           <div className="col-span-full py-24 bg-white rounded-[40px] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center opacity-30">
              <FileText size={56} className="text-slate-300 mb-4" />
-             <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Chưa có kế hoạch tuần nào được đăng</p>
+             <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Bạn chưa đăng kế hoạch nào</p>
           </div>
         )}
       </div>
@@ -171,7 +170,7 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
                  </div>
 
                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Nội dung kế hoạch chi tiết (Dùng phím Enter để xuống dòng)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Nội dung kế hoạch chi tiết</label>
                     <textarea value={editingPlan.NoiDung || ''} onChange={e => setEditingPlan({...editingPlan, NoiDung: e.target.value})} className="w-full p-5 bg-white border border-slate-200 rounded-[32px] text-xs font-medium h-48 outline-none focus:border-indigo-400 shadow-sm" placeholder="Liệt kê các đầu việc trọng tâm trong tuần..."></textarea>
                  </div>
 
@@ -204,9 +203,6 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
                           );
                        })}
                     </div>
-                    {(!editingPlan.DoiTuong || editingPlan.DoiTuong.length === 0) && (
-                      <p className="text-[9px] text-emerald-600 font-bold italic text-center">Tất cả các lớp sẽ nhận được thông báo này.</p>
-                    )}
                  </div>
               </div>
 
