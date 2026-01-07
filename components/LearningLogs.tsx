@@ -1,15 +1,15 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  ClipboardList, Plus, User, MessageSquare, CheckCircle2, XCircle, Clock, Check, Calendar, Search, Users, AlertTriangle, Save, ChevronRight, Info, UserPlus, Trash2, Loader2, Edit3, X, Filter
+  ClipboardList, Plus, User, MessageSquare, CheckCircle2, XCircle, Clock, Check, Calendar, Search, Users, AlertTriangle, Save, ChevronRight, Info, UserPlus, Trash2, Loader2, Edit3, X, Filter, Lock
 } from 'lucide-react';
-import { AppState, Student, LearningLog, Assignment, AttendanceStatus } from '../types';
+import { AppState, Student, LearningLog, Assignment, AttendanceStatus, Teacher } from '../types';
 
 interface Props {
   state: AppState;
   students: Student[];
   logs: LearningLog[];
-  assignment: Assignment;
+  assignments: Assignment[];
   onUpdateLogs: (newLogs: LearningLog[]) => Promise<void>;
   onDeleteLog: (id: number) => Promise<void>;
 }
@@ -28,7 +28,8 @@ interface PendingLog {
   note: string;
 }
 
-const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUpdateLogs, onDeleteLog }) => {
+const LearningLogs: React.FC<Props> = ({ state, students, logs, assignments, onUpdateLogs, onDeleteLog }) => {
+  const currentUser = state.currentUser as Teacher;
   const [activeTab, setActiveTab] = useState<'history' | 'rollcall'>('history');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   
@@ -47,9 +48,19 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<LearningLog | null>(null);
 
+  // Phân công hiện tại của GV này đối với lớp này
+  const currentTeacherAssignment = useMemo(() => {
+    return assignments.find(a => 
+      a.MaGV === currentUser.MaGV && 
+      a.MaLop === state.selectedClass && 
+      a.LoaiPhanCong === state.currentRole
+    );
+  }, [assignments, currentUser.MaGV, state.selectedClass, state.currentRole]);
+
   const filteredLogs = useMemo(() => {
     return logs.filter(l => {
-      if (l.MaPhanCong !== assignment?.MaPhanCong) return false;
+      // Chỉ hiển thị nhật ký thuộc lớp hiện tại (dựa trên danh sách học sinh của lớp)
+      if (!students.some(s => s.MaHS === l.MaHS)) return false;
       
       const lDate = new Date(l.NgayGhiChep);
       const lMonth = (lDate.getMonth() + 1).toString();
@@ -60,7 +71,15 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
       
       return true;
     }).sort((a, b) => new Date(b.NgayGhiChep).getTime() - new Date(a.NgayGhiChep).getTime());
-  }, [logs, assignment, historyFilterMonth, historyFilterStart, historyFilterEnd]);
+  }, [logs, students, historyFilterMonth, historyFilterStart, historyFilterEnd]);
+
+  // KIỂM TRA QUYỀN SỬA/XÓA NHẬT KÝ
+  const canManageLog = (log: LearningLog) => {
+    // Tìm phân công tương ứng với bản ghi nhật ký
+    const logAssignment = assignments.find(a => a.MaPhanCong === log.MaPhanCong);
+    // Chỉ người tạo (MaGV trùng khớp) mới được phép sửa/xóa
+    return logAssignment?.MaGV === currentUser.MaGV;
+  };
 
   const searchResults = useMemo(() => {
     if (!studentSearch.trim()) return [];
@@ -94,14 +113,14 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
   };
 
   const saveAllLogs = async () => {
-    if (pendingLogs.length === 0) return;
+    if (pendingLogs.length === 0 || !currentTeacherAssignment) return;
     setIsSubmitting(true);
     try {
       const baseId = Math.floor(Date.now() / 1000);
       const newLogs: LearningLog[] = pendingLogs.map((p, index) => ({
         MaTheoDoi: baseId + index,
         MaHS: p.MaHS,
-        MaPhanCong: assignment.MaPhanCong,
+        MaPhanCong: currentTeacherAssignment.MaPhanCong,
         NgayGhiChep: selectedDate,
         NhanXet: p.note,
         TrangThai: p.status
@@ -141,7 +160,7 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100"><ClipboardList size={22} /></div>
           <div>
-            <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Nhật ký theo dõi tiết học</h2>
+            <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Nhật ký theo dõi học tập</h2>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Lớp {state.selectedClass} • {filteredLogs.length} ghi chép</p>
           </div>
         </div>
@@ -158,7 +177,7 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1 space-y-4">
             <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm space-y-5">
-               <h3 className="text-xs font-black text-slate-800 uppercase flex items-center gap-2 tracking-tight"><UserPlus size={18} className="text-indigo-600" /> Thêm ghi chép đơn</h3>
+               <h3 className="text-xs font-black text-slate-800 uppercase flex items-center gap-2 tracking-tight"><UserPlus size={18} className="text-indigo-600" /> Thêm ghi chép tiết học</h3>
                <div className="space-y-1.5 relative">
                   <label className="text-[10px] font-black text-slate-400 uppercase px-1 tracking-widest">Tìm học sinh</label>
                   <div className="relative">
@@ -263,6 +282,13 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
             {filteredLogs.length > 0 ? filteredLogs.map(log => {
               const student = students.find(s => s.MaHS === log.MaHS);
               const conf = statusConfig[log.TrangThai];
+              const manageable = canManageLog(log);
+              
+              // Tìm tên GV đã tạo bản ghi này
+              const logAssignment = assignments.find(a => a.MaPhanCong === log.MaPhanCong);
+              const creatorId = logAssignment?.MaGV;
+              const isMine = creatorId === currentUser.MaGV;
+
               return (
                 <div key={log.MaTheoDoi} className="bg-white rounded-[32px] p-5 border border-slate-200 hover:border-indigo-300 transition-all group shadow-sm flex flex-col gap-4 overflow-hidden relative">
                   <div className="flex items-start justify-between">
@@ -273,17 +299,25 @@ const LearningLogs: React.FC<Props> = ({ state, students, logs, assignment, onUp
                         <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">{log.NgayGhiChep}</p>
                       </div>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                      <button onClick={() => handleOpenEdit(log)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl"><Edit3 size={16}/></button>
-                      <button onClick={() => handleDelete(log.MaTheoDoi)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl"><Trash2 size={16}/></button>
-                    </div>
+                    {manageable ? (
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <button onClick={() => handleOpenEdit(log)} title="Chỉnh sửa bản ghi của bạn" className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl"><Edit3 size={16}/></button>
+                        <button onClick={() => handleDelete(log.MaTheoDoi)} title="Xóa bản ghi của bạn" className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl"><Trash2 size={16}/></button>
+                      </div>
+                    ) : (
+                      <div className="px-2 py-1 bg-slate-50 text-slate-300 rounded-lg border border-slate-100 opacity-0 group-hover:opacity-100 transition-all">
+                         <Lock size={12}/>
+                      </div>
+                    )}
                   </div>
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex-1 shadow-inner">
                      <p className="text-[11px] text-slate-700 font-medium leading-relaxed italic line-clamp-3">"{log.NhanXet || 'Học sinh hiện diện bình thường.'}"</p>
                   </div>
                   <div className="flex justify-between items-center pt-1">
                      <span className={`text-[9px] font-black px-3 py-1 rounded-xl uppercase tracking-widest border shadow-sm ${conf.color} ${conf.bg} border-current opacity-80`}>{conf.label}</span>
-                     <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{log.MaHS}</span>
+                     <span className={`text-[8px] font-black uppercase tracking-widest ${isMine ? 'text-indigo-600' : 'text-slate-300'}`}>
+                       {isMine ? 'Bản ghi của tôi' : `GV: ${creatorId}`}
+                     </span>
                   </div>
                 </div>
               );
