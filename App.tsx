@@ -231,7 +231,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC] custom-scrollbar">
-          {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} plans={plans} messages={[]} onSendMessage={handleSendMessage} />}
+          {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} />}
           {activeTab === 'students' && <StudentList state={state} students={currentClassStudents} violationRules={violationRules} onUpdateStudent={(s) => supabase.from('students').upsert(s).then(fetchData)} onDeleteStudent={(id) => supabase.from('students').delete().eq('MaHS', id).then(fetchData)} />}
           {activeTab === 'grades' && <GradeBoard state={state} students={currentClassStudents} assignments={assignments} />}
           {activeTab === 'tasks' && <TaskManager state={state} students={currentClassStudents} tasks={tasks} onUpdateTasks={(t) => supabase.from('tasks').upsert(t).then(fetchData)} onDeleteTask={(id) => supabase.from('tasks').delete().eq('MaNhiemVu', id).then(fetchData)} />}
