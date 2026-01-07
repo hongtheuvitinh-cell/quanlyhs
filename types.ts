@@ -73,6 +73,7 @@ export interface SchoolPlan {
   TuNgay: string;
   DenNgay: string;
   MaNienHoc: number;
+  MaGV: string; // Thêm trường này để biết ai tạo kế hoạch
   DoiTuong: string[] | null; // Null means All classes
   DinhKem?: string;
   Created_at?: string;
