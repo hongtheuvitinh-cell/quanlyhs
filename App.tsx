@@ -16,11 +16,12 @@ import SystemManager from './components/SystemManager';
 import Login from './components/Login';
 import SchoolPlans from './components/SchoolPlans';
 import StudentPortal from './components/StudentPortal';
+import TeacherList from './components/TeacherList';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'grades' | 'discipline' | 'logs' | 'tasks' | 'system' | 'plans'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'grades' | 'discipline' | 'logs' | 'tasks' | 'system' | 'plans' | 'teachers'>('dashboard');
   
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -92,6 +93,10 @@ const App: React.FC = () => {
 
   const filteredClasses = useMemo(() => {
     if (!state.currentUser || (state.currentUser as any).MaHS) return [];
+    
+    // Nếu là Admin toàn quyền, cho phép chọn tất cả các lớp
+    if ((state.currentUser as Teacher).quanly) return classes;
+
     const teacherID = (state.currentUser as Teacher).MaGV;
     const myAs = assignments.filter(a => a.MaGV === teacherID && a.MaNienHoc === state.selectedYear);
     const validClassIds = myAs.filter(a => a.LoaiPhanCong === state.currentRole).map(a => a.MaLop);
@@ -104,7 +109,6 @@ const App: React.FC = () => {
         setState(p => ({ ...p, selectedClass: filteredClasses[0].MaLop }));
       }
     } else {
-      // Đối với học sinh, selectedClass được giữ nguyên từ hồ sơ
       if (state.currentRole !== Role.STUDENT) {
         setState(p => ({ ...p, selectedClass: '' }));
       }
@@ -132,6 +136,17 @@ const App: React.FC = () => {
     } else {
       const t = teachers.find(x => x.MaGV === id);
       if (t && (t.MatKhau || '123456') === pass) {
+        // Kiểm tra quyền quản lý (Admin)
+        if (t.quanly) {
+          setState(p => ({ 
+            ...p, currentUser: t, currentRole: Role.CHU_NHIEM, // Mặc định role khi vào
+            selectedClass: classes[0]?.MaLop || '',
+            selectedYear: years[0]?.MaNienHoc || state.selectedYear 
+          }));
+          setIsLoggedIn(true);
+          return;
+        }
+
         const myAs = assignments.filter(a => a.MaGV === id);
         if (myAs.length === 0) { alert("Giáo viên này chưa có phân công!"); return; }
         const initialRole = myAs.some(a => a.LoaiPhanCong === Role.CHU_NHIEM) ? Role.CHU_NHIEM : Role.GIANG_DAY;
@@ -171,7 +186,6 @@ const App: React.FC = () => {
     let newReports = { ...(task.BaoCaoNhiemVu || {}) };
 
     if (newDone.includes(studentId)) {
-      // Nếu đã xong thì cập nhật link hoặc giữ nguyên
       if (link) newReports[studentId] = link;
     } else {
       newDone.push(studentId);
@@ -188,7 +202,8 @@ const App: React.FC = () => {
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>;
   if (!isLoggedIn) return <Login onLogin={handleLogin} teachers={teachers} students={students} />;
 
-  // NẾU LÀ HỌC SINH -> TRẢ VỀ PORTAL RIÊNG
+  const currentUserAsTeacher = state.currentUser as Teacher;
+
   if (state.currentRole === Role.STUDENT) {
     return (
       <StudentPortal 
@@ -207,7 +222,6 @@ const App: React.FC = () => {
     );
   }
 
-  // NẾU LÀ GIÁO VIÊN -> TRẢ VỀ DASHBOARD QUẢN LÝ
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden text-[13px] font-normal text-slate-600">
       <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm relative z-20">
@@ -239,7 +253,14 @@ const App: React.FC = () => {
             </button>
           ))}
           
-          <button onClick={() => setActiveTab('system')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest mt-6 transition-all ${activeTab === 'system' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
+          {/* Menu DS Giáo Viên cho Admin */}
+          {currentUserAsTeacher?.quanly && (
+            <button onClick={() => setActiveTab('teachers')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest mt-6 transition-all ${activeTab === 'teachers' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
+              <Shield size={18} /> DS Giáo Viên
+            </button>
+          )}
+
+          <button onClick={() => setActiveTab('system')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest mt-1 transition-all ${activeTab === 'system' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-50'}`}>
             <Settings size={18} /> Cấu hình hệ thống
           </button>
         </nav>
@@ -284,6 +305,7 @@ const App: React.FC = () => {
           {activeTab === 'logs' && <LearningLogs state={state} students={currentClassStudents} logs={logs} assignment={assignments.find(a => a.MaLop === state.selectedClass) as any} onUpdateLogs={(l) => supabase.from('learning_logs').upsert(l).then(() => fetchData())} onDeleteLog={(id) => supabase.from('learning_logs').delete().eq('MaTheoDoi', id).then(() => fetchData())} />}
           {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={() => fetchData()} students={students} />}
           {activeTab === 'plans' && <SchoolPlans state={state} plans={plans} classes={classes} onUpdatePlan={(p) => supabase.from('school_plans').upsert(p).then(() => fetchData())} onDeletePlan={(id) => supabase.from('school_plans').delete().eq('MaKeHoach', id).then(() => fetchData())} />}
+          {activeTab === 'teachers' && <TeacherList teachers={teachers} onUpdate={() => fetchData()} />}
         </div>
       </main>
     </div>
