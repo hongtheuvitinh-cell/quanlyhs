@@ -47,23 +47,30 @@ const App: React.FC = () => {
   const fetchData = async () => {
     if (!isSupabaseConfigured) { setIsLoading(false); return; }
     try {
+      // Tăng limit lên 10000 bản ghi cho các bảng dữ liệu lớn (grades, logs, disciplines, tasks)
       const [
         { data: yrData }, { data: clData }, { data: tcData }, { data: asData },
-        { data: stData }, { data: grData }, { data: dsData }, { data: lgData },
-        { data: tkData }, { data: rlData }, { data: plData }, { data: msData }
+        { data: stData }, 
+        { data: grData }, 
+        { data: dsData }, 
+        { data: lgData },
+        { data: tkData }, 
+        { data: rlData }, 
+        { data: plData }, 
+        { data: msData }
       ] = await Promise.all([
         supabase.from('academic_years').select('*').order('MaNienHoc', { ascending: false }),
         supabase.from('classes').select('*').order('MaLop', { ascending: true }),
         supabase.from('teachers').select('*').order('Hoten', { ascending: true }),
         supabase.from('assignments').select('*'),
-        supabase.from('students').select('*'),
-        supabase.from('grades').select('*'),
-        supabase.from('disciplines').select('*'),
-        supabase.from('learning_logs').select('*'),
-        supabase.from('tasks').select('*'),
+        supabase.from('students').select('*').limit(5000),
+        supabase.from('grades').select('*').limit(10000), // Tăng limit bản ghi điểm
+        supabase.from('disciplines').select('*').limit(5000),
+        supabase.from('learning_logs').select('*').limit(10000), // Tăng limit nhật ký
+        supabase.from('tasks').select('*').limit(2000),
         supabase.from('violation_rules').select('*'),
         supabase.from('school_plans').select('*'),
-        supabase.from('messages').select('*').order('created_at', { ascending: true })
+        supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(1000)
       ]);
 
       if (yrData) setYears(yrData);
