@@ -41,44 +41,36 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
 
   // LOGIC PHÂN QUYỀN HIỂN THỊ MÔN HỌC
   const visibleSubjects = useMemo(() => {
-    // 1. Nếu là Admin hoặc GVCN -> Thấy tất cả môn
     if (isAdmin || isHomeroom) return subjectsList;
 
-    // 2. Nếu là GVBM -> Chỉ thấy môn mình dạy
     const myAssignedSubjects = (assignments || [])
       .filter(a => 
         a.MaGV === currentUser.MaGV && 
         a.MaLop === state.selectedClass && 
         a.LoaiPhanCong === Role.GIANG_DAY
       )
-      .map(a => a.MaMonHoc);
+      .map(a => String(a.MaMonHoc).toUpperCase());
 
-    return subjectsList.filter(s => myAssignedSubjects.includes(s.id));
+    return subjectsList.filter(s => myAssignedSubjects.includes(s.id.toUpperCase()));
   }, [assignments, currentUser.MaGV, state.selectedClass, isAdmin, isHomeroom]);
 
   const [selectedSubject, setSelectedSubject] = useState(visibleSubjects[0]?.id || subjectsList[0].id);
 
-  // Tự động chuyển môn nếu môn đang chọn không nằm trong danh sách được phép
   useMemo(() => {
     if (visibleSubjects.length > 0 && !visibleSubjects.some(s => s.id === selectedSubject)) {
       setSelectedSubject(visibleSubjects[0].id);
     }
   }, [visibleSubjects]);
 
-  // KIỂM TRA QUYỀN CHỈNH SỬA CHO MÔN ĐANG CHỌN
   const canEdit = useMemo(() => {
-    // Admin luôn được sửa
     if (isAdmin) return true;
-    
-    // GVCN không được sửa (Chỉ xem)
     if (isHomeroom) return false;
 
-    // GVBM được sửa môn mình dạy
     const isMySubject = (assignments || [])
       .some(a => 
         a.MaGV === currentUser.MaGV && 
         a.MaLop === state.selectedClass && 
-        a.MaMonHoc === selectedSubject &&
+        String(a.MaMonHoc).toUpperCase() === String(selectedSubject).toUpperCase() &&
         a.LoaiPhanCong === Role.GIANG_DAY
       );
 
@@ -105,18 +97,22 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
     if (currentLocalGrades) {
       sourceGrades = currentLocalGrades;
     } else {
+      // ÉP KIỂU VÀ TRIM KHI LỌC DỮ LIỆU ĐỂ TRÁNH LỖI MÀN HÌNH TRẮNG / KHÔNG HIỂN THỊ
       const records = (grades || []).filter(g => 
-        g.MaHS === maHS && 
-        g.MaMonHoc === subjectId && 
+        String(g.MaHS).trim() === String(maHS).trim() && 
+        String(g.MaMonHoc).trim().toUpperCase() === String(subjectId).trim().toUpperCase() && 
         Number(g.HocKy) === Number(hk) && 
         Number(g.MaNienHoc) === Number(state.selectedYear)
       );
-      records.forEach(r => sourceGrades[r.LoaiDiem] = r.DiemSo);
+      records.forEach(r => {
+        const typeKey = String(r.LoaiDiem).trim();
+        sourceGrades[typeKey] = Number(r.DiemSo);
+      });
     }
 
     const tx = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5']
       .map(key => sourceGrades[key])
-      .filter(v => v !== null && v !== undefined) as number[];
+      .filter(v => v !== null && v !== undefined && !isNaN(v)) as number[];
     const gk = sourceGrades['ĐGGK'];
     const ck = sourceGrades['ĐGCK'];
 
@@ -136,12 +132,15 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
     [1, 2].forEach(hk => {
       GRADE_COLUMNS.forEach(col => data[hk.toString()][col] = null);
       const currentGrades = (grades || []).filter(g => 
-        g.MaHS === student.MaHS && 
-        g.MaMonHoc === selectedSubject && 
+        String(g.MaHS).trim() === String(student.MaHS).trim() && 
+        String(g.MaMonHoc).trim().toUpperCase() === String(selectedSubject).trim().toUpperCase() && 
         Number(g.HocKy) === Number(hk) && 
         Number(g.MaNienHoc) === Number(state.selectedYear)
       );
-      currentGrades.forEach(g => data[hk.toString()][g.LoaiDiem] = g.DiemSo);
+      currentGrades.forEach(g => {
+        const typeKey = String(g.LoaiDiem).trim();
+        data[hk.toString()][typeKey] = Number(g.DiemSo);
+      });
     });
     setLocalGrades(data);
     setEditingStudent(student);
@@ -156,12 +155,12 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
         GRADE_COLUMNS.forEach(type => {
           const val = localGrades[hk.toString()][type];
           if (val !== null && val !== undefined && !isNaN(val)) {
-            const old = grades.find(g => 
-              g.MaHS === editingStudent.MaHS && 
-              g.MaMonHoc === selectedSubject && 
+            const old = (grades || []).find(g => 
+              String(g.MaHS).trim() === String(editingStudent.MaHS).trim() && 
+              String(g.MaMonHoc).trim().toUpperCase() === String(selectedSubject).trim().toUpperCase() && 
               Number(g.HocKy) === Number(hk) && 
               Number(g.MaNienHoc) === Number(state.selectedYear) && 
-              g.LoaiDiem === type
+              String(g.LoaiDiem).trim() === String(type).trim()
             );
             upsertData.push({
               ...(old ? { MaDiem: old.MaDiem } : { MaDiem: Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000) }),
@@ -211,11 +210,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
               const num = parseFloat(val);
               if (!isNaN(num)) {
                 const old = grades.find(g => 
-                  g.MaHS === maHS && 
-                  g.MaMonHoc === selectedSubject && 
+                  String(g.MaHS).trim() === String(maHS).trim() && 
+                  String(g.MaMonHoc).trim().toUpperCase() === String(selectedSubject).trim().toUpperCase() && 
                   Number(g.HocKy) === Number(selectedHK) && 
                   Number(g.MaNienHoc) === Number(state.selectedYear) && 
-                  g.LoaiDiem === type
+                  String(g.LoaiDiem).trim() === String(type).trim()
                 );
                 const key = `${maHS}_${type}`;
                 upsertMap.set(key, {
@@ -244,7 +243,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, grades, assignments, onU
 
   return (
     <div className="max-w-7xl mx-auto space-y-2 pb-20 animate-in fade-in">
-      {/* Subject Selector Bar */}
       <div className="flex flex-wrap gap-0.5 bg-slate-100 p-1 rounded-t-xl">
         {visibleSubjects.length > 0 ? visibleSubjects.map(s => (
           <button 
