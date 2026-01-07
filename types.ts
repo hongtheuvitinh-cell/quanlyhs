@@ -18,6 +18,7 @@ export interface Teacher {
   Hoten: string;
   MaMonChinh: string;
   MatKhau?: string;
+  quanly?: boolean; // Quyền quản trị hệ thống
 }
 
 export interface Class {
