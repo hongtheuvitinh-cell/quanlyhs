@@ -8,8 +8,8 @@ export const mockAcademicYears: AcademicYear[] = [
 ];
 
 export const mockTeachers: Teacher[] = [
-  { MaGV: 'GV001', Hoten: 'Nguyễn Văn A', MaMonChinh: 'TOAN' },
-  { MaGV: 'GV002', Hoten: 'Trần Thị B', MaMonChinh: 'VAN' }
+  { MaGV: 'GV001', Hoten: 'Nguyễn Văn A', MaMonChinh: 'TOAN', quanly: true, MatKhau: '123456' },
+  { MaGV: 'GV002', Hoten: 'Trần Thị B', MaMonChinh: 'VAN', quanly: false, MatKhau: '123456' }
 ];
 
 export const mockClasses: Class[] = [
