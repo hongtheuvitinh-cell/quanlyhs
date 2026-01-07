@@ -91,7 +91,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
 
   const handleOpenAdd = () => {
     setModalMode('add');
-    const defaultSub = state.selectedSubject || currentUser.MaMonChinh || 'SHL';
+    const defaultSub = state.selectedSubject || currentUser.MaMonChinh || (isHomeroom ? 'SHL' : 'TOAN');
     setTaskForm({ 
       MaNhiemVu: 0, 
       TieuDe: '', 
@@ -165,13 +165,13 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
           <div>
             <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Nhiệm vụ học tập</h2>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-              {isAdmin ? 'Quyền hạn: Admin (Toàn trường)' : isHomeroom ? 'Quyền hạn: GV Chủ nhiệm (Xem lớp)' : 'Quyền hạn: GV Giảng dạy'}
+              {isAdmin ? 'Quyền hạn: Admin (Toàn trường)' : isHomeroom ? 'Quyền hạn: GV Chủ nhiệm (Được tạo bài)' : 'Quyền hạn: GV Giảng dạy'}
             </p>
           </div>
         </div>
         
-        {/* Chỉ cho phép GVBM tạo nhiệm vụ (Hoặc nếu không phải Admin/GVCN xem thuần túy) */}
-        {!isAdmin && !isHomeroom && (
+        {/* Admin không được tạo, nhưng GVCN và GVBM thì được */}
+        {!isAdmin && (
           <button onClick={handleOpenAdd} className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all">
             <Plus size={18} /> Tạo mới nhiệm vụ
           </button>
