@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Send, CheckCircle, Circle, Calendar, Plus, X, ClipboardCheck, Trophy, Clock, Target, Edit2, Trash2, Save, BookOpen, Users, Check, Loader2, Info, ChevronRight, UserPlus, Filter, Search } from 'lucide-react';
+import { Send, CheckCircle, Circle, Calendar, Plus, X, ClipboardCheck, Trophy, Clock, Target, Edit2, Trash2, Save, BookOpen, Users, Check, Loader2, Info, ChevronRight, UserPlus, Filter, Search, Lock, Eye } from 'lucide-react';
 import { AppState, Student, AssignmentTask, Teacher, Role } from '../types';
 
 interface Props {
@@ -38,32 +38,34 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
   const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>([]);
   const [studentFilter, setStudentFilter] = useState('');
 
-  const currentTeacherId = (state.currentUser as Teacher)?.MaGV || '';
+  const currentUser = state.currentUser as Teacher;
+  const currentTeacherId = currentUser?.MaGV || '';
+  const isAdmin = currentUser?.quanly === true;
+  const isHomeroom = state.currentRole === Role.CHU_NHIEM;
 
-  // Lọc danh sách nhiệm vụ dựa trên các tiêu chí - ĐÃ FIX LOGIC HIỂN THỊ CHO GV DẠY
+  // LOGIC PHÂN QUYỀN HIỂN THỊ (VIEW LOGIC)
   const currentTasks = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
     
-    return tasks.filter(t => {
-      // 1. Luôn ưu tiên hiển thị nếu đây là bài do chính giáo viên này tạo
-      if (t.MaGV === currentTeacherId && t.MaLop === state.selectedClass) {
-         // Vẫn áp dụng lọc thời gian nếu có
-         const tMonth = (new Date(t.HanChot).getMonth() + 1).toString();
-         if (filterMonth !== 'all' && tMonth !== filterMonth) return false;
-         return true;
-      }
-
-      // 2. Lọc theo lớp và niên học cơ bản
+    return (tasks || []).filter(t => {
+      // 1. Lọc theo lớp và niên học cơ bản
       if (t.MaLop !== state.selectedClass) return false;
       if (t.MaNienHoc !== state.selectedYear) return false;
 
-      // 3. Lọc theo vai trò & môn học (Cho trường hợp xem bài của người khác cùng môn hoặc phân công)
-      if (state.currentRole === Role.GIANG_DAY) {
-        const currentSub = state.selectedSubject || (state.currentUser as Teacher).MaMonChinh;
-        if (t.MaMonHoc !== currentSub) return false;
+      // 2. Phân quyền hiển thị theo vai trò
+      let shouldShow = false;
+      if (isAdmin) {
+        shouldShow = true; // Admin thấy tất cả
+      } else if (isHomeroom) {
+        shouldShow = true; // GVCN thấy tất cả của lớp mình chủ nhiệm
+      } else {
+        // Giáo viên giảng dạy: Chỉ thấy nhiệm vụ DO CHÍNH MÌNH TẠO
+        shouldShow = t.MaGV === currentTeacherId;
       }
-      
-      // 4. Lọc bổ sung theo UI
+
+      if (!shouldShow) return false;
+
+      // 3. Lọc bổ sung theo UI (Tháng, Trạng thái)
       const tMonth = (new Date(t.HanChot).getMonth() + 1).toString();
       if (filterMonth !== 'all' && tMonth !== filterMonth) return false;
       
@@ -72,9 +74,14 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
       
       return true;
     }).sort((a, b) => b.MaNhiemVu - a.MaNhiemVu);
-  }, [tasks, state.selectedClass, state.selectedYear, state.selectedSubject, state.currentRole, filterMonth, filterStatus, currentTeacherId]);
+  }, [tasks, state.selectedClass, state.selectedYear, isHomeroom, isAdmin, currentTeacherId, filterMonth, filterStatus]);
 
-  // Tự động cập nhật selectedTask khi tasks từ cha thay đổi
+  // KIỂM TRA QUYỀN QUẢN LÝ (SỬA/XÓA)
+  const canManage = (task: AssignmentTask) => {
+    // Chỉ người tạo ra nhiệm vụ mới có quyền sửa/xóa (Kể cả Admin/GVCN cũng không được sửa bài của người khác)
+    return task.MaGV === currentTeacherId;
+  };
+
   useEffect(() => {
     if (selectedTask) {
       const updated = tasks.find(t => t.MaNhiemVu === selectedTask.MaNhiemVu);
@@ -84,8 +91,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
 
   const handleOpenAdd = () => {
     setModalMode('add');
-    // Lấy môn mặc định từ môn chính của giáo viên hoặc môn đang chọn trên header
-    const defaultSub = state.selectedSubject || (state.currentUser as Teacher).MaMonChinh || 'SHL';
+    const defaultSub = state.selectedSubject || currentUser.MaMonChinh || 'SHL';
     setTaskForm({ 
       MaNhiemVu: 0, 
       TieuDe: '', 
@@ -98,6 +104,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
   };
 
   const handleOpenEdit = (task: AssignmentTask) => {
+    if (!canManage(task)) return;
     setModalMode('edit');
     setTaskForm({
       MaNhiemVu: task.MaNhiemVu,
@@ -132,8 +139,6 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
       };
       
       await onUpdateTasks([newTask]);
-      
-      // Cập nhật vùng xem ngay lập tức sau khi lưu
       setSelectedTask(newTask);
       setIsModalOpen(false);
     } catch (e: any) {
@@ -148,7 +153,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
   };
 
   const filteredStudentsForModal = useMemo(() => {
-    return students.filter(s => s.Hoten.toLowerCase().includes(studentFilter.toLowerCase()) || s.MaHS.includes(studentFilter));
+    return (students || []).filter(s => s.Hoten.toLowerCase().includes(studentFilter.toLowerCase()) || s.MaHS.includes(studentFilter));
   }, [students, studentFilter]);
 
   return (
@@ -158,11 +163,19 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100"><Send size={20} /></div>
           <div>
-            <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Giao bài & Nhiệm vụ học tập</h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Lớp {state.selectedClass} • Chế độ: {state.currentRole === Role.CHU_NHIEM ? 'Chủ nhiệm' : 'Giảng dạy'}</p>
+            <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Nhiệm vụ học tập</h2>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+              {isAdmin ? 'Quyền hạn: Admin (Toàn trường)' : isHomeroom ? 'Quyền hạn: GV Chủ nhiệm (Xem lớp)' : 'Quyền hạn: GV Giảng dạy'}
+            </p>
           </div>
         </div>
-        <button onClick={handleOpenAdd} className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all"><Plus size={18} /> Tạo mới nhiệm vụ</button>
+        
+        {/* Chỉ cho phép GVBM tạo nhiệm vụ (Hoặc nếu không phải Admin/GVCN xem thuần túy) */}
+        {!isAdmin && !isHomeroom && (
+          <button onClick={handleOpenAdd} className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all">
+            <Plus size={18} /> Tạo mới nhiệm vụ
+          </button>
+        )}
       </div>
 
       {/* Filter Bar */}
@@ -219,7 +232,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
           }) : (
              <div className="py-24 bg-white rounded-[40px] border-2 border-dashed border-slate-100 text-center opacity-40 flex flex-col items-center justify-center">
                 <Target size={56} className="text-slate-200 mb-4 mx-auto" />
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-relaxed text-center">Không tìm thấy nhiệm vụ</p>
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-relaxed text-center">Không có nhiệm vụ để hiển thị</p>
              </div>
           )}
         </div>
@@ -239,10 +252,19 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
                      </div>
                    </div>
                 </div>
-                <div className="flex gap-2">
-                   <button onClick={() => handleOpenEdit(selectedTask)} className="p-2.5 text-indigo-600 hover:bg-white border border-transparent hover:border-indigo-100 rounded-2xl transition-all shadow-sm"><Edit2 size={20}/></button>
-                   <button onClick={() => { if(confirm("Xóa nhiệm vụ này?")) onDeleteTask(selectedTask.MaNhiemVu).then(() => setSelectedTask(null)); }} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={20}/></button>
-                </div>
+                
+                {/* Chỉ hiển thị nút sửa xóa nếu là người tạo bài */}
+                {canManage(selectedTask) ? (
+                  <div className="flex gap-2">
+                    <button onClick={() => handleOpenEdit(selectedTask)} className="p-2.5 text-indigo-600 hover:bg-white border border-transparent hover:border-indigo-100 rounded-2xl transition-all shadow-sm"><Edit2 size={20}/></button>
+                    <button onClick={() => { if(confirm("Xóa nhiệm vụ này?")) onDeleteTask(selectedTask.MaNhiemVu).then(() => setSelectedTask(null)); }} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={20}/></button>
+                  </div>
+                ) : (
+                  <div className="px-4 py-2 bg-slate-100 text-slate-400 rounded-2xl flex items-center gap-2 border border-slate-200">
+                    <Eye size={16} />
+                    <span className="text-[9px] font-black uppercase tracking-widest">Chế độ xem</span>
+                  </div>
+                )}
               </div>
               
               <div className="p-8 border-b bg-white">
@@ -285,7 +307,7 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
           ) : (
             <div className="h-full bg-white rounded-[40px] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-slate-300 gap-6">
               <Trophy size={64} className="opacity-10" />
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Chọn một nhiệm vụ để xem tiến độ</p>
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Chọn nhiệm vụ để xem chi tiết</p>
             </div>
           )}
         </div>
