@@ -1,13 +1,14 @@
 
 import React, { useState, useMemo } from 'react';
-import { ShieldAlert, Plus, AlertCircle, Trash2, Save, X, Edit3, Check, Loader2, CheckCircle2, Filter } from 'lucide-react';
-import { AppState, Student, Discipline, ViolationRule } from '../types';
+import { ShieldAlert, Plus, AlertCircle, Trash2, Save, X, Edit3, Check, Loader2, CheckCircle2, Filter, Eye, Lock } from 'lucide-react';
+import { AppState, Student, Discipline, ViolationRule, Assignment, Teacher, Role } from '../types';
 
 interface Props {
   state: AppState;
   students: Student[];
   disciplines: Discipline[];
   violationRules: ViolationRule[];
+  assignments: Assignment[];
   onUpdateDisciplines: (disciplines: Discipline[]) => Promise<void>;
   onDeleteDiscipline: (id: number) => Promise<void>;
   onUpdateRules: (rules: ViolationRule[]) => Promise<void>;
@@ -15,8 +16,24 @@ interface Props {
 
 const actionTypes = ["Nhắc nhở", "Viết bản kiểm điểm", "Trực lao động", "Mời phụ huynh", "Khiển trách lớp", "Cảnh cáo", "Đình chỉ"];
 
-const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, violationRules, onUpdateDisciplines, onDeleteDiscipline, onUpdateRules }) => {
-  const isChuNhiem = state.currentRole === 'ChuNhiem';
+const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, violationRules, assignments, onUpdateDisciplines, onDeleteDiscipline, onUpdateRules }) => {
+  const currentUser = state.currentUser as Teacher;
+  const isAdmin = currentUser?.quanly === true;
+  
+  // KIỂM TRA QUYỀN QUẢN LÝ (THÊM/XÓA/SỬA)
+  // Chỉ GVCN mới có quyền quản lý kỷ luật của lớp mình chủ nhiệm
+  const canManage = useMemo(() => {
+    if (isAdmin) return false; // Theo yêu cầu: Admin chỉ xem các được các lớp
+    
+    const isActuallyHomeroomOfThisClass = assignments.some(a => 
+      a.MaGV === currentUser.MaGV && 
+      a.MaLop === state.selectedClass && 
+      a.LoaiPhanCong === Role.CHU_NHIEM
+    );
+
+    return state.currentRole === Role.CHU_NHIEM && isActuallyHomeroomOfThisClass;
+  }, [state.currentRole, currentUser.MaGV, state.selectedClass, assignments, isAdmin]);
+
   const [activeView, setActiveView] = useState<'LIST' | 'RULES' | 'CONDUCT'>('LIST');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
@@ -34,6 +51,9 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
 
   const filteredDisciplines = useMemo(() => {
     return disciplines.filter(d => {
+      // Lọc theo lớp hiện tại (dựa trên danh sách học sinh của lớp)
+      if (!students.some(s => s.MaHS === d.MaHS)) return false;
+      
       const dDate = new Date(d.NgayViPham);
       const dMonth = (dDate.getMonth() + 1).toString();
       let matches = true;
@@ -42,7 +62,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
       if (filterEndDate && d.NgayViPham > filterEndDate) matches = false;
       return matches;
     }).sort((a,b) => b.MaKyLuat - a.MaKyLuat);
-  }, [disciplines, filterMonth, filterStartDate, filterEndDate]);
+  }, [disciplines, students, filterMonth, filterStartDate, filterEndDate]);
 
   const conductScores = useMemo(() => {
     return students.map(student => {
@@ -58,12 +78,14 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
   }, [students, disciplines, state.selectedYear]);
 
   const handleOpenAdd = () => {
+    if (!canManage) return;
     setModalMode('add');
     setFormDiscipline({ MaHS: '', NgayViPham: new Date().toISOString().split('T')[0], MaLoi: '', NoiDungChiTiet: '', HinhThucXL: 'Nhắc nhở' });
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (item: Discipline) => {
+    if (!canManage) return;
     setModalMode('edit');
     setFormDiscipline(item);
     setIsModalOpen(true);
@@ -109,13 +131,15 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
           <div className="p-2.5 bg-rose-600 rounded-2xl text-white shadow-lg shadow-rose-100"><ShieldAlert size={20} /></div>
           <div>
             <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Kỷ luật & Rèn luyện</h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Lớp {state.selectedClass} • {filteredDisciplines.length} bản ghi</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+              Lớp {state.selectedClass} • {isAdmin ? 'Chế độ Admin (Xem)' : canManage ? 'Chế độ GVCN (Quản lý)' : 'Chế độ GVBM (Xem)'}
+            </p>
           </div>
         </div>
         <div className="flex p-1 bg-slate-100 rounded-xl border border-slate-200">
           <button onClick={() => setActiveView('LIST')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${activeView === 'LIST' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400'}`}>Lịch sử vi phạm</button>
           <button onClick={() => setActiveView('CONDUCT')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${activeView === 'CONDUCT' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400'}`}>Xếp loại hạnh kiểm</button>
-          {isChuNhiem && <button onClick={() => setActiveView('RULES')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${activeView === 'RULES' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400'}`}>Bộ quy tắc</button>}
+          {canManage && <button onClick={() => setActiveView('RULES')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${activeView === 'RULES' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400'}`}>Bộ quy tắc</button>}
         </div>
       </div>
 
@@ -141,7 +165,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {isChuNhiem && (
+            {canManage && (
               <div onClick={handleOpenAdd} className="bg-white rounded-[32px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-8 transition-all hover:border-rose-400 hover:bg-rose-50/30 cursor-pointer min-h-[160px] group shadow-sm">
                 <div className="p-3 bg-rose-50 rounded-2xl text-rose-600 mb-3 group-hover:scale-110 transition-transform"><Plus size={24} /></div>
                 <p className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Ghi nhận vi phạm mới</p>
@@ -172,10 +196,14 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-[9px] font-black text-rose-600 bg-rose-50 px-3 py-1 rounded-xl uppercase border border-rose-100 tracking-tighter shadow-sm">{item.HinhThucXL}</span>
-                    {isChuNhiem && (
+                    {canManage ? (
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
                         <button onClick={() => handleOpenEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl"><Edit3 size={15}/></button>
                         <button onClick={() => { if(confirm("Xóa vi phạm này?")) onDeleteDiscipline(item.MaKyLuat); }} className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl"><Trash2 size={15}/></button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 text-[8px] font-black text-slate-300 uppercase tracking-widest">
+                        <Eye size={10}/> Chỉ xem
                       </div>
                     )}
                   </div>
@@ -223,13 +251,15 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
         <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
             <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2">Bộ quy tắc rèn luyện</h3>
-            <button 
-              onClick={() => { setEditingRuleId('new'); setRuleFormData({ TenLoi: '', DiemTru: 2 }); }} 
-              disabled={editingRuleId === 'new'}
-              className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2"
-            >
-              <Plus size={16} /> Thêm quy tắc
-            </button>
+            {canManage && (
+              <button 
+                onClick={() => { setEditingRuleId('new'); setRuleFormData({ TenLoi: '', DiemTru: 2 }); }} 
+                disabled={editingRuleId === 'new'}
+                className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2"
+              >
+                <Plus size={16} /> Thêm quy tắc
+              </button>
+            )}
           </div>
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
@@ -256,9 +286,11 @@ const DisciplineManager: React.FC<Props> = ({ state, students, disciplines, viol
                       <td className="px-8 py-4 text-xs font-bold text-slate-700 uppercase">{rule.TenLoi}</td>
                       <td className="px-8 py-4"><span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black border border-rose-100">-{rule.DiemTru} điểm</span></td>
                       <td className="px-8 py-4 text-right">
-                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => { setEditingRuleId(rule.MaLoi); setRuleFormData(rule); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl"><Edit3 size={16}/></button>
-                        </div>
+                        {canManage && (
+                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onClick={() => { setEditingRuleId(rule.MaLoi); setRuleFormData(rule); }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl"><Edit3 size={16}/></button>
+                          </div>
+                        )}
                       </td>
                     </>
                   )}
