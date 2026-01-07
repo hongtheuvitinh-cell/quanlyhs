@@ -4,7 +4,7 @@ import {
   Plus, GraduationCap, Send, ShieldAlert, LogOut, User, Calendar, CheckCircle, 
   Circle, Trophy, BookOpen, Award, TrendingUp, Clock, Layout, AlertCircle, 
   Lock, Link as LinkIcon, Check, Shield, Save, X, Loader2, ExternalLink, 
-  Info, ClipboardList, Globe, Home, Menu, ChevronRight, Bell
+  Info, ClipboardList, Globe, Home, Menu, ChevronRight, Bell, Phone, Mail, MapPin, Briefcase, FileText
 } from 'lucide-react';
 import { Student, Grade, Discipline, AssignmentTask, ViolationRule, SchoolPlan, ChatMessage, Role } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -188,10 +188,75 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
              <div className="space-y-4">{myDisciplines.map(d => { const rule = violationRules.find(r => r.MaLoi === d.MaLoi); return (<div key={d.MaKyLuat} className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6"><div className="flex items-start gap-5"><div className="p-3 bg-rose-50 text-rose-500 rounded-2xl border border-rose-100 shrink-0"><AlertCircle size={24}/></div><div><h4 className="font-black text-slate-800 text-sm uppercase mb-1">Lỗi: {rule?.TenLoi || d.MaLoi}</h4><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-3">{d.NgayViPham}</p><div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-[11px] font-medium text-slate-600 italic whitespace-pre-line">"{d.NoiDungChiTiet}"</div></div></div><span className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shrink-0 text-center">{d.HinhThucXL}</span></div>); })}{myDisciplines.length === 0 && (<div className="py-20 text-center opacity-30"><CheckCircle size={48} className="mx-auto mb-4 text-emerald-300" /><p className="text-[11px] font-black uppercase tracking-widest">Tuyệt vời! Bạn không có vi phạm nào.</p></div>)}</div>
           </div>
         )}
+        {activeView === 'profile' && (
+          <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-right-4 pb-12">
+            <div className="flex items-center gap-3"><div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg"><User size={24} /></div><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Thông tin cá nhân</h2></div>
+            
+            <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden">
+               <div className="p-8 bg-slate-50/50 border-b flex flex-col md:flex-row items-center gap-8">
+                  <div className="w-32 h-40 rounded-[32px] bg-white border-2 border-indigo-100 flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
+                    {student.Anh ? <img src={student.Anh} className="w-full h-full object-cover" /> : <User size={48} className="text-slate-200" />}
+                  </div>
+                  <div className="text-center md:text-left">
+                     <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">{student.Hoten}</h3>
+                     <div className="flex flex-wrap justify-center md:justify-start gap-3">
+                        <span className="px-3 py-1 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest">Mã HS: {student.MaHS}</span>
+                        <span className="px-3 py-1 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md">Lớp: {student.MaLopHienTai}</span>
+                     </div>
+                  </div>
+               </div>
+               
+               <div className="p-10 space-y-12">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <InfoDisplay label="Ngày sinh" value={student.NgaySinh} icon={<Calendar size={16}/>} />
+                     <InfoDisplay label="Giới tính" value={student.GioiTinh ? 'Nam' : 'Nữ'} icon={<User size={16}/>} />
+                     <InfoDisplay label="Số điện thoại" value={student.SDT_LinkHe} icon={<Phone size={16}/>} />
+                     <InfoDisplay label="Email liên hệ" value={student.Email || 'Chưa cập nhật'} icon={<Mail size={16}/>} />
+                     <InfoDisplay label="Địa chỉ cư trú" value={student.DiaChi} icon={<MapPin size={16}/>} colSpan={2} />
+                  </div>
+
+                  <div className="pt-10 border-t border-slate-100">
+                    <h4 className="text-[11px] font-black uppercase text-indigo-500 tracking-widest px-2 mb-6">Thông tin gia đình</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                       <InfoDisplay label="Họ tên Cha" value={student.TenCha} icon={<User size={14}/>} />
+                       <InfoDisplay label="Nghề nghiệp Cha" value={student.NgheNghiepCha} icon={<Briefcase size={14}/>} />
+                       <InfoDisplay label="Họ tên Mẹ" value={student.TenMe} icon={<User size={14}/>} />
+                       <InfoDisplay label="Nghề nghiệp Mẹ" value={student.NgheNghiepMe} icon={<Briefcase size={14}/>} />
+                    </div>
+                  </div>
+
+                  <div className="pt-10 border-t border-slate-100">
+                    <InfoDisplay label="Ghi chú khác" value={student.GhiChuKhac} icon={<FileText size={16}/>} colSpan={2} />
+                  </div>
+               </div>
+            </div>
+
+            <div className="bg-white rounded-[40px] shadow-xl border border-indigo-100 overflow-hidden">
+               <div className="p-6 bg-indigo-600 text-white flex items-center gap-3"><Lock size={20}/><h3 className="font-black text-sm uppercase tracking-widest">Đổi mật khẩu truy cập</h3></div>
+               <div className="p-8 md:p-10 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase px-2">Mật khẩu cũ</label><input type="password" value={passwordForm.old} onChange={e => setPasswordForm({...passwordForm, old: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:bg-white transition-all shadow-inner" /></div>
+                    <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase px-2">Mật khẩu mới</label><input type="password" value={passwordForm.new} onChange={e => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:bg-white transition-all shadow-inner" /></div>
+                    <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase px-2">Xác nhận lại</label><input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm({...passwordForm, confirm: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:bg-white transition-all shadow-inner" /></div>
+                  </div>
+                  <button onClick={handleUpdatePassword} disabled={isUpdating} className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-indigo-700 shadow-lg transition-all">{isUpdating ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>} Cập nhật mật khẩu mới</button>
+               </div>
+            </div>
+          </div>
+        )}
       </main>
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 flex justify-around p-3">{menuItems.map(item => (<button key={item.id} onClick={() => setActiveView(item.id as ViewState)} className={`flex flex-col items-center gap-1 ${activeView === item.id ? 'text-indigo-600' : 'text-slate-400'}`}><item.icon size={20} /><span className="text-[8px] font-black uppercase">{item.label}</span></button>))}</div>
     </div>
   );
 };
+
+const InfoDisplay = ({ label, value, icon, colSpan = 1 }: any) => (
+  <div className={`space-y-2 ${colSpan === 2 ? 'md:col-span-2' : ''}`}>
+    <p className="text-[10px] text-slate-400 uppercase font-black px-2 flex items-center gap-2">{icon} {label}</p>
+    <div className="p-4 bg-white border border-slate-100 rounded-2xl font-bold text-slate-700 text-[13px] shadow-sm">
+      {value || '---'}
+    </div>
+  </div>
+);
 
 export default StudentPortal;
