@@ -16,16 +16,18 @@ const actionTypes = ["Nhắc nhở", "Viết bản kiểm điểm", "Trực lao 
 
 const DisciplineManager: React.FC<Props> = ({ state, students, violationRules, assignments, onUpdateRules }) => {
   const currentUser = state.currentUser as Teacher;
+  const isAdmin = currentUser?.quanly === true;
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   const canManage = useMemo(() => {
+    if (isAdmin) return true; // Admin được quản lý kỷ luật mọi lớp
     if (!currentUser || !state.selectedClass) return false;
     const hasHomeroomAssignment = (assignments || []).some(a => 
       a.MaGV === currentUser.MaGV && a.MaLop === state.selectedClass && a.LoaiPhanCong === Role.CHU_NHIEM
     );
     return state.currentRole === Role.CHU_NHIEM && hasHomeroomAssignment;
-  }, [state.currentRole, currentUser, state.selectedClass, assignments]);
+  }, [isAdmin, state.currentRole, currentUser, state.selectedClass, assignments]);
 
   const fetchDisciplines = async () => {
     if (students.length === 0) { setDisciplines([]); return; }
@@ -137,7 +139,7 @@ const DisciplineManager: React.FC<Props> = ({ state, students, violationRules, a
           <div className="p-2.5 bg-rose-600 rounded-2xl text-white shadow-lg"><ShieldAlert size={20} /></div>
           <div>
             <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Kỷ luật & Rèn luyện</h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Lớp {state.selectedClass} • {canManage ? 'Quản lý (GVCN)' : 'Chỉ xem'}</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Lớp {state.selectedClass} • {isAdmin ? 'Quản trị viên (Toàn quyền)' : canManage ? 'Quản lý (GVCN)' : 'Chỉ xem'}</p>
           </div>
         </div>
         <div className="flex p-1 bg-slate-100 rounded-xl">
