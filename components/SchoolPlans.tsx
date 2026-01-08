@@ -26,7 +26,7 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
   const filteredPlans = useMemo(() => {
     return plans
       .filter(p => p.MaNienHoc === state.selectedYear)
-      // CHỈ HIỂN THỊ KẾ HOẠCH DO MÌNH TẠO (Hoặc Admin thấy hết)
+      // HIỂN THỊ KẾ HOẠCH CỦA MÌNH HOẶC ADMIN THÌ THẤY HẾT
       .filter(p => isAdmin || p.MaGV === currentTeacherId)
       .sort((a, b) => b.Tuan - a.Tuan);
   }, [plans, state.selectedYear, currentTeacherId, isAdmin]);
@@ -46,7 +46,7 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
         TuNgay: editingPlan.TuNgay || new Date().toISOString().split('T')[0],
         DenNgay: editingPlan.DenNgay || new Date().toISOString().split('T')[0],
         MaNienHoc: state.selectedYear,
-        MaGV: editingPlan.MaGV || currentTeacherId, // Gán người tạo
+        MaGV: editingPlan.MaGV || currentTeacherId || 'ADMIN', 
         DoiTuong: editingPlan.DoiTuong || null,
         DinhKem: editingPlan.DinhKem || ''
       };
@@ -82,7 +82,9 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
           <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100"><Calendar size={24} /></div>
           <div>
             <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Kế hoạch & Thông báo tuần</h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Niên học {state.selectedYear} • {filteredPlans.length} kế hoạch của tôi</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+              Niên học {state.selectedYear} • {isAdmin ? 'Quản trị viên (Xem tất cả)' : `${filteredPlans.length} kế hoạch của tôi`}
+            </p>
           </div>
         </div>
         <button onClick={openAdd} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2">
@@ -93,6 +95,8 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredPlans.length > 0 ? filteredPlans.map(plan => {
           const isGlobal = !plan.DoiTuong || plan.DoiTuong.length === 0;
+          const canManage = isAdmin || plan.MaGV === currentTeacherId;
+          
           return (
             <div key={plan.MaKeHoach} className="bg-white rounded-[40px] border border-slate-200 shadow-sm p-6 flex flex-col gap-5 hover:shadow-xl transition-all group relative overflow-hidden">
                <div className="flex justify-between items-start">
@@ -116,10 +120,12 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
                   <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
                     <Clock size={12} /> {plan.TuNgay} → {plan.DenNgay}
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                     <button onClick={() => openEdit(plan)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit2 size={16}/></button>
-                     <button onClick={() => { if(confirm("Xóa kế hoạch này?")) onDeletePlan(plan.MaKeHoach); }} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={16}/></button>
-                  </div>
+                  {canManage && (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                       <button onClick={() => openEdit(plan)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit2 size={16}/></button>
+                       <button onClick={() => { if(confirm("Xóa kế hoạch này?")) onDeletePlan(plan.MaKeHoach); }} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={16}/></button>
+                    </div>
+                  )}
                </div>
 
                {plan.DinhKem && (
@@ -132,7 +138,7 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
         }) : (
           <div className="col-span-full py-24 bg-white rounded-[40px] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center opacity-30">
              <FileText size={56} className="text-slate-300 mb-4" />
-             <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Bạn chưa đăng kế hoạch nào</p>
+             <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Không có kế hoạch nào được hiển thị</p>
           </div>
         )}
       </div>
