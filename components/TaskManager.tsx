@@ -43,29 +43,24 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
   const isAdmin = currentUser?.quanly === true;
   const isHomeroom = state.currentRole === Role.CHU_NHIEM;
 
-  // LOGIC PHÂN QUYỀN HIỂN THỊ (VIEW LOGIC)
   const currentTasks = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
     
     return (tasks || []).filter(t => {
-      // 1. Lọc theo lớp và niên học cơ bản
       if (t.MaLop !== state.selectedClass) return false;
       if (t.MaNienHoc !== state.selectedYear) return false;
 
-      // 2. Phân quyền hiển thị theo vai trò
       let shouldShow = false;
       if (isAdmin) {
-        shouldShow = true; // Admin thấy tất cả
+        shouldShow = true;
       } else if (isHomeroom) {
-        shouldShow = true; // GVCN thấy tất cả của lớp mình chủ nhiệm
+        shouldShow = true;
       } else {
-        // Giáo viên giảng dạy: Chỉ thấy nhiệm vụ DO CHÍNH MÌNH TẠO
         shouldShow = t.MaGV === currentTeacherId;
       }
 
       if (!shouldShow) return false;
 
-      // 3. Lọc bổ sung theo UI (Tháng, Trạng thái)
       const tMonth = (new Date(t.HanChot).getMonth() + 1).toString();
       if (filterMonth !== 'all' && tMonth !== filterMonth) return false;
       
@@ -76,10 +71,9 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
     }).sort((a, b) => b.MaNhiemVu - a.MaNhiemVu);
   }, [tasks, state.selectedClass, state.selectedYear, isHomeroom, isAdmin, currentTeacherId, filterMonth, filterStatus]);
 
-  // KIỂM TRA QUYỀN QUẢN LÝ (SỬA/XÓA)
   const canManage = (task: AssignmentTask) => {
-    // Chỉ người tạo ra nhiệm vụ mới có quyền sửa/xóa (Kể cả Admin/GVCN cũng không được sửa bài của người khác)
-    return task.MaGV === currentTeacherId;
+    // Admin hoặc người tạo ra nhiệm vụ có quyền sửa/xóa
+    return isAdmin || task.MaGV === currentTeacherId;
   };
 
   useEffect(() => {
@@ -130,7 +124,8 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
         MoTa: taskForm.MoTa, 
         MaLop: state.selectedClass, 
         MaMonHoc: taskForm.MaMonHoc,
-        MaGV: currentTeacherId, 
+        // Nếu admin sửa bài của GV khác, giữ nguyên MaGV gốc
+        MaGV: modalMode === 'edit' ? (tasks.find(t => t.MaNhiemVu === taskForm.MaNhiemVu)?.MaGV || currentTeacherId) : currentTeacherId, 
         HanChot: taskForm.HanChot, 
         MaNienHoc: state.selectedYear,
         DanhSachGiao: assignedStudentIds, 
@@ -158,27 +153,22 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
 
   return (
     <div className="space-y-4 animate-in fade-in pb-20">
-      {/* Header Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100"><Send size={20} /></div>
           <div>
             <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Nhiệm vụ học tập</h2>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-              {isAdmin ? 'Quyền hạn: Admin (Toàn trường)' : isHomeroom ? 'Quyền hạn: GV Chủ nhiệm (Được tạo bài)' : 'Quyền hạn: GV Giảng dạy'}
+              {isAdmin ? 'Quyền hạn: Quản trị viên (Toàn quyền)' : isHomeroom ? 'Quyền hạn: GV Chủ nhiệm' : 'Quyền hạn: GV Giảng dạy'}
             </p>
           </div>
         </div>
         
-        {/* Admin không được tạo, nhưng GVCN và GVBM thì được */}
-        {!isAdmin && (
-          <button onClick={handleOpenAdd} className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all">
-            <Plus size={18} /> Tạo mới nhiệm vụ
-          </button>
-        )}
+        <button onClick={handleOpenAdd} className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all">
+          <Plus size={18} /> Tạo mới nhiệm vụ
+        </button>
       </div>
 
-      {/* Filter Bar */}
       <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-wrap items-end gap-5">
          <div className="space-y-1.5 flex-1 min-w-[150px]">
             <label className="text-[9px] font-black text-slate-400 uppercase px-1 tracking-widest flex items-center gap-1"><Filter size={10}/> Lọc theo tháng</label>
@@ -201,7 +191,6 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left List */}
         <div className="lg:col-span-4 space-y-4">
           {currentTasks.length > 0 ? currentTasks.map(task => {
             const isSelected = selectedTask?.MaNhiemVu === task.MaNhiemVu;
@@ -237,7 +226,6 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
           )}
         </div>
 
-        {/* Right Detail (Vùng xem) */}
         <div className="lg:col-span-8">
           {selectedTask ? (
             <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[600px] animate-in slide-in-from-right-4">
@@ -253,7 +241,6 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
                    </div>
                 </div>
                 
-                {/* Chỉ hiển thị nút sửa xóa nếu là người tạo bài */}
                 {canManage(selectedTask) ? (
                   <div className="flex gap-2">
                     <button onClick={() => handleOpenEdit(selectedTask)} className="p-2.5 text-indigo-600 hover:bg-white border border-transparent hover:border-indigo-100 rounded-2xl transition-all shadow-sm"><Edit2 size={20}/></button>
@@ -313,7 +300,6 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
         </div>
       </div>
 
-      {/* Modal Add/Edit */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white w-full max-w-3xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
