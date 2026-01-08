@@ -28,6 +28,7 @@ interface PendingLog {
 
 const LearningLogs: React.FC<Props> = ({ state, students, assignments }) => {
   const currentUser = state.currentUser as Teacher;
+  const isAdmin = currentUser?.quanly === true;
   const [logs, setLogs] = useState<LearningLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'history' | 'rollcall'>('history');
@@ -51,7 +52,6 @@ const LearningLogs: React.FC<Props> = ({ state, students, assignments }) => {
 
   useEffect(() => { fetchLogs(); }, [state.selectedClass, students]);
 
-  // Bộ lọc lịch sử
   const [historyFilterMonth, setHistoryFilterMonth] = useState<string>('all');
   const [historyFilterStart, setHistoryFilterStart] = useState<string>('');
   
@@ -84,6 +84,7 @@ const LearningLogs: React.FC<Props> = ({ state, students, assignments }) => {
   }, [logs, historyFilterMonth, historyFilterStart]);
 
   const canManageLog = (log: LearningLog) => {
+    if (isAdmin) return true; // Admin có quyền sửa/xóa mọi nhật ký
     if (!currentUser || !assignments) return false;
     const logAssignment = assignments.find(a => a.MaPhanCong === log.MaPhanCong);
     return logAssignment?.MaGV === currentUser.MaGV;
@@ -133,7 +134,7 @@ const LearningLogs: React.FC<Props> = ({ state, students, assignments }) => {
           <div className="p-2.5 bg-indigo-600 rounded-2xl text-white shadow-lg"><ClipboardList size={22} /></div>
           <div>
             <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Nhật ký theo dõi</h2>
-            <p className="text-[10px] text-slate-400 font-bold mt-1">Lớp {state.selectedClass} • {logs.length} ghi chép</p>
+            <p className="text-[10px] text-slate-400 font-bold mt-1">Lớp {state.selectedClass} • {isAdmin ? 'Quản trị viên (Toàn quyền)' : `${logs.length} ghi chép`}</p>
           </div>
         </div>
         <div className="flex p-1 bg-slate-100 rounded-xl">
