@@ -60,18 +60,60 @@ const App: React.FC = () => {
         supabase.from('tasks').select('*').limit(500)
       ]);
 
-      if (yrData) setYears(yrData);
-      if (clData) setClasses(clData);
-      if (tcData) setTeachers(tcData);
-      if (asData) setAssignments(asData);
-      if (stData) setStudents(stData || []);
-      if (rlData) setViolationRules(rlData || []);
-      if (plData) setPlans(plData || []);
-      if (tkData) setTasks(tkData || []);
+      const fetchedYears = yrData || [];
+      const fetchedTeachers = tcData || [];
+      const fetchedStudents = stData || [];
+      const fetchedAssignments = asData || [];
+      const fetchedClasses = clData || [];
+
+      setYears(fetchedYears);
+      setClasses(fetchedClasses);
+      setTeachers(fetchedTeachers);
+      setAssignments(fetchedAssignments);
+      setStudents(fetchedStudents);
+      setViolationRules(rlData || []);
+      setPlans(plData || []);
+      setTasks(tkData || []);
       setMessages(Array.isArray(msData) ? msData : []);
 
-      if (yrData?.length && state.selectedYear === 0) {
-        setState(p => ({ ...p, selectedYear: yrData[0].MaNienHoc }));
+      let defaultYear = fetchedYears.length ? fetchedYears[0].MaNienHoc : 0;
+      
+      // Khôi phục phiên đăng nhập từ localStorage sau khi đã tải dữ liệu
+      const savedSession = localStorage.getItem('edu_session');
+      if (savedSession) {
+        const { role, id } = JSON.parse(savedSession);
+        if (role === Role.STUDENT) {
+          const s = fetchedStudents.find(x => x.MaHS === id);
+          if (s) {
+            setState({
+              currentUser: s,
+              currentRole: Role.STUDENT,
+              selectedClass: s.MaLopHienTai,
+              selectedYear: s.MaNienHoc,
+              selectedSubject: null
+            });
+            setIsLoggedIn(true);
+          }
+        } else {
+          const t = fetchedTeachers.find(x => x.MaGV === id);
+          if (t) {
+            const myAs = fetchedAssignments.filter(a => a.MaGV === id);
+            const initialRole = t.quanly ? Role.CHU_NHIEM : (myAs.some(a => a.LoaiPhanCong === Role.CHU_NHIEM) ? Role.CHU_NHIEM : Role.GIANG_DAY);
+            const initialClass = t.quanly ? (fetchedClasses[0]?.MaLop || '') : (myAs.find(a => a.LoaiPhanCong === initialRole)?.MaLop || myAs[0]?.MaLop || '');
+            const initialYear = myAs[0]?.MaNienHoc || defaultYear;
+
+            setState({
+              currentUser: t,
+              currentRole: initialRole,
+              selectedClass: initialClass,
+              selectedYear: initialYear,
+              selectedSubject: t.MaMonChinh || null
+            });
+            setIsLoggedIn(true);
+          }
+        }
+      } else if (fetchedYears.length && state.selectedYear === 0) {
+        setState(p => ({ ...p, selectedYear: defaultYear }));
       }
     } catch (err) {
       console.error("Lỗi đồng bộ:", err);
@@ -109,12 +151,14 @@ const App: React.FC = () => {
     if (role === Role.STUDENT) {
       const s = students.find(x => x.MaHS === id);
       if (s && (s.MatKhau || '123456') === pass) {
+        localStorage.setItem('edu_session', JSON.stringify({ role, id }));
         setState(p => ({ ...p, currentUser: s, currentRole: Role.STUDENT, selectedClass: s.MaLopHienTai, selectedYear: s.MaNienHoc }));
         setIsLoggedIn(true);
       } else alert("Sai thông tin!");
     } else {
       const t = teachers.find(x => x.MaGV === id);
       if (t && (t.MatKhau || '123456') === pass) {
+        localStorage.setItem('edu_session', JSON.stringify({ role, id }));
         if (t.quanly) {
           setState(p => ({ ...p, currentUser: t, currentRole: Role.CHU_NHIEM, selectedClass: classes[0]?.MaLop || '', selectedYear: years[0]?.MaNienHoc || state.selectedYear }));
           setIsLoggedIn(true);
@@ -127,6 +171,12 @@ const App: React.FC = () => {
         setIsLoggedIn(true);
       } else alert("Sai thông tin!");
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('edu_session');
+    setIsLoggedIn(false);
+    setState(p => ({ ...p, currentUser: null }));
   };
 
   const handleSendMessage = async (content: string, attachment?: string) => {
@@ -163,7 +213,7 @@ const App: React.FC = () => {
         plans={plans} 
         messages={(messages || []).filter(m => m.MaLop === studentUser.MaLopHienTai)} 
         onSendMessage={handleSendMessage} 
-        onLogout={() => setIsLoggedIn(false)} 
+        onLogout={handleLogout} 
         onToggleTask={handleToggleTask} 
         onUpdateProfile={fetchData} 
       />
@@ -204,7 +254,7 @@ const App: React.FC = () => {
           <button onClick={() => setActiveTab('system')} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest mt-1 text-slate-400 hover:bg-slate-50 transition-all"><Settings size={18} /> Cấu hình</button>
         </nav>
         <div className="p-6 border-t border-slate-50 mt-auto">
-          <button onClick={() => setIsLoggedIn(false)} className="w-full flex items-center gap-3 px-4 py-2.5 text-rose-500 font-black uppercase text-[10px] tracking-widest hover:bg-rose-50 rounded-2xl transition-all"><LogOut size={18}/> Đăng xuất</button>
+          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-rose-500 font-black uppercase text-[10px] tracking-widest hover:bg-rose-50 rounded-2xl transition-all"><LogOut size={18}/> Đăng xuất</button>
         </div>
       </aside>
 
