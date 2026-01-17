@@ -62,19 +62,26 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
       .sort((a, b) => b.Tuan - a.Tuan);
   }, [plans, student.MaLopHienTai]);
 
+  // Fixed calculateSubjectAvg to extract data from the DiemData object as per Grade interface
   const calculateSubjectAvg = (mSubject: string, semester: number) => {
-    const sGrades = myGrades.filter(g => g.MaMonHoc === mSubject && g.HocKy === semester);
-    const dgtx = sGrades.filter(g => g.LoaiDiem.startsWith('ĐGTX')).map(g => g.DiemSo);
-    const ggk = sGrades.find(g => g.LoaiDiem === 'ĐGGK')?.DiemSo;
-    const gck = sGrades.find(g => g.LoaiDiem === 'ĐGCK')?.DiemSo;
-    if (dgtx.length > 0 || ggk !== undefined || gck !== undefined) {
-      let total = dgtx.reduce((a, b) => a + b, 0);
-      let count = dgtx.length;
-      if (ggk !== undefined) { total += ggk * 2; count += 2; }
-      if (gck !== undefined) { total += gck * 3; count += 3; }
-      return count > 0 ? total / count : null;
-    }
-    return null;
+    const gradeRecord = myGrades.find(g => g.MaMonHoc === mSubject && g.HocKy === semester);
+    if (!gradeRecord || !gradeRecord.DiemData) return null;
+    
+    const data = gradeRecord.DiemData;
+    const txKeys = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5'];
+    const dgtx = txKeys.map(key => data[key]).filter(v => v !== null && v !== undefined && !isNaN(v as number)) as number[];
+    const ggk = data['ĐGGK'];
+    const gck = data['ĐGCK'];
+    
+    if (dgtx.length === 0 && ggk == null && gck == null) return null;
+    
+    let total = 0;
+    let count = 0;
+    dgtx.forEach(v => { total += v; count += 1; });
+    if (ggk != null) { total += (ggk as number) * 2; count += 2; }
+    if (gck != null) { total += (gck as number) * 3; count += 3; }
+    
+    return count > 0 ? total / count : null;
   };
 
   const gradeTableData = useMemo(() => {
