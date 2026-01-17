@@ -31,6 +31,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
   
   const [classGrades, setClassGrades] = useState<Grade[]>([]);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  
+  // Local state lưu trữ điểm cho modal edit: { '1': { TX1: 5... }, '2': { TX1: 6... } }
   const [localGrades, setLocalGrades] = useState<Record<string, Record<string, number | null>>>({
     '1': {}, '2': {}
   });
@@ -86,22 +88,27 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
     );
   }, [isAdmin, isHomeroom, assignments, currentUser.MaGV, state.selectedClass, selectedSubject]);
 
-  const calculateAvg = (maHS: string, hk: number, currentLocalGrades?: Record<string, number | null>) => {
-    let sourceGrades: Record<string, number | null> = {};
-    if (currentLocalGrades) {
-      sourceGrades = currentLocalGrades;
+  const calculateAvg = (maHS: string, hk: number, currentLocalData?: Record<string, number | null>) => {
+    let sourceData: Record<string, number | null> = {};
+    if (currentLocalData) {
+      sourceData = currentLocalData;
     } else {
-      const records = classGrades.filter(g => String(g.MaHS) === String(maHS) && Number(g.HocKy) === Number(hk));
-      records.forEach(r => { sourceGrades[r.LoaiDiem] = Number(r.DiemSo); });
+      const record = classGrades.find(g => String(g.MaHS) === String(maHS) && Number(g.HocKy) === Number(hk));
+      sourceData = record?.DiemData || {};
     }
-    const tx = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5'].map(key => sourceGrades[key]).filter(v => v !== null && v !== undefined && !isNaN(v)) as number[];
-    const gk = sourceGrades['ĐGGK'];
-    const ck = sourceGrades['ĐGCK'];
+
+    const txKeys = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5'];
+    const tx = txKeys.map(key => sourceData[key]).filter(v => v !== null && v !== undefined && !isNaN(v)) as number[];
+    const gk = sourceData['ĐGGK'];
+    const ck = sourceData['ĐGCK'];
+    
     if (tx.length === 0 && gk == null && ck == null) return null;
+    
     let totalScore = 0; let totalWeight = 0;
     tx.forEach(v => { totalScore += v; totalWeight += 1; });
     if (gk != null) { totalScore += (gk * 2); totalWeight += 2; }
     if (ck != null) { totalScore += (ck * 3); totalWeight += 3; }
+    
     return totalWeight > 0 ? totalScore / totalWeight : null;
   };
 
@@ -109,8 +116,12 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
     const data: Record<string, Record<string, number | null>> = { '1': {}, '2': {} };
     [1, 2].forEach(hk => {
       GRADE_COLUMNS.forEach(col => data[hk.toString()][col] = null);
-      const sGrades = classGrades.filter(g => g.MaHS === student.MaHS && Number(g.HocKy) === hk);
-      sGrades.forEach(g => { data[hk.toString()][g.LoaiDiem] = Number(g.DiemSo); });
+      const record = classGrades.find(g => g.MaHS === student.MaHS && Number(g.HocKy) === hk);
+      if (record && record.DiemData) {
+        Object.keys(record.DiemData).forEach(key => {
+           data[hk.toString()][key] = record.DiemData[key];
+        });
+      }
     });
     setLocalGrades(data);
     setEditingStudent(student);
@@ -122,18 +133,22 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
     try {
       const upsertData: any[] = [];
       [1, 2].forEach(hk => {
-        GRADE_COLUMNS.forEach(type => {
-          const val = localGrades[hk.toString()][type];
-          if (val !== null && !isNaN(val)) {
-            const old = classGrades.find(g => g.MaHS === editingStudent.MaHS && g.HocKy === hk && g.LoaiDiem === type);
-            upsertData.push({
-              MaDiem: old ? old.MaDiem : (Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000)),
-              MaHS: editingStudent.MaHS, MaMonHoc: selectedSubject, MaNienHoc: state.selectedYear, 
-              HocKy: hk, LoaiDiem: type, DiemSo: val
-            });
-          }
-        });
+        const hkData = localGrades[hk.toString()];
+        const hasData = Object.values(hkData).some(v => v !== null);
+        
+        if (hasData) {
+          const old = classGrades.find(g => g.MaHS === editingStudent.MaHS && g.HocKy === hk);
+          upsertData.push({
+            MaDiem: old ? old.MaDiem : (Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000)),
+            MaHS: editingStudent.MaHS, 
+            MaMonHoc: selectedSubject, 
+            MaNienHoc: state.selectedYear, 
+            HocKy: hk, 
+            DiemData: hkData
+          });
+        }
       });
+      
       if (upsertData.length > 0) {
         await supabase.from('grades').upsert(upsertData);
         await fetchClassGrades();
@@ -153,32 +168,41 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
       if (lines.length < 2) return;
       const rows = lines.slice(1);
       const upsertList: any[] = [];
+      
       rows.forEach(row => {
         const cols = row.split(',').map(c => c.trim());
         if (cols.length >= 6) {
           const maHS = cols[0];
           const mapping = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
+          const currentDiemData: Record<string, number | null> = {};
+          
           mapping.forEach((type, idx) => {
             const val = cols[idx + 2];
             if (val !== undefined && val !== '') {
               const num = parseFloat(val);
-              if (!isNaN(num)) {
-                const old = classGrades.find(g => g.MaHS === maHS && g.HocKy === selectedHK && g.LoaiDiem === type);
-                upsertList.push({
-                  MaDiem: old ? old.MaDiem : (Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000000)),
-                  MaHS: maHS, MaMonHoc: selectedSubject, MaNienHoc: state.selectedYear, 
-                  HocKy: selectedHK, LoaiDiem: type, DiemSo: num
-                });
-              }
+              if (!isNaN(num)) currentDiemData[type] = num;
             }
           });
+
+          if (Object.keys(currentDiemData).length > 0) {
+            const old = classGrades.find(g => g.MaHS === maHS && g.HocKy === selectedHK);
+            upsertList.push({
+              MaDiem: old ? old.MaDiem : (Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000000)),
+              MaHS: maHS, 
+              MaMonHoc: selectedSubject, 
+              MaNienHoc: state.selectedYear, 
+              HocKy: selectedHK, 
+              DiemData: currentDiemData
+            });
+          }
         }
       });
+      
       if (upsertList.length > 0) {
         setIsProcessing(true);
         const { error } = await supabase.from('grades').upsert(upsertList);
         if (error) alert("Lỗi: " + error.message);
-        else { await fetchClassGrades(); alert(`Thành công! Đã nhập ${upsertList.length} đầu điểm.`); }
+        else { await fetchClassGrades(); alert(`Thành công! Đã nhập ${upsertList.length} hàng dữ liệu.`); }
         setIsProcessing(false);
       }
     };
