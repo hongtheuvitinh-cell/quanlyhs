@@ -19,11 +19,13 @@ export const analyzeStudentPerformance = async (
 ) => {
   if (!process.env.API_KEY) return "Lỗi: Chưa cấu hình API Key cho AI.";
   
+  // Create a new GoogleGenAI instance right before the call to ensure up-to-date API key
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Updated prompt to include structured score data from DiemData
   const prompt = `
     Phân tích tình hình học tập của học sinh sau đây và đưa ra nhận xét:
     Học sinh: ${student.Hoten}
-    Điểm số: ${JSON.stringify(grades.map(g => ({ mon: g.MaMonHoc, loai: g.LoaiDiem, diem: g.DiemSo })))}
+    Điểm số: ${JSON.stringify(grades.map(g => ({ mon: g.MaMonHoc, hocKy: g.HocKy, diemChiTiet: g.DiemData })))}
     Nhận xét giáo viên: ${JSON.stringify(logs.map(l => l.NhanXet))}
     Viết ngắn gọn, súc tích (Ưu điểm và Cần cố gắng).
   `;
@@ -34,6 +36,7 @@ export const analyzeStudentPerformance = async (
       model: "gemini-3-flash-preview", 
       contents: prompt 
     });
+    // Correctly accessing text property
     return response.text || "AI không trả về kết quả.";
   } catch (error) {
     console.error("Gemini API Error:", error);
@@ -42,17 +45,18 @@ export const analyzeStudentPerformance = async (
 };
 
 /**
- * Quét danh sách học sinh từ ảnh - Sử dụng 2.5 Flash Vision
+ * Quét danh sách học sinh từ ảnh - Sử dụng Gemini 3 Flash Preview for vision analysis
  */
 export const parseStudentListFromImage = async (base64Image: string, mimeType: string, role: Role) => {
   if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
+  // Create a new GoogleGenAI instance right before the call
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Trích xuất danh sách học sinh sang JSON. Định dạng NgaySinh: YYYY-MM-DD. GioiTinh: true (Nam)/false (Nữ).`;
 
   try {
-    /* Using gemini-2.5-flash-image for visual data extraction as per guidelines */
+    /* Using gemini-3-flash-preview for vision/OCR tasks as per guidelines instead of flash-image */
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
+      model: "gemini-3-flash-preview",
       contents: {
         parts: [{ inlineData: { data: base64Image, mimeType: mimeType } }, { text: prompt }]
       },
@@ -77,16 +81,18 @@ export const parseStudentListFromImage = async (base64Image: string, mimeType: s
     });
     return JSON.parse(cleanJsonResponse(response.text || "[]"));
   } catch (error) {
+    console.error("Lỗi Gemini Student List Parsing:", error);
     throw error;
   }
 };
 
 /**
- * Quét bảng điểm từ ảnh - Sử dụng 2.5 Flash Vision
+ * Quét bảng điểm từ ảnh - Sử dụng Gemini 3 Flash Preview for vision analysis
  */
 export const parseGradesFromImage = async (base64Image: string, mimeType: string) => {
   if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
 
+  // Create a new GoogleGenAI instance right before the call
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Bạn là chuyên gia trích xuất dữ liệu bảng điểm học sinh Việt Nam. 
     Trong ảnh có bảng gồm các cột: STT, Mã Học Sir (đây là Mã HS), Họ và Tên (Hoten), và các cột điểm (ĐGTX1, ĐGTX2, ĐGTX3, ĐGTX4, ĐGGK).
@@ -104,9 +110,9 @@ export const parseGradesFromImage = async (base64Image: string, mimeType: string
     Lưu ý: Chỉ trả về JSON, không giải thích gì thêm.`;
 
   try {
-    /* Using gemini-2.5-flash-image for visual data extraction as per guidelines */
+    /* Using gemini-3-flash-preview for vision/OCR tasks as per guidelines instead of flash-image */
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
+      model: "gemini-3-flash-preview",
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: mimeType } },
