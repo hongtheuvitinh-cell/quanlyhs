@@ -61,8 +61,8 @@ export interface Grade {
   MaMonHoc: string;
   MaNienHoc: number;
   HocKy: number;
-  LoaiDiem: string; 
-  DiemSo: number;
+  // Lưu trữ tất cả điểm của 1 môn/1 học kỳ trong 1 object JSON
+  DiemData: Record<string, number | null>; 
 }
 
 export interface SchoolPlan {
@@ -73,8 +73,8 @@ export interface SchoolPlan {
   TuNgay: string;
   DenNgay: string;
   MaNienHoc: number;
-  MaGV: string; // Thêm trường này để biết ai tạo kế hoạch
-  DoiTuong: string[] | null; // Null means All classes
+  MaGV: string; 
+  DoiTuong: string[] | null; 
   DinhKem?: string;
   Created_at?: string;
 }
@@ -87,7 +87,7 @@ export interface ChatMessage {
   senderName: string;
   senderRole: Role;
   content: string;
-  attachment?: string; // Link đính kèm hoặc ảnh
+  attachment?: string; 
   created_at: string;
 }
 
