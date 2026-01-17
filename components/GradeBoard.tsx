@@ -14,7 +14,7 @@ interface Props {
 
 const subjectsList = [
   { id: 'TOAN', name: 'Toán' }, { id: 'VAN', name: 'Văn' }, { id: 'ANH', name: 'Anh' },
-  { id: 'LY', name: 'Lý' }, { id: 'HOA', name: 'Hóa' }, { id: 'SINH', name: 'Sinh' },
+  { id: 'LY', name: 'Vật Lý' }, { id: 'HOA', name: 'Hóa' }, { id: 'SINH', name: 'Sinh' },
   { id: 'DIA', name: 'Địa' }, { id: 'SU', name: 'Sử' }, { id: 'GDCD', name: 'GDCD' }
 ];
 
@@ -32,7 +32,6 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
   const [classGrades, setClassGrades] = useState<Grade[]>([]);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   
-  // Local state lưu trữ điểm cho modal edit: { '1': { TX1: 5... }, '2': { TX1: 6... } }
   const [localGrades, setLocalGrades] = useState<Record<string, Record<string, number | null>>>({
     '1': {}, '2': {}
   });
@@ -98,7 +97,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
     }
 
     const txKeys = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5'];
-    const tx = txKeys.map(key => sourceData[key]).filter(v => v !== null && v !== undefined && !isNaN(v)) as number[];
+    const tx = txKeys.map(key => sourceData[key]).filter(v => v !== null && v !== undefined && !isNaN(v as number)) as number[];
     const gk = sourceData['ĐGGK'];
     const ck = sourceData['ĐGCK'];
     
@@ -106,8 +105,8 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
     
     let totalScore = 0; let totalWeight = 0;
     tx.forEach(v => { totalScore += v; totalWeight += 1; });
-    if (gk != null) { totalScore += (gk * 2); totalWeight += 2; }
-    if (ck != null) { totalScore += (ck * 3); totalWeight += 3; }
+    if (gk != null) { totalScore += (Number(gk) * 2); totalWeight += 2; }
+    if (ck != null) { totalScore += (Number(ck) * 3); totalWeight += 3; }
     
     return totalWeight > 0 ? totalScore / totalWeight : null;
   };
@@ -166,21 +165,41 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
       const text = evt.target?.result as string;
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
       if (lines.length < 2) return;
+
+      // Logic nhập CSV thông minh dựa trên Header
+      const headers = lines[0].split(',').map(h => h.trim().toUpperCase());
+      const maHSIdx = headers.findIndex(h => h.includes('MAHS') || h.includes('MÃ HS'));
+      
+      if (maHSIdx === -1) {
+        alert("File CSV không có cột 'MaHS'. Vui lòng kiểm tra lại dòng đầu tiên!");
+        return;
+      }
+
+      // Bản đồ tìm vị trí các cột điểm
+      const columnMap: Record<string, number> = {};
+      GRADE_COLUMNS.forEach(col => {
+        const idx = headers.findIndex(h => h === col.toUpperCase());
+        if (idx !== -1) columnMap[col] = idx;
+      });
+
       const rows = lines.slice(1);
       const upsertList: any[] = [];
       
       rows.forEach(row => {
         const cols = row.split(',').map(c => c.trim());
-        if (cols.length >= 6) {
-          const maHS = cols[0];
-          const mapping = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
+        if (cols.length > maHSIdx) {
+          const maHS = cols[maHSIdx];
+          if (!maHS) return;
+
           const currentDiemData: Record<string, number | null> = {};
           
-          mapping.forEach((type, idx) => {
-            const val = cols[idx + 2];
+          // Chỉ lấy dữ liệu từ các cột thực sự tồn tại trong file CSV
+          Object.keys(columnMap).forEach(colName => {
+            const colIdx = columnMap[colName];
+            const val = cols[colIdx];
             if (val !== undefined && val !== '') {
               const num = parseFloat(val);
-              if (!isNaN(num)) currentDiemData[type] = num;
+              if (!isNaN(num)) currentDiemData[colName] = num;
             }
           });
 
@@ -202,8 +221,13 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
         setIsProcessing(true);
         const { error } = await supabase.from('grades').upsert(upsertList);
         if (error) alert("Lỗi: " + error.message);
-        else { await fetchClassGrades(); alert(`Thành công! Đã nhập ${upsertList.length} hàng dữ liệu.`); }
+        else { 
+          await fetchClassGrades(); 
+          alert(`Thành công! Đã cập nhật điểm cho ${upsertList.length} học sinh.`); 
+        }
         setIsProcessing(false);
+      } else {
+        alert("Không tìm thấy dữ liệu điểm hợp lệ để nhập.");
       }
     };
     reader.readAsText(file);
@@ -373,7 +397,7 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
                <div className="flex gap-4 w-full md:w-auto">
                  <button onClick={() => setEditingStudent(null)} className="flex-1 md:flex-none px-10 py-4 bg-slate-100 text-slate-500 rounded-2xl border border-slate-200 font-black text-[11px] uppercase tracking-widest">Đóng</button>
                  {canEdit && (
-                   <button onClick={saveDetail} disabled={isProcessing} className="flex-1 md:flex-none px-16 py-4 bg-indigo-600 text-white rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 shadow-xl transition-all font-black text-[11px] uppercase tracking-widest">
+                   <button onClick={saveDetail} disabled={isProcessing} className="flex-1 md:flex-none px-16 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all font-black text-[11px] uppercase tracking-widest">
                      {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} Xác nhận lưu điểm
                    </button>
                  )}
