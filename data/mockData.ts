@@ -98,11 +98,11 @@ export const mockAssignments: Assignment[] = [
   { MaPhanCong: 4, MaGV: 'GV001', MaLop: '10C1', MaNienHoc: 3, LoaiPhanCong: Role.CHU_NHIEM, MaMonHoc: null }
 ];
 
+// Fixed mockGrades to match Grade interface by using DiemData
 export const mockGrades: Grade[] = [
-  { MaDiem: 1, MaHS: 'HS001', MaMonHoc: 'TOAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: 'ĐGTX1', DiemSo: 8.5 },
-  { MaDiem: 2, MaHS: 'HS001', MaMonHoc: 'TOAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: 'ĐGGK', DiemSo: 7.0 },
-  { MaDiem: 3, MaHS: 'HS002', MaMonHoc: 'TOAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: 'ĐGTX1', DiemSo: 9.5 },
-  { MaDiem: 4, MaHS: 'HS001', MaMonHoc: 'VAN', MaNienHoc: 1, HocKy: 1, LoaiDiem: 'ĐGTX1', DiemSo: 6.5 }
+  { MaDiem: 1, MaHS: 'HS001', MaMonHoc: 'TOAN', MaNienHoc: 1, HocKy: 1, DiemData: { 'ĐGTX1': 8.5, 'ĐGGK': 7.0 } },
+  { MaDiem: 3, MaHS: 'HS002', MaMonHoc: 'TOAN', MaNienHoc: 1, HocKy: 1, DiemData: { 'ĐGTX1': 9.5 } },
+  { MaDiem: 4, MaHS: 'HS001', MaMonHoc: 'VAN', MaNienHoc: 1, HocKy: 1, DiemData: { 'ĐGTX1': 6.5 } }
 ];
 
 export const mockDiscipline: Discipline[] = [
