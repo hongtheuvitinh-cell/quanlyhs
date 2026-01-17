@@ -35,7 +35,6 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
   const [isProcessingCSV, setIsProcessingCSV] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Dữ liệu chi tiết cho modal
   const [studentGrades, setStudentGrades] = useState<Grade[]>([]);
   const [studentDisciplines, setStudentDisciplines] = useState<Discipline[]>([]);
   const [studentLogs, setStudentLogs] = useState<LearningLog[]>([]);
@@ -114,14 +113,20 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
   }, [students, searchTerm]);
 
   const calculateSubjectAvg = (maHS: string, maMon: string, semester: number) => {
-    const sGrades = studentGrades.filter(g => g.MaMonHoc === maMon && g.HocKy === semester);
-    if (sGrades.length === 0) return null;
-    const dgtx = sGrades.filter(g => g.LoaiDiem.startsWith('ĐGTX')).map(g => g.DiemSo);
-    const ggk = sGrades.find(g => g.LoaiDiem === 'ĐGGK')?.DiemSo;
-    const gck = sGrades.find(g => g.LoaiDiem === 'ĐGCK')?.DiemSo;
-    let total = dgtx.reduce((a, b) => a + b, 0); let count = dgtx.length;
-    if (ggk !== undefined) { total += ggk * 2; count += 2; }
-    if (gck !== undefined) { total += gck * 3; count += 3; }
+    const record = studentGrades.find(g => g.MaMonHoc === maMon && g.HocKy === semester);
+    if (!record || !record.DiemData) return null;
+    
+    const sourceData = record.DiemData;
+    const txKeys = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5'];
+    const dgtx = txKeys.map(key => sourceData[key]).filter(v => v !== null && v !== undefined && !isNaN(v as number)) as number[];
+    const ggk = sourceData['ĐGGK'];
+    const gck = sourceData['ĐGCK'];
+    
+    let total = dgtx.reduce((a, b) => a + b, 0); 
+    let count = dgtx.length;
+    if (ggk !== undefined && ggk !== null) { total += ggk * 2; count += 2; }
+    if (gck !== undefined && gck !== null) { total += gck * 3; count += 3; }
+    
     return count > 0 ? total / count : null;
   };
 
@@ -305,7 +310,6 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
                           <input type="text" placeholder="URL ảnh..." value={formData.Anh || ''} onChange={e => setFormData({...formData, Anh: e.target.value})} className="absolute bottom-4 left-4 right-4 p-3 bg-white/90 shadow-xl border border-slate-100 rounded-2xl text-[10px] font-bold outline-none" />
                        </div>
                     </div>
-                    {/* Fixed 'id' property error: changed !!formData.id to !!selectedStudent to correctly identify edit mode based on whether a student is being viewed in detail modal */}
                     <InputField label="Mã Học Sinh (ID)" value={formData.MaHS} onChange={(v:any) => setFormData({...formData, MaHS: v})} disabled={!!selectedStudent} />
                     <InputField label="Mật khẩu truy cập" value={formData.MatKhau} onChange={(v:any) => setFormData({...formData, MatKhau: v})} />
                  </div>
