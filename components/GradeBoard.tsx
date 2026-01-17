@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
-  GraduationCap, Save, Loader2, Search, FileUp, Eye, X, User, ChevronLeft, ChevronRight, Lock, ShieldCheck, Book
+  GraduationCap, Save, Loader2, Search, FileUp, Eye, X, User, ChevronLeft, ChevronRight, Lock, ShieldCheck, Book, Settings2, Trash2, Check, AlertCircle, PlusCircle, MinusCircle
 } from 'lucide-react';
 import { AppState, Student, Grade, Assignment, Teacher, Role } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -18,8 +18,8 @@ const subjectsList = [
   { id: 'DIA', name: 'Địa' }, { id: 'SU', name: 'Sử' }, { id: 'GDCD', name: 'GDCD' }
 ];
 
-const ITEMS_PER_PAGE = 15;
-const GRADE_COLUMNS = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
+const ITEMS_PER_PAGE = 20;
+const ALL_GRADE_TYPES = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5', 'ĐGGK', 'ĐGCK'];
 
 const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
   const [selectedHK, setSelectedHK] = useState(1);
@@ -28,6 +28,9 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Cấu hình hiển thị cột (Linh hoạt cho giáo viên)
+  const [visibleCols, setVisibleCols] = useState<string[]>(['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGGK', 'ĐGCK']);
   
   const [classGrades, setClassGrades] = useState<Grade[]>([]);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -97,24 +100,24 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
     }
 
     const txKeys = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5'];
-    const tx = txKeys.map(key => sourceData[key]).filter(v => v !== null && v !== undefined && !isNaN(v as number)) as number[];
+    const tx = txKeys.map(key => sourceData[key]).filter(v => v !== null && v !== undefined && !isNaN(Number(v))) as number[];
     const gk = sourceData['ĐGGK'];
     const ck = sourceData['ĐGCK'];
     
-    if (tx.length === 0 && gk == null && ck == null) return null;
+    if (tx.length === 0 && (gk === null || gk === undefined) && (ck === null || ck === undefined)) return null;
     
     let totalScore = 0; let totalWeight = 0;
-    tx.forEach(v => { totalScore += v; totalWeight += 1; });
-    if (gk != null) { totalScore += (Number(gk) * 2); totalWeight += 2; }
-    if (ck != null) { totalScore += (Number(ck) * 3); totalWeight += 3; }
+    tx.forEach(v => { totalScore += Number(v); totalWeight += 1; });
+    if (gk !== null && gk !== undefined) { totalScore += (Number(gk) * 2); totalWeight += 2; }
+    if (ck !== null && ck !== undefined) { totalScore += (Number(ck) * 3); totalWeight += 3; }
     
     return totalWeight > 0 ? totalScore / totalWeight : null;
   };
 
-  const handleOpenDetail = (student: Student) => {
+  const handleOpenEdit = (student: Student) => {
     const data: Record<string, Record<string, number | null>> = { '1': {}, '2': {} };
     [1, 2].forEach(hk => {
-      GRADE_COLUMNS.forEach(col => data[hk.toString()][col] = null);
+      ALL_GRADE_TYPES.forEach(col => data[hk.toString()][col] = null);
       const record = classGrades.find(g => g.MaHS === student.MaHS && Number(g.HocKy) === hk);
       if (record && record.DiemData) {
         Object.keys(record.DiemData).forEach(key => {
@@ -135,8 +138,10 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
         const hkData = localGrades[hk.toString()];
         const hasData = Object.values(hkData).some(v => v !== null);
         
+        // Nếu không có dữ liệu nào, ta có thể muốn xóa bản ghi đó hoàn toàn
+        const old = classGrades.find(g => g.MaHS === editingStudent.MaHS && g.HocKy === hk);
+        
         if (hasData) {
-          const old = classGrades.find(g => g.MaHS === editingStudent.MaHS && g.HocKy === hk);
           upsertData.push({
             MaDiem: old ? old.MaDiem : (Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 100000)),
             MaHS: editingStudent.MaHS, 
@@ -145,11 +150,22 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
             HocKy: hk, 
             DiemData: hkData
           });
+        } else if (old) {
+          // Nếu đã có bản ghi nhưng giờ xóa sạch điểm -> Cập nhật thành object rỗng
+          upsertData.push({
+            MaDiem: old.MaDiem,
+            MaHS: editingStudent.MaHS, 
+            MaMonHoc: selectedSubject, 
+            MaNienHoc: state.selectedYear, 
+            HocKy: hk, 
+            DiemData: {}
+          });
         }
       });
       
       if (upsertData.length > 0) {
-        await supabase.from('grades').upsert(upsertData);
+        const { error } = await supabase.from('grades').upsert(upsertData);
+        if (error) throw error;
         await fetchClassGrades();
       }
       setEditingStudent(null);
@@ -166,18 +182,17 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
       if (lines.length < 2) return;
 
-      // Logic nhập CSV thông minh dựa trên Header
       const headers = lines[0].split(',').map(h => h.trim().toUpperCase());
       const maHSIdx = headers.findIndex(h => h.includes('MAHS') || h.includes('MÃ HS'));
       
       if (maHSIdx === -1) {
-        alert("File CSV không có cột 'MaHS'. Vui lòng kiểm tra lại dòng đầu tiên!");
+        alert("File CSV không có cột 'MaHS'. Vui lòng kiểm tra lại dòng tiêu đề (dòng 1)!");
         return;
       }
 
-      // Bản đồ tìm vị trí các cột điểm
+      // Bản đồ tìm vị trí các cột điểm dựa trên tên tiêu đề
       const columnMap: Record<string, number> = {};
-      GRADE_COLUMNS.forEach(col => {
+      ALL_GRADE_TYPES.forEach(col => {
         const idx = headers.findIndex(h => h === col.toUpperCase());
         if (idx !== -1) columnMap[col] = idx;
       });
@@ -200,6 +215,9 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
             if (val !== undefined && val !== '') {
               const num = parseFloat(val);
               if (!isNaN(num)) currentDiemData[colName] = num;
+              else currentDiemData[colName] = null; // Xử lý trường hợp ô trống
+            } else {
+              currentDiemData[colName] = null;
             }
           });
 
@@ -223,11 +241,11 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
         if (error) alert("Lỗi: " + error.message);
         else { 
           await fetchClassGrades(); 
-          alert(`Thành công! Đã cập nhật điểm cho ${upsertList.length} học sinh.`); 
+          alert(`Thành công! Đã cập nhật điểm cho ${upsertList.length} học sinh học kỳ ${selectedHK}.`); 
         }
         setIsProcessing(false);
       } else {
-        alert("Không tìm thấy dữ liệu điểm hợp lệ để nhập.");
+        alert("Không tìm thấy dữ liệu điểm hợp lệ. Hãy chắc chắn tên cột là: ĐGTX1, ĐGTX2... ĐGGK, ĐGCK.");
       }
     };
     reader.readAsText(file);
@@ -245,27 +263,45 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
     return filteredStudents.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredStudents, currentPage]);
 
+  const toggleVisibleCol = (col: string) => {
+    setVisibleCols(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col].sort((a,b) => ALL_GRADE_TYPES.indexOf(a) - ALL_GRADE_TYPES.indexOf(b)));
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-2 pb-20 animate-in fade-in">
-      <div className="flex flex-wrap gap-0.5 bg-slate-100 p-1 rounded-t-xl">
+      {/* Subject Tabs */}
+      <div className="flex flex-wrap gap-0.5 bg-slate-100 p-1 rounded-t-xl overflow-x-auto custom-scrollbar">
         {visibleSubjects.map(s => (
-          <button key={s.id} onClick={() => { setSelectedSubject(s.id); setCurrentPage(1); }} className={`px-3 py-2 text-[10px] font-black uppercase transition-all rounded-lg border-2 ${selectedSubject === s.id ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'bg-white text-slate-500 border-white hover:border-indigo-100'}`}>{s.name}</button>
+          <button key={s.id} onClick={() => { setSelectedSubject(s.id); setCurrentPage(1); }} className={`px-3 py-2 text-[10px] whitespace-nowrap font-black uppercase transition-all rounded-lg border-2 ${selectedSubject === s.id ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'bg-white text-slate-500 border-white hover:border-indigo-100'}`}>{s.name}</button>
         ))}
       </div>
 
+      {/* Toolbar */}
       <div className="bg-[#0f172a] text-white p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-700 shadow-sm relative overflow-hidden">
         <div className="flex items-center gap-4 relative z-10">
           <div className="p-2 bg-orange-500 rounded-xl"><GraduationCap size={20} /></div>
           <div>
             <h2 className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
-              Môn: {subjectsList.find(s => s.id === selectedSubject)?.name}
-              {canEdit ? <span className="px-2 py-0.5 bg-emerald-500 text-white rounded-md text-[8px] tracking-tight">Quyền chỉnh sửa</span> : <span className="px-2 py-0.5 bg-slate-600 text-slate-300 rounded-md text-[8px] tracking-tight">Chế độ xem</span>}
+              Bảng điểm: {subjectsList.find(s => s.id === selectedSubject)?.name}
+              {canEdit ? <span className="px-2 py-0.5 bg-emerald-500 text-white rounded-md text-[8px] tracking-tight">Nhập liệu</span> : <span className="px-2 py-0.5 bg-slate-600 text-slate-300 rounded-md text-[8px] tracking-tight">Chỉ xem</span>}
             </h2>
-            <p className="text-[9px] text-slate-400 font-bold uppercase">Niên học: {state.selectedYear} • Lớp: {state.selectedClass}</p>
+            <p className="text-[9px] text-slate-400 font-bold uppercase">Lớp {state.selectedClass} • Học kỳ {selectedHK}</p>
           </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 relative z-10">
+          {/* Cấu hình cột hiển thị */}
+          <div className="flex items-center gap-2 px-3 py-1 bg-slate-800 border border-slate-700 rounded-xl">
+             <Settings2 size={12} className="text-slate-500" />
+             <div className="flex gap-1">
+               {['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5'].map(tx => (
+                 <button key={tx} onClick={() => toggleVisibleCol(tx)} className={`w-6 h-6 flex items-center justify-center rounded-lg text-[8px] font-black border ${visibleCols.includes(tx) ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-700 border-slate-600 text-slate-400'}`}>
+                   {tx.slice(-1)}
+                 </button>
+               ))}
+             </div>
+          </div>
+
           <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
             {[1, 2].map(hk => (
               <button key={hk} onClick={() => setSelectedHK(hk)} className={`px-4 py-1.5 text-[9px] font-black uppercase transition-all rounded-lg ${selectedHK === hk ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>Học kỳ {hk}</button>
@@ -273,51 +309,65 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={12} />
-            <input type="text" placeholder="Tìm học sinh..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 text-[10px] w-40 focus:ring-1 focus:ring-indigo-500 outline-none text-white rounded-xl" />
+            <input type="text" placeholder="Tìm học sinh..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 text-[10px] w-32 focus:ring-1 focus:ring-indigo-500 outline-none text-white rounded-xl" />
           </div>
           {canEdit && (
-            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-[9px] font-black uppercase transition-all rounded-xl shadow-lg shadow-emerald-900/20"><FileUp size={14} /> Nhập CSV</button>
+            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-[9px] font-black uppercase transition-all rounded-xl shadow-lg"><FileUp size={14} /> Nhập CSV</button>
           )}
           <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
         </div>
         <div className="absolute top-0 right-0 p-8 opacity-5"><ShieldCheck size={120} /></div>
       </div>
 
+      {/* Main Table */}
       <div className="bg-white border border-slate-200 overflow-hidden shadow-sm rounded-b-xl min-h-[400px] relative">
         {isInitialLoading && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-3">
              <Loader2 className="animate-spin text-indigo-600" size={32} />
-             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Đang truy xuất điểm số...</p>
+             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Đang tải điểm số...</p>
           </div>
         )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left border-collapse table-fixed min-w-[1000px]">
             <thead>
               <tr className="bg-slate-50 text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100">
                 <th className="p-4 w-12 text-center border-r">STT</th>
-                <th className="p-4 w-24 border-r">Mã HS</th>
-                <th className="p-4 border-r">Học và Tên Học Sinh</th>
-                <th className="p-4 text-center w-24 border-r">ĐTB HK1</th>
-                <th className="p-4 text-center w-24 border-r">ĐTB HK2</th>
-                <th className="p-4 text-center w-28 bg-orange-50 text-orange-600 font-black">Cả Năm</th>
-                <th className="p-4 text-center w-20">Thao tác</th>
+                <th className="p-4 w-48 border-r">Học và Tên Học Sinh</th>
+                {visibleCols.map(col => (
+                  <th key={col} className={`p-4 text-center border-r ${col === 'ĐGGK' || col === 'ĐGCK' ? 'bg-indigo-50/50 text-indigo-600' : ''}`}>{col}</th>
+                ))}
+                <th className="p-4 text-center w-20 bg-orange-50 text-orange-600 border-r">ĐTB HK</th>
+                <th className="p-4 text-center w-24">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {paginatedStudents.map((s, idx) => {
-                const tb1 = calculateAvg(s.MaHS, 1);
-                const tb2 = calculateAvg(s.MaHS, 2);
-                const cn = (tb1 !== null && tb2 !== null) ? (tb1 + tb2 * 2) / 3 : null;
+                const record = classGrades.find(g => g.MaHS === s.MaHS && Number(g.HocKy) === selectedHK);
+                const scores = record?.DiemData || {};
+                const tb = calculateAvg(s.MaHS, selectedHK);
+                
                 return (
                   <tr key={s.MaHS} className="hover:bg-indigo-50/20 transition-all text-[11px] font-bold group">
                     <td className="p-3 text-center text-slate-300 border-r">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
-                    <td className="p-3 text-slate-500 border-r">{s.MaHS}</td>
-                    <td className="p-3 text-slate-800 uppercase border-r font-black tracking-tight">{s.Hoten}</td>
-                    <td className="p-3 text-center border-r text-slate-500">{tb1 ? tb1.toFixed(1) : '--'}</td>
-                    <td className="p-3 text-center border-r text-slate-500">{tb2 ? tb2.toFixed(1) : '--'}</td>
-                    <td className="p-3 text-center bg-orange-50/50 font-black text-orange-600 border-r">{cn ? cn.toFixed(1) : '--'}</td>
+                    <td className="p-3 text-slate-800 uppercase border-r font-black tracking-tight truncate">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 bg-slate-100 rounded-lg flex items-center justify-center text-[10px] text-slate-400">{s.Hoten.charAt(0)}</div>
+                        {s.Hoten}
+                      </div>
+                    </td>
+                    {visibleCols.map(col => {
+                      const val = scores[col];
+                      return (
+                        <td key={col} className={`p-3 text-center border-r font-black ${val === null || val === undefined ? 'text-slate-200' : 'text-slate-700'}`}>
+                          {val !== null && val !== undefined ? val.toFixed(1) : '--'}
+                        </td>
+                      );
+                    })}
+                    <td className="p-3 text-center bg-orange-50/50 font-black text-orange-600 border-r">{tb ? tb.toFixed(1) : '--'}</td>
                     <td className="p-3 text-center">
-                      <button onClick={() => handleOpenDetail(s)} className={`p-2 rounded-xl transition-all shadow-sm flex items-center justify-center mx-auto ${canEdit ? 'bg-slate-900 text-white hover:bg-indigo-600' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>{canEdit ? <Book size={14} /> : <Eye size={14} />}</button>
+                      <button onClick={() => handleOpenEdit(s)} className={`px-4 py-2 rounded-xl transition-all shadow-sm text-[9px] font-black uppercase flex items-center gap-2 mx-auto ${canEdit ? 'bg-slate-900 text-white hover:bg-indigo-600' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
+                        {canEdit ? <><PlusCircle size={12} /> Sửa/Nhập</> : <><Eye size={12} /> Xem</>}
+                      </button>
                     </td>
                   </tr>
                 );
@@ -334,18 +384,19 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
         </div>
       </div>
 
+      {/* Edit Modal */}
       {editingStudent && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-5xl shadow-2xl rounded-[40px] overflow-hidden animate-in zoom-in-95 border border-white/20 flex flex-col max-h-[90vh]">
+          <div className="bg-white w-full max-w-5xl shadow-2xl rounded-[40px] overflow-hidden animate-in zoom-in-95 border border-white/20 flex flex-col max-h-[95vh]">
             <div className="bg-[#0f172a] text-white p-6 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-indigo-600 flex items-center justify-center font-black text-2xl rounded-2xl shadow-xl">{editingStudent.Hoten.charAt(0)}</div>
                 <div>
-                  <h3 className="text-xl font-black uppercase tracking-tight leading-none mb-2">{editingStudent.Hoten}</h3>
+                  <h3 className="text-xl font-black uppercase tracking-tight mb-1">{editingStudent.Hoten}</h3>
                   <div className="flex items-center gap-3">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase">Mã: {editingStudent.MaHS}</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">ID: {editingStudent.MaHS}</span>
                     <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-                    <span className="text-[10px] text-orange-400 font-bold uppercase">Môn: {subjectsList.find(s => s.id === selectedSubject)?.name}</span>
+                    <span className="text-[10px] text-orange-400 font-bold uppercase tracking-widest">Môn: {subjectsList.find(s => s.id === selectedSubject)?.name}</span>
                   </div>
                 </div>
               </div>
@@ -363,10 +414,15 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    {GRADE_COLUMNS.map(col => (
-                      <div key={col} className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase block px-1 tracking-tighter">{col}</label>
-                        <input type="number" step="0.1" min="0" max="10" disabled={!canEdit} value={localGrades[hk.toString()][col] ?? ''} onChange={(e) => {
+                    {ALL_GRADE_TYPES.map(col => (
+                      <div key={col} className="space-y-1.5 group">
+                        <div className="flex justify-between items-center px-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{col}</label>
+                          {canEdit && localGrades[hk.toString()][col] !== null && (
+                            <button onClick={() => setLocalGrades(prev => ({ ...prev, [hk.toString()]: { ...prev[hk.toString()], [col]: null } }))} className="text-[8px] text-rose-500 opacity-0 group-hover:opacity-100 hover:underline font-black uppercase">Xóa</button>
+                          )}
+                        </div>
+                        <input type="number" step="0.1" min="0" max="10" disabled={!canEdit} placeholder="--" value={localGrades[hk.toString()][col] ?? ''} onChange={(e) => {
                           const val = e.target.value === '' ? null : parseFloat(e.target.value);
                           if (val !== null && (val < 0 || val > 10)) return;
                           setLocalGrades(prev => ({ ...prev, [hk.toString()]: { ...prev[hk.toString()], [col]: val } }));
@@ -374,6 +430,15 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
                       </div>
                     ))}
                   </div>
+                  {canEdit && (
+                    <button onClick={() => {
+                      const cleared: any = {};
+                      ALL_GRADE_TYPES.forEach(c => cleared[c] = null);
+                      setLocalGrades(prev => ({ ...prev, [hk.toString()]: cleared }));
+                    }} className="mt-6 w-full py-3 bg-rose-50 text-rose-500 border border-rose-100 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all flex items-center justify-center gap-2">
+                       <Trash2 size={12} /> Xóa sạch điểm HK{hk}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -395,9 +460,9 @@ const GradeBoard: React.FC<Props> = ({ state, students, assignments }) => {
                   )}
                </div>
                <div className="flex gap-4 w-full md:w-auto">
-                 <button onClick={() => setEditingStudent(null)} className="flex-1 md:flex-none px-10 py-4 bg-slate-100 text-slate-500 rounded-2xl border border-slate-200 font-black text-[11px] uppercase tracking-widest">Đóng</button>
+                 <button onClick={() => setEditingStudent(null)} className="flex-1 md:flex-none px-10 py-4 bg-slate-100 text-slate-500 rounded-2xl border border-slate-200 font-black text-[11px] uppercase tracking-widest">Hủy bỏ</button>
                  {canEdit && (
-                   <button onClick={saveDetail} disabled={isProcessing} className="flex-1 md:flex-none px-16 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all font-black text-[11px] uppercase tracking-widest">
+                   <button onClick={saveDetail} disabled={isProcessing} className="flex-1 md:flex-none px-16 py-4 bg-indigo-600 text-white rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 shadow-xl transition-all font-black text-[11px] uppercase tracking-widest">
                      {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} Xác nhận lưu điểm
                    </button>
                  )}
