@@ -4,7 +4,7 @@ import {
   Plus, GraduationCap, Send, ShieldAlert, LogOut, User, Calendar, CheckCircle, 
   Circle, Trophy, BookOpen, Award, TrendingUp, Clock, Layout, AlertCircle, 
   Lock, Link as LinkIcon, Check, Shield, Save, X, Loader2, ExternalLink, 
-  Info, ClipboardList, Globe, Home, Menu, ChevronRight, Bell, Phone, Mail, MapPin, Briefcase, FileText
+  Info, ClipboardList, Globe, Home, Menu, ChevronRight, Bell, Phone, Mail, MapPin, Briefcase, FileText, AlertTriangle
 } from 'lucide-react';
 import { Student, Grade, Discipline, AssignmentTask, ViolationRule, SchoolPlan, ChatMessage, Role } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -37,7 +37,6 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
   const [taskLinks, setTaskLinks] = useState<Record<number, string>>({});
   const [processingTaskId, setProcessingTaskId] = useState<number | null>(null);
 
-  // Dữ liệu cá nhân (On-demand)
   const [myGrades, setMyGrades] = useState<Grade[]>([]);
   const [myDisciplines, setMyDisciplines] = useState<Discipline[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -56,31 +55,18 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
 
   useEffect(() => { fetchMyData(); }, [student.MaHS]);
 
-  const myPlans = useMemo(() => {
-    return [...plans]
-      .filter(p => !p.DoiTuong || p.DoiTuong.length === 0 || p.DoiTuong.includes(student.MaLopHienTai))
-      .sort((a, b) => b.Tuan - a.Tuan);
-  }, [plans, student.MaLopHienTai]);
-
-  // Fixed calculateSubjectAvg to extract data from the DiemData object as per Grade interface
   const calculateSubjectAvg = (mSubject: string, semester: number) => {
     const gradeRecord = myGrades.find(g => g.MaMonHoc === mSubject && g.HocKy === semester);
     if (!gradeRecord || !gradeRecord.DiemData) return null;
-    
     const data = gradeRecord.DiemData;
     const txKeys = ['ĐGTX1', 'ĐGTX2', 'ĐGTX3', 'ĐGTX4', 'ĐGTX5'];
     const dgtx = txKeys.map(key => data[key]).filter(v => v !== null && v !== undefined && !isNaN(v as number)) as number[];
-    const ggk = data['ĐGGK'];
-    const gck = data['ĐGCK'];
-    
+    const ggk = data['ĐGGK']; const gck = data['ĐGCK'];
     if (dgtx.length === 0 && ggk == null && gck == null) return null;
-    
-    let total = 0;
-    let count = 0;
+    let total = 0; let count = 0;
     dgtx.forEach(v => { total += v; count += 1; });
     if (ggk != null) { total += (ggk as number) * 2; count += 2; }
     if (gck != null) { total += (gck as number) * 3; count += 3; }
-    
     return count > 0 ? total / count : null;
   };
 
@@ -88,12 +74,7 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
     return subjectsList.map(sub => {
       const tb1 = calculateSubjectAvg(sub.id, 1);
       const tb2 = calculateSubjectAvg(sub.id, 2);
-      return {
-        name: sub.name,
-        hk1: tb1,
-        hk2: tb2,
-        cn: (tb1 !== null && tb2 !== null) ? (tb1 + tb2 * 2) / 3 : null
-      };
+      return { name: sub.name, hk1: tb1, hk2: tb2, cn: (tb1 !== null && tb2 !== null) ? (tb1 + tb2 * 2) / 3 : null };
     });
   }, [myGrades]);
 
@@ -108,26 +89,17 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
   }, [myDisciplines]);
 
   const handleTaskSubmit = async (taskId: number) => {
+    const task = tasks.find(t => t.MaNhiemVu === taskId);
+    if (!task) return;
+    const isExpired = task.HanChot < new Date().toISOString().split('T')[0];
+    if (isExpired) { alert("Nhiệm vụ này đã hết hạn, không thể nộp hoặc chỉnh sửa bài."); return; }
+    
     const link = taskLinks[taskId] || "";
     setProcessingTaskId(taskId);
     try {
       await onToggleTask(taskId, link);
       alert("Đã nộp bài thành công!");
     } finally { setProcessingTaskId(null); }
-  };
-
-  const handleUpdatePassword = async () => {
-    if (!passwordForm.old || !passwordForm.new || !passwordForm.confirm) { alert("Thiếu thông tin!"); return; }
-    if (passwordForm.new !== passwordForm.confirm) { alert("Mật khẩu không khớp!"); return; }
-    if (passwordForm.old !== (student.MatKhau || '123456')) { alert("Mật khẩu cũ sai!"); return; }
-    setIsUpdating(true);
-    try {
-      const { error } = await supabase.from('students').update({ MatKhau: passwordForm.new }).eq('MaHS', student.MaHS);
-      if (error) throw error;
-      alert("Đã đổi mật khẩu!");
-      setPasswordForm({ old: '', new: '', confirm: '' });
-      await onUpdateProfile();
-    } catch (e: any) { alert(e.message); } finally { setIsUpdating(false); }
   };
 
   const menuItems = [
@@ -140,53 +112,80 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans relative">
-      {isLoadingData && (
-        <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-sm flex items-center justify-center">
-          <Loader2 className="animate-spin text-indigo-600" size={40} />
-        </div>
-      )}
       <aside className="hidden md:flex w-72 bg-white border-r border-slate-200 flex-col shrink-0 shadow-sm">
-        <div className="p-8 border-b border-slate-50"><div className="flex items-center gap-3"><div className="p-2.5 bg-indigo-600 rounded-2xl text-white shadow-lg"><Shield size={20} /></div><h1 className="font-black text-slate-800 uppercase italic tracking-tighter">EduStudent</h1></div></div>
+        <div className="p-8 border-b border-slate-50 flex items-center gap-3"><div className="p-2.5 bg-indigo-600 rounded-2xl text-white shadow-lg"><Shield size={20} /></div><h1 className="font-black text-slate-800 uppercase italic tracking-tighter">EduStudent</h1></div>
         <div className="p-6 flex-1 space-y-2">
           {menuItems.map((item) => (
             <button key={item.id} onClick={() => setActiveView(item.id as ViewState)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${activeView === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}><item.icon size={18} /> {item.label}</button>
           ))}
         </div>
         <div className="p-6 border-t border-slate-50">
-          <div className="p-4 bg-slate-50 rounded-3xl flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 font-black">{student.Hoten.charAt(0)}</div><div className="min-w-0"><p className="text-[11px] font-black text-slate-800 uppercase truncate mb-1">{student.Hoten}</p><p className="text-[9px] font-bold text-slate-400 uppercase">Lớp {student.MaLopHienTai}</p></div></div>
           <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 font-black uppercase text-[10px] tracking-widest hover:bg-rose-50 rounded-2xl transition-all"><LogOut size={18} /> Đăng xuất</button>
         </div>
       </aside>
       <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto pb-24 bg-slate-50/30 custom-scrollbar">
         {activeView === 'dashboard' && (
           <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
-             <header className="flex flex-col md:flex-row md:items-end justify-between gap-4"><div><h2 className="text-2xl font-black text-slate-800 tracking-tight">Chào {student.Hoten.split(' ').pop()}! 👋</h2><p className="text-slate-400 font-medium text-sm mt-1">Cố gắng học tập thật tốt nhé.</p></div><div className="px-4 py-2 bg-white rounded-2xl shadow-sm border border-slate-200 flex items-center gap-2"><Calendar size={16} className="text-indigo-600" /><span className="text-[11px] font-black text-slate-500 uppercase">{new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' })}</span></div></header>
+             <header className="flex justify-between items-end gap-4"><div><h2 className="text-2xl font-black text-slate-800 tracking-tight">Chào {student.Hoten.split(' ').pop()}! 👋</h2><p className="text-slate-400 font-medium text-sm mt-1">Cố gắng hoàn thành nhiệm vụ đúng hạn nhé.</p></div></header>
              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-8 space-y-8">
-                   <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden relative group">
-                      <div className="p-8 border-b border-slate-50 bg-indigo-600 text-white"><div className="flex items-center gap-3"><Calendar size={20}/><h3 className="font-black text-sm uppercase tracking-widest">Kế hoạch tuần học</h3></div></div>
-                      <div className="p-8 space-y-6">{myPlans.length > 0 ? myPlans.slice(0, 2).map((p, idx) => (<div key={p.MaKeHoach} className="flex gap-6 pb-6 border-b border-slate-50 last:pb-0 last:border-0"><div className="flex flex-col items-center gap-2 shrink-0"><div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center border-2 bg-indigo-50 border-indigo-100 text-indigo-600"><span className="text-[9px] font-black uppercase leading-none mb-1">Tuần</span><span className="text-xl font-black">{p.Tuan}</span></div></div><div className="flex-1 space-y-3"><h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">{p.TieuDe}</h4><div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-50 text-[11px] text-slate-600 font-medium whitespace-pre-line italic">"{p.NoiDung}"</div>{p.DinhKem && (<a href={p.DinhKem} target="_blank" className="inline-flex items-center gap-2 text-indigo-600 font-black text-[10px] uppercase hover:underline"><LinkIcon size={14} /> Mở tài liệu</a>)}</div></div>)) : (<p className="text-center text-slate-300 py-10 font-black text-[10px] uppercase">Chưa có thông báo</p>)}</div>
-                   </div>
+                   <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden"><div className="p-8 border-b border-slate-50 bg-indigo-600 text-white font-black text-sm uppercase tracking-widest">Kế hoạch tuần học</div><div className="p-8 space-y-6">{plans.length > 0 ? plans.slice(0, 2).map((p) => (<div key={p.MaKeHoach} className="flex gap-6 pb-6 border-b border-slate-50 last:border-0"><div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center bg-indigo-50 border-2 border-indigo-100 text-indigo-600 shrink-0"><span className="text-[9px] font-black uppercase mb-1">Tuần</span><span className="text-xl font-black">{p.Tuan}</span></div><div className="flex-1"><h4 className="font-black text-slate-800 text-sm uppercase mb-2">{p.TieuDe}</h4><div className="p-4 bg-slate-50/50 rounded-2xl text-[11px] text-slate-600 font-medium italic">"{p.NoiDung}"</div></div></div>)) : (<p className="text-center text-slate-300 py-10 font-black text-[10px] uppercase">Chưa có thông báo</p>)}</div></div>
                    <GroupChat state={{currentUser: student, currentRole: Role.STUDENT, selectedClass: student.MaLopHienTai, selectedYear: student.MaNienHoc, selectedSubject: null}} messages={messages} onSendMessage={onSendMessage} />
                 </div>
                 <div className="lg:col-span-4 space-y-6">
-                   <div className="p-6 rounded-[32px] bg-indigo-600 text-white shadow-xl shadow-indigo-100 relative overflow-hidden group"><p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-2">Điểm trung bình (TB)</p><h4 className="text-4xl font-black">{finalAvg}</h4><div className="mt-4 flex items-center gap-2 text-[10px] font-bold bg-white/10 w-fit px-2 py-1 rounded-lg">Học lực: {Number(finalAvg) >= 8 ? 'Giỏi' : Number(finalAvg) >= 6.5 ? 'Khá' : 'TB'}</div></div>
-                   <div className="p-6 rounded-[32px] bg-white border border-slate-200 shadow-sm"><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Nhiệm vụ tuần</p><div className="space-y-4"><div className="flex justify-between text-xs font-black uppercase"><span>Hoàn thành</span><span>{tasks.filter(t => t.DanhSachHoanThanh.includes(student.MaHS)).length}/{tasks.length}</span></div><div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 rounded-full" style={{width: `${(tasks.filter(t => t.DanhSachHoanThanh.includes(student.MaHS)).length / (tasks.length || 1)) * 100}%`}}></div></div></div></div>
-                   <div className="p-6 rounded-[32px] bg-rose-50 border border-rose-100"><p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-3">Điểm rèn luyện</p><h4 className="text-2xl font-black text-rose-600 mb-1">{conductScore}đ</h4><p className="text-[10px] text-rose-500/70 font-medium italic">Tổng {myDisciplines.length} lần vi phạm</p></div>
+                   <div className="p-6 rounded-[32px] bg-indigo-600 text-white shadow-xl shadow-indigo-100"><p className="text-[9px] font-black uppercase opacity-60 mb-2">Điểm trung bình (TB)</p><h4 className="text-4xl font-black">{finalAvg}</h4></div>
+                   <div className="p-6 rounded-[32px] bg-white border border-slate-200 shadow-sm"><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Hoàn thành nhiệm vụ</p><div className="space-y-4"><div className="flex justify-between text-xs font-black uppercase"><span>Nộp bài</span><span>{tasks.filter(t => t.DanhSachHoanThanh.includes(student.MaHS)).length}/{tasks.length}</span></div><div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500" style={{width: `${(tasks.filter(t => t.DanhSachHoanThanh.includes(student.MaHS)).length / (tasks.length || 1)) * 100}%`}}></div></div></div></div>
+                   <div className="p-6 rounded-[32px] bg-rose-50 border border-rose-100"><p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-3">Điểm rèn luyện</p><h4 className="text-2xl font-black text-rose-600">{conductScore}đ</h4></div>
                 </div>
              </div>
           </div>
         )}
         {activeView === 'study' && (
           <div className="max-w-5xl mx-auto space-y-8 animate-in slide-in-from-right-4">
-             <div className="flex items-center gap-3"><div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg"><GraduationCap size={24} /></div><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Kết quả học tập</h2></div>
-             <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden"><table className="w-full text-left"><thead><tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b"><th className="px-10 py-6">Môn học</th><th className="px-8 py-6 text-center">Học kỳ 1</th><th className="px-8 py-6 text-center">Học kỳ 2</th><th className="px-10 py-6 text-right text-indigo-600">Cả năm</th></tr></thead><tbody className="divide-y divide-slate-50">{gradeTableData.map(row => (<tr key={row.name} className="hover:bg-indigo-50/30 transition-colors"><td className="px-10 py-5 font-black text-slate-700 text-sm uppercase">{row.name}</td><td className="px-8 py-5 text-center text-slate-500 font-black text-sm">{row.hk1?.toFixed(1) || '--'}</td><td className="px-8 py-5 text-center text-slate-500 font-black text-sm">{row.hk2?.toFixed(1) || '--'}</td><td className="px-10 py-5 text-right font-black text-indigo-600 bg-indigo-50/20 text-base">{row.cn?.toFixed(1) || '--'}</td></tr>))}</tbody></table></div>
+             <div className="flex items-center gap-3"><div className="p-3 bg-indigo-600 rounded-2xl text-white"><GraduationCap size={24} /></div><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Kết quả học tập</h2></div>
+             <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden"><table className="w-full text-left"><thead><tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase border-b"><th className="px-10 py-6">Môn học</th><th className="px-8 py-6 text-center">HK 1</th><th className="px-8 py-6 text-center">HK 2</th><th className="px-10 py-6 text-right text-indigo-600">Cả năm</th></tr></thead><tbody className="divide-y divide-slate-50">{gradeTableData.map(row => (<tr key={row.name} className="hover:bg-indigo-50/30 transition-colors"><td className="px-10 py-5 font-black text-slate-700 text-sm uppercase">{row.name}</td><td className="px-8 py-5 text-center text-slate-500 text-sm">{row.hk1?.toFixed(1) || '--'}</td><td className="px-8 py-5 text-center text-slate-500 text-sm">{row.hk2?.toFixed(1) || '--'}</td><td className="px-10 py-5 text-right font-black text-indigo-600 text-base">{row.cn?.toFixed(1) || '--'}</td></tr>))}</tbody></table></div>
           </div>
         )}
         {activeView === 'tasks' && (
           <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-right-4">
-             <div className="flex items-center gap-3"><div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg"><Send size={24} /></div><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Nhiệm vụ & Bài tập</h2></div>
-             <div className="grid grid-cols-1 gap-6">{tasks.length > 0 ? tasks.map(task => { const isDone = (task.DanhSachHoanThanh || []).includes(student.MaHS); return (<div key={task.MaNhiemVu} className={`p-8 rounded-[40px] border transition-all flex flex-col md:flex-row gap-8 ${isDone ? 'bg-emerald-50/30 border-emerald-100 opacity-80' : 'bg-white border-slate-200 shadow-md shadow-indigo-50/20'}`}><div className="flex-1 space-y-4"><div className="flex items-center justify-between"><span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600">{task.MaMonHoc}</span><span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Hạn: {task.HanChot}</span></div><h4 className="font-black text-base uppercase leading-tight text-slate-800">{task.TieuDe}</h4><p className="text-[12px] text-slate-500 font-medium italic leading-relaxed whitespace-pre-line">"{task.MoTa}"</p></div><div className="md:w-64 space-y-4 flex flex-col justify-center"><input type="text" placeholder="Dán link nộp bài..." value={taskLinks[task.MaNhiemVu] !== undefined ? taskLinks[task.MaNhiemVu] : (task.BaoCaoNhiemVu?.[student.MaHS] || "")} onChange={(e) => setTaskLinks({...taskLinks, [task.MaNhiemVu]: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold outline-none shadow-inner focus:bg-white transition-all" /><button onClick={() => handleTaskSubmit(task.MaNhiemVu)} disabled={processingTaskId === task.MaNhiemVu} className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all ${isDone ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white'}`}>{processingTaskId === task.MaNhiemVu ? <Loader2 size={16} className="animate-spin" /> : (isDone ? <CheckCircle size={16} /> : <Circle size={16} />)}{isDone ? 'Cập nhật bài nộp' : 'Xác nhận nộp bài'}</button></div></div>); }) : (<p className="text-center py-20 opacity-30 text-[10px] font-black uppercase">Hiện chưa có bài tập nào</p>)}</div>
+             <div className="flex items-center gap-3"><div className="p-3 bg-indigo-600 rounded-2xl text-white"><Send size={24} /></div><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Nhiệm vụ & Bài tập</h2></div>
+             <div className="grid grid-cols-1 gap-6">{tasks.length > 0 ? tasks.map(task => { 
+                const isDone = (task.DanhSachHoanThanh || []).includes(student.MaHS);
+                const isExpired = task.HanChot < new Date().toISOString().split('T')[0];
+                return (
+                  <div key={task.MaNhiemVu} className={`p-8 rounded-[40px] border transition-all flex flex-col md:flex-row gap-8 ${isDone ? 'bg-emerald-50/30 border-emerald-100 opacity-90' : isExpired ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-slate-200 shadow-md shadow-indigo-50/20'}`}>
+                    <div className="flex-1 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600">{task.MaMonHoc}</span>
+                        <div className="flex items-center gap-2">
+                           <Clock size={12} className={isExpired ? 'text-rose-500' : 'text-slate-400'} />
+                           <span className={`text-[9px] font-black uppercase ${isExpired ? 'text-rose-500' : 'text-slate-400'}`}>Hạn: {task.HanChot}</span>
+                        </div>
+                      </div>
+                      <h4 className="font-black text-base uppercase text-slate-800">{task.TieuDe}</h4>
+                      <p className="text-[12px] text-slate-500 italic leading-relaxed whitespace-pre-line">"{task.MoTa}"</p>
+                    </div>
+                    <div className="md:w-64 space-y-4 flex flex-col justify-center">
+                      <input type="text" disabled={isExpired && !isDone} placeholder="Dán link nộp bài..." value={taskLinks[task.MaNhiemVu] !== undefined ? taskLinks[task.MaNhiemVu] : (task.BaoCaoNhiemVu?.[student.MaHS] || "")} onChange={(e) => setTaskLinks({...taskLinks, [task.MaNhiemVu]: e.target.value})} className={`w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold outline-none shadow-inner focus:bg-white transition-all ${isExpired && !isDone ? 'cursor-not-allowed opacity-50' : ''}`} />
+                      
+                      {isExpired && !isDone ? (
+                        <div className="w-full py-4 bg-rose-50 text-rose-600 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-rose-100">
+                           <AlertTriangle size={16} /> Đã hết hạn nộp bài
+                        </div>
+                      ) : (
+                        <button onClick={() => handleTaskSubmit(task.MaNhiemVu)} disabled={processingTaskId === task.MaNhiemVu} className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all ${isDone ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                          {processingTaskId === task.MaNhiemVu ? <Loader2 size={16} className="animate-spin" /> : (isDone ? <CheckCircle size={16} /> : <Circle size={16} />)}
+                          {isDone ? 'Cập nhật bài nộp' : 'Xác nhận nộp bài'}
+                        </button>
+                      )}
+                      
+                      {isExpired && isDone && (
+                        <p className="text-[9px] text-center text-amber-600 font-bold uppercase">* Đã nộp (Không thể sửa do hết hạn)</p>
+                      )}
+                    </div>
+                  </div>
+                ); 
+             }) : (<p className="text-center py-20 opacity-30 text-[10px] font-black uppercase">Hiện chưa có bài tập nào</p>)}</div>
           </div>
         )}
         {activeView === 'discipline' && (
@@ -198,57 +197,7 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
         {activeView === 'profile' && (
           <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-right-4 pb-12">
             <div className="flex items-center gap-3"><div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg"><User size={24} /></div><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Thông tin cá nhân</h2></div>
-            
-            <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden">
-               <div className="p-8 bg-slate-50/50 border-b flex flex-col md:flex-row items-center gap-8">
-                  <div className="w-32 h-40 rounded-[32px] bg-white border-2 border-indigo-100 flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
-                    {student.Anh ? <img src={student.Anh} className="w-full h-full object-cover" /> : <User size={48} className="text-slate-200" />}
-                  </div>
-                  <div className="text-center md:text-left">
-                     <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">{student.Hoten}</h3>
-                     <div className="flex flex-wrap justify-center md:justify-start gap-3">
-                        <span className="px-3 py-1 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest">Mã HS: {student.MaHS}</span>
-                        <span className="px-3 py-1 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md">Lớp: {student.MaLopHienTai}</span>
-                     </div>
-                  </div>
-               </div>
-               
-               <div className="p-10 space-y-12">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                     <InfoDisplay label="Ngày sinh" value={student.NgaySinh} icon={<Calendar size={16}/>} />
-                     <InfoDisplay label="Giới tính" value={student.GioiTinh ? 'Nam' : 'Nữ'} icon={<User size={16}/>} />
-                     <InfoDisplay label="Số điện thoại" value={student.SDT_LinkHe} icon={<Phone size={16}/>} />
-                     <InfoDisplay label="Email liên hệ" value={student.Email || 'Chưa cập nhật'} icon={<Mail size={16}/>} />
-                     <InfoDisplay label="Địa chỉ cư trú" value={student.DiaChi} icon={<MapPin size={16}/>} colSpan={2} />
-                  </div>
-
-                  <div className="pt-10 border-t border-slate-100">
-                    <h4 className="text-[11px] font-black uppercase text-indigo-500 tracking-widest px-2 mb-6">Thông tin gia đình</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                       <InfoDisplay label="Họ tên Cha" value={student.TenCha} icon={<User size={14}/>} />
-                       <InfoDisplay label="Nghề nghiệp Cha" value={student.NgheNghiepCha} icon={<Briefcase size={14}/>} />
-                       <InfoDisplay label="Họ tên Mẹ" value={student.TenMe} icon={<User size={14}/>} />
-                       <InfoDisplay label="Nghề nghiệp Mẹ" value={student.NgheNghiepMe} icon={<Briefcase size={14}/>} />
-                    </div>
-                  </div>
-
-                  <div className="pt-10 border-t border-slate-100">
-                    <InfoDisplay label="Ghi chú khác" value={student.GhiChuKhac} icon={<FileText size={16}/>} colSpan={2} />
-                  </div>
-               </div>
-            </div>
-
-            <div className="bg-white rounded-[40px] shadow-xl border border-indigo-100 overflow-hidden">
-               <div className="p-6 bg-indigo-600 text-white flex items-center gap-3"><Lock size={20}/><h3 className="font-black text-sm uppercase tracking-widest">Đổi mật khẩu truy cập</h3></div>
-               <div className="p-8 md:p-10 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase px-2">Mật khẩu cũ</label><input type="password" value={passwordForm.old} onChange={e => setPasswordForm({...passwordForm, old: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:bg-white transition-all shadow-inner" /></div>
-                    <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase px-2">Mật khẩu mới</label><input type="password" value={passwordForm.new} onChange={e => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:bg-white transition-all shadow-inner" /></div>
-                    <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase px-2">Xác nhận lại</label><input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm({...passwordForm, confirm: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:bg-white transition-all shadow-inner" /></div>
-                  </div>
-                  <button onClick={handleUpdatePassword} disabled={isUpdating} className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-indigo-700 shadow-lg transition-all">{isUpdating ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>} Cập nhật mật khẩu mới</button>
-               </div>
-            </div>
+            <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden"><div className="p-8 bg-slate-50/50 border-b flex flex-col md:flex-row items-center gap-8"><div className="w-32 h-40 rounded-[32px] bg-white border-2 border-indigo-100 flex items-center justify-center shrink-0 overflow-hidden shadow-sm">{student.Anh ? <img src={student.Anh} className="w-full h-full object-cover" /> : <User size={48} className="text-slate-200" />}</div><div className="text-center md:text-left"><h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">{student.Hoten}</h3><div className="flex flex-wrap justify-center md:justify-start gap-3"><span className="px-3 py-1 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest">Mã HS: {student.MaHS}</span><span className="px-3 py-1 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md">Lớp: {student.MaLopHienTai}</span></div></div></div><div className="p-10 space-y-8"><div className="grid grid-cols-1 md:grid-cols-2 gap-8"><InfoDisplay label="Ngày sinh" value={student.NgaySinh} icon={<Calendar size={16}/>} /><InfoDisplay label="Giới tính" value={student.GioiTinh ? 'Nam' : 'Nữ'} icon={<User size={16}/>} /><InfoDisplay label="Số điện thoại" value={student.SDT_LinkHe} icon={<Phone size={16}/>} /><InfoDisplay label="Email" value={student.Email || 'Chưa cập nhật'} icon={<Mail size={16}/>} /></div></div></div>
           </div>
         )}
       </main>
@@ -258,12 +207,7 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
 };
 
 const InfoDisplay = ({ label, value, icon, colSpan = 1 }: any) => (
-  <div className={`space-y-2 ${colSpan === 2 ? 'md:col-span-2' : ''}`}>
-    <p className="text-[10px] text-slate-400 uppercase font-black px-2 flex items-center gap-2">{icon} {label}</p>
-    <div className="p-4 bg-white border border-slate-100 rounded-2xl font-bold text-slate-700 text-[13px] shadow-sm">
-      {value || '---'}
-    </div>
-  </div>
+  <div className={`space-y-2 ${colSpan === 2 ? 'md:col-span-2' : ''}`}><p className="text-[10px] text-slate-400 uppercase font-black px-2 flex items-center gap-2">{icon} {label}</p><div className="p-4 bg-white border border-slate-100 rounded-2xl font-bold text-slate-700 text-[13px] shadow-sm">{value || '---'}</div></div>
 );
 
 export default StudentPortal;
