@@ -32,7 +32,6 @@ type ViewState = 'dashboard' | 'study' | 'tasks' | 'discipline' | 'profile';
 
 const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans, messages, onSendMessage, onLogout, onToggleTask, onUpdateProfile }) => {
   const [activeView, setActiveView] = useState<ViewState>('dashboard');
-  const [passwordForm, setPasswordForm] = useState({ old: '', new: '', confirm: '' });
   const [isUpdating, setIsUpdating] = useState(false);
   const [taskLinks, setTaskLinks] = useState<Record<number, string>>({});
   const [processingTaskId, setProcessingTaskId] = useState<number | null>(null);
@@ -74,7 +73,7 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
     return subjectsList.map(sub => {
       const tb1 = calculateSubjectAvg(sub.id, 1);
       const tb2 = calculateSubjectAvg(sub.id, 2);
-      return { name: sub.name, hk1: tb1, hk2: tb2, cn: (tb1 !== null && tb2 !== null) ? (tb1 + tb2 * 2) / 3 : null };
+      return { name: sub.name, id: sub.id, hk1: tb1, hk2: tb2, cn: (tb1 !== null && tb2 !== null) ? (tb1 + tb2 * 2) / 3 : null };
     });
   }, [myGrades]);
 
@@ -88,18 +87,47 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
     return Math.max(0, 100 - totalDeduction);
   }, [myDisciplines]);
 
+  // So sánh ngày chính xác
+  const isTaskExpired = (hanChot: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadline = new Date(hanChot);
+    deadline.setHours(0, 0, 0, 0);
+    return today > deadline;
+  };
+
   const handleTaskSubmit = async (taskId: number) => {
     const task = tasks.find(t => t.MaNhiemVu === taskId);
     if (!task) return;
-    const isExpired = task.HanChot < new Date().toISOString().split('T')[0];
-    if (isExpired) { alert("Nhiệm vụ này đã hết hạn, không thể nộp hoặc chỉnh sửa bài."); return; }
     
-    const link = taskLinks[taskId] || "";
+    const expired = isTaskExpired(task.HanChot);
+    const isDone = (task.DanhSachHoanThanh || []).includes(student.MaHS);
+
+    if (expired && !isDone) {
+      alert("Nhiệm vụ này đã quá hạn nộp. Bạn không thể nộp bài trễ!");
+      return;
+    }
+
+    if (expired && isDone) {
+      alert("Nhiệm vụ đã quá hạn. Bạn chỉ có thể xem link đã nộp trước đó, không thể chỉnh sửa.");
+      return;
+    }
+
+    const link = taskLinks[taskId] ?? (task.BaoCaoNhiemVu?.[student.MaHS] || "");
+    if (!link.trim()) {
+      alert("Vui lòng nhập link bài nộp!");
+      return;
+    }
+
     setProcessingTaskId(taskId);
     try {
       await onToggleTask(taskId, link);
-      alert("Đã nộp bài thành công!");
-    } finally { setProcessingTaskId(null); }
+      alert("Đã cập nhật bài nộp thành công!");
+    } catch (e) {
+      alert("Lỗi nộp bài!");
+    } finally {
+      setProcessingTaskId(null);
+    }
   };
 
   const menuItems = [
@@ -116,7 +144,7 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
         <div className="p-8 border-b border-slate-50 flex items-center gap-3"><div className="p-2.5 bg-indigo-600 rounded-2xl text-white shadow-lg"><Shield size={20} /></div><h1 className="font-black text-slate-800 uppercase italic tracking-tighter">EduStudent</h1></div>
         <div className="p-6 flex-1 space-y-2">
           {menuItems.map((item) => (
-            <button key={item.id} onClick={() => setActiveView(item.id as ViewState)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${activeView === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}><item.icon size={18} /> {item.label}</button>
+            <button key={item.id} onClick={() => setActiveView(item.id as ViewState)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${activeView === item.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}><item.icon size={18} /> {item.label}</button>
           ))}
         </div>
         <div className="p-6 border-t border-slate-50">
@@ -126,7 +154,7 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
       <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto pb-24 bg-slate-50/30 custom-scrollbar">
         {activeView === 'dashboard' && (
           <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
-             <header className="flex justify-between items-end gap-4"><div><h2 className="text-2xl font-black text-slate-800 tracking-tight">Chào {student.Hoten.split(' ').pop()}! 👋</h2><p className="text-slate-400 font-medium text-sm mt-1">Cố gắng hoàn thành nhiệm vụ đúng hạn nhé.</p></div></header>
+             <header className="flex justify-between items-end gap-4"><div><h2 className="text-2xl font-black text-slate-800 tracking-tight">Chào {student.Hoten.split(' ').pop()}! 👋</h2><p className="text-slate-400 font-medium text-sm mt-1">Hôm nay bạn thế nào? Xem các nhiệm vụ cần hoàn thành nhé.</p></div></header>
              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-8 space-y-8">
                    <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden"><div className="p-8 border-b border-slate-50 bg-indigo-600 text-white font-black text-sm uppercase tracking-widest">Kế hoạch tuần học</div><div className="p-8 space-y-6">{plans.length > 0 ? plans.slice(0, 2).map((p) => (<div key={p.MaKeHoach} className="flex gap-6 pb-6 border-b border-slate-50 last:border-0"><div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center bg-indigo-50 border-2 border-indigo-100 text-indigo-600 shrink-0"><span className="text-[9px] font-black uppercase mb-1">Tuần</span><span className="text-xl font-black">{p.Tuan}</span></div><div className="flex-1"><h4 className="font-black text-slate-800 text-sm uppercase mb-2">{p.TieuDe}</h4><div className="p-4 bg-slate-50/50 rounded-2xl text-[11px] text-slate-600 font-medium italic">"{p.NoiDung}"</div></div></div>)) : (<p className="text-center text-slate-300 py-10 font-black text-[10px] uppercase">Chưa có thông báo</p>)}</div></div>
@@ -143,7 +171,7 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
         {activeView === 'study' && (
           <div className="max-w-5xl mx-auto space-y-8 animate-in slide-in-from-right-4">
              <div className="flex items-center gap-3"><div className="p-3 bg-indigo-600 rounded-2xl text-white"><GraduationCap size={24} /></div><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Kết quả học tập</h2></div>
-             <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden"><table className="w-full text-left"><thead><tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase border-b"><th className="px-10 py-6">Môn học</th><th className="px-8 py-6 text-center">HK 1</th><th className="px-8 py-6 text-center">HK 2</th><th className="px-10 py-6 text-right text-indigo-600">Cả năm</th></tr></thead><tbody className="divide-y divide-slate-50">{gradeTableData.map(row => (<tr key={row.name} className="hover:bg-indigo-50/30 transition-colors"><td className="px-10 py-5 font-black text-slate-700 text-sm uppercase">{row.name}</td><td className="px-8 py-5 text-center text-slate-500 text-sm">{row.hk1?.toFixed(1) || '--'}</td><td className="px-8 py-5 text-center text-slate-500 text-sm">{row.hk2?.toFixed(1) || '--'}</td><td className="px-10 py-5 text-right font-black text-indigo-600 text-base">{row.cn?.toFixed(1) || '--'}</td></tr>))}</tbody></table></div>
+             <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden"><table className="w-full text-left"><thead><tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase border-b"><th className="px-10 py-6">Môn học</th><th className="px-8 py-6 text-center">HK 1</th><th className="px-8 py-6 text-center">HK 2</th><th className="px-10 py-6 text-right text-indigo-600">Cả năm</th></tr></thead><tbody className="divide-y divide-slate-50">{gradeTableData.map(row => (<tr key={row.id} className="hover:bg-indigo-50/30 transition-colors"><td className="px-10 py-5 font-black text-slate-700 text-sm uppercase">{row.name}</td><td className="px-8 py-5 text-center text-slate-500 text-sm">{row.hk1?.toFixed(1) || '--'}</td><td className="px-8 py-5 text-center text-slate-500 text-sm">{row.hk2?.toFixed(1) || '--'}</td><td className="px-10 py-5 text-right font-black text-indigo-600 text-base">{row.cn?.toFixed(1) || '--'}</td></tr>))}</tbody></table></div>
           </div>
         )}
         {activeView === 'tasks' && (
@@ -151,46 +179,65 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
              <div className="flex items-center gap-3"><div className="p-3 bg-indigo-600 rounded-2xl text-white"><Send size={24} /></div><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Nhiệm vụ & Bài tập</h2></div>
              <div className="grid grid-cols-1 gap-6">{tasks.length > 0 ? tasks.map(task => { 
                 const isDone = (task.DanhSachHoanThanh || []).includes(student.MaHS);
-                const isExpired = task.HanChot < new Date().toISOString().split('T')[0];
+                const expired = isTaskExpired(task.HanChot);
                 return (
-                  <div key={task.MaNhiemVu} className={`p-8 rounded-[40px] border transition-all flex flex-col md:flex-row gap-8 ${isDone ? 'bg-emerald-50/30 border-emerald-100 opacity-90' : isExpired ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-slate-200 shadow-md shadow-indigo-50/20'}`}>
+                  <div key={task.MaNhiemVu} className={`p-8 rounded-[40px] border transition-all flex flex-col md:flex-row gap-8 ${isDone ? 'bg-emerald-50/30 border-emerald-100' : expired ? 'bg-slate-50 border-slate-200 opacity-80' : 'bg-white border-slate-200 shadow-md shadow-indigo-50/20'}`}>
                     <div className="flex-1 space-y-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600">{task.MaMonHoc}</span>
+                        <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-xl border ${expired ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>{task.MaMonHoc}</span>
                         <div className="flex items-center gap-2">
-                           <Clock size={12} className={isExpired ? 'text-rose-500' : 'text-slate-400'} />
-                           <span className={`text-[9px] font-black uppercase ${isExpired ? 'text-rose-500' : 'text-slate-400'}`}>Hạn: {task.HanChot}</span>
+                           <Clock size={12} className={expired ? 'text-rose-500' : 'text-slate-400'} />
+                           <span className={`text-[9px] font-black uppercase ${expired ? 'text-rose-500' : 'text-slate-400'}`}>Hạn: {task.HanChot}</span>
                         </div>
                       </div>
-                      <h4 className="font-black text-base uppercase text-slate-800">{task.TieuDe}</h4>
+                      <h4 className={`font-black text-base uppercase ${expired && !isDone ? 'text-slate-400' : 'text-slate-800'}`}>{task.TieuDe}</h4>
                       <p className="text-[12px] text-slate-500 italic leading-relaxed whitespace-pre-line">"{task.MoTa}"</p>
+                      {expired && !isDone && (
+                        <div className="flex items-center gap-2 text-rose-500 bg-rose-50 px-4 py-2 rounded-xl border border-rose-100 w-fit">
+                           <AlertTriangle size={14} />
+                           <span className="text-[10px] font-black uppercase">Đã quá hạn nộp bài</span>
+                        </div>
+                      )}
                     </div>
                     <div className="md:w-64 space-y-4 flex flex-col justify-center">
-                      <input type="text" disabled={isExpired && !isDone} placeholder="Dán link nộp bài..." value={taskLinks[task.MaNhiemVu] !== undefined ? taskLinks[task.MaNhiemVu] : (task.BaoCaoNhiemVu?.[student.MaHS] || "")} onChange={(e) => setTaskLinks({...taskLinks, [task.MaNhiemVu]: e.target.value})} className={`w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold outline-none shadow-inner focus:bg-white transition-all ${isExpired && !isDone ? 'cursor-not-allowed opacity-50' : ''}`} />
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Link nộp bài</label>
+                        <input 
+                          type="text" 
+                          disabled={expired} 
+                          placeholder={expired ? "Hết hạn nộp" : "Dán link bài tập tại đây..."} 
+                          value={taskLinks[task.MaNhiemVu] ?? (task.BaoCaoNhiemVu?.[student.MaHS] || "")} 
+                          onChange={(e) => setTaskLinks({...taskLinks, [task.MaNhiemVu]: e.target.value})} 
+                          className={`w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-[11px] font-bold outline-none shadow-inner focus:bg-white transition-all ${expired ? 'bg-slate-100 cursor-not-allowed text-slate-400' : ''}`} 
+                        />
+                      </div>
                       
-                      {isExpired && !isDone ? (
-                        <div className="w-full py-4 bg-rose-50 text-rose-600 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-rose-100">
-                           <AlertTriangle size={16} /> Đã hết hạn nộp bài
-                        </div>
-                      ) : (
-                        <button onClick={() => handleTaskSubmit(task.MaNhiemVu)} disabled={processingTaskId === task.MaNhiemVu} className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all ${isDone ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
-                          {processingTaskId === task.MaNhiemVu ? <Loader2 size={16} className="animate-spin" /> : (isDone ? <CheckCircle size={16} /> : <Circle size={16} />)}
-                          {isDone ? 'Cập nhật bài nộp' : 'Xác nhận nộp bài'}
-                        </button>
-                      )}
-                      
-                      {isExpired && isDone && (
-                        <p className="text-[9px] text-center text-amber-600 font-bold uppercase">* Đã nộp (Không thể sửa do hết hạn)</p>
-                      )}
+                      <button 
+                        onClick={() => handleTaskSubmit(task.MaNhiemVu)} 
+                        disabled={expired || processingTaskId === task.MaNhiemVu} 
+                        className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all ${
+                          isDone 
+                            ? (expired ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700') 
+                            : (expired ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none border border-slate-300' : 'bg-indigo-600 text-white hover:bg-indigo-700')
+                        }`}
+                      >
+                        {processingTaskId === task.MaNhiemVu ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : isDone ? (
+                          <><CheckCircle size={16} /> {expired ? 'Đã nộp (Khóa)' : 'Cập nhật bài nộp'}</>
+                        ) : (
+                          <><Send size={16} /> {expired ? 'Không thể nộp' : 'Nộp bài tập'}</>
+                        )}
+                      </button>
                     </div>
                   </div>
                 ); 
-             }) : (<p className="text-center py-20 opacity-30 text-[10px] font-black uppercase">Hiện chưa có bài tập nào</p>)}</div>
+             }) : (<p className="text-center py-20 opacity-30 text-[10px] font-black uppercase">Hiện chưa có bài tập nào được giao</p>)}</div>
           </div>
         )}
         {activeView === 'discipline' && (
           <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-right-4">
-             <div className="flex items-center gap-3"><div className="p-3 bg-rose-600 rounded-2xl text-white shadow-lg shadow-rose-100"><ShieldAlert size={24} /></div><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Rèn luyện & Vi phạm</h2></div>
+             <div className="flex items-center gap-3"><div className="p-3 bg-rose-600 rounded-2xl text-white shadow-lg"><ShieldAlert size={24} /></div><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Rèn luyện & Vi phạm</h2></div>
              <div className="space-y-4">{myDisciplines.map(d => { const rule = violationRules.find(r => r.MaLoi === d.MaLoi); return (<div key={d.MaKyLuat} className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6"><div className="flex items-start gap-5"><div className="p-3 bg-rose-50 text-rose-500 rounded-2xl border border-rose-100 shrink-0"><AlertCircle size={24}/></div><div><h4 className="font-black text-slate-800 text-sm uppercase mb-1">Lỗi: {rule?.TenLoi || d.MaLoi}</h4><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-3">{d.NgayViPham}</p><div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-[11px] font-medium text-slate-600 italic whitespace-pre-line">"{d.NoiDungChiTiet}"</div></div></div><span className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shrink-0 text-center">{d.HinhThucXL}</span></div>); })}{myDisciplines.length === 0 && (<div className="py-20 text-center opacity-30"><CheckCircle size={48} className="mx-auto mb-4 text-emerald-300" /><p className="text-[11px] font-black uppercase tracking-widest">Tuyệt vời! Bạn không có vi phạm nào.</p></div>)}</div>
           </div>
         )}
