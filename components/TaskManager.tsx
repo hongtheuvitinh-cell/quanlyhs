@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Send, CheckCircle, Circle, Calendar, Plus, X, ClipboardCheck, Trophy, Clock, Target, Edit2, Trash2, Save, BookOpen, Users, Check, Loader2, Info, ChevronRight, UserPlus, Filter, Search, Lock, Eye } from 'lucide-react';
+import { Send, CheckCircle, Circle, Calendar, Plus, X, ClipboardCheck, Trophy, Clock, Target, Edit2, Trash2, Save, BookOpen, Users, Check, Loader2, Info, ChevronRight, UserPlus, Filter, Search, Lock, Eye, FileText, Download } from 'lucide-react';
 import { AppState, Student, AssignmentTask, Teacher, Role } from '../types';
 
 interface Props {
@@ -72,7 +72,6 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
   }, [tasks, state.selectedClass, state.selectedYear, isHomeroom, isAdmin, currentTeacherId, filterMonth, filterStatus]);
 
   const canManage = (task: AssignmentTask) => {
-    // Admin hoặc người tạo ra nhiệm vụ có quyền sửa/xóa
     return isAdmin || task.MaGV === currentTeacherId;
   };
 
@@ -111,6 +110,37 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
     setIsModalOpen(true);
   };
 
+  const handleExportReport = () => {
+    if (!selectedTask) return;
+    
+    const incompleteStudents = students.filter(s => 
+      (selectedTask.DanhSachGiao || []).includes(s.MaHS) && 
+      !(selectedTask.DanhSachHoanThanh || []).includes(s.MaHS)
+    );
+
+    const now = new Date().toLocaleDateString('vi-VN');
+    // BOM for UTF-8 Excel support
+    let csvContent = "\ufeff"; 
+    csvContent += "PHIẾU GIAO NHIỆM VỤ\n";
+    csvContent += `Ngày: ${now}\n`;
+    csvContent += `Nhiệm vụ: ${selectedTask.TieuDe}\n`;
+    csvContent += `Môn: ${selectedTask.MaMonHoc}\n\n`;
+    csvContent += "MSHS,Họ và tên,Trạng thái chưa\n";
+
+    incompleteStudents.forEach(s => {
+      csvContent += `${s.MaHS},${s.Hoten},x\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Bao_cao_nhiem_vu_${selectedTask.MaNhiemVu}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleSaveTask = async () => {
     if (!taskForm.TieuDe.trim() || assignedStudentIds.length === 0) {
       alert("Vui lòng nhập tiêu đề và chọn ít nhất 1 học sinh!");
@@ -124,7 +154,6 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
         MoTa: taskForm.MoTa, 
         MaLop: state.selectedClass, 
         MaMonHoc: taskForm.MaMonHoc,
-        // Nếu admin sửa bài của GV khác, giữ nguyên MaGV gốc
         MaGV: modalMode === 'edit' ? (tasks.find(t => t.MaNhiemVu === taskForm.MaNhiemVu)?.MaGV || currentTeacherId) : currentTeacherId, 
         HanChot: taskForm.HanChot, 
         MaNienHoc: state.selectedYear,
@@ -241,17 +270,17 @@ const TaskManager: React.FC<Props> = ({ state, students, tasks, onUpdateTasks, o
                    </div>
                 </div>
                 
-                {canManage(selectedTask) ? (
-                  <div className="flex gap-2">
-                    <button onClick={() => handleOpenEdit(selectedTask)} className="p-2.5 text-indigo-600 hover:bg-white border border-transparent hover:border-indigo-100 rounded-2xl transition-all shadow-sm"><Edit2 size={20}/></button>
-                    <button onClick={() => { if(confirm("Xóa nhiệm vụ này?")) onDeleteTask(selectedTask.MaNhiemVu).then(() => setSelectedTask(null)); }} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={20}/></button>
-                  </div>
-                ) : (
-                  <div className="px-4 py-2 bg-slate-100 text-slate-400 rounded-2xl flex items-center gap-2 border border-slate-200">
-                    <Eye size={16} />
-                    <span className="text-[9px] font-black uppercase tracking-widest">Chế độ xem</span>
-                  </div>
-                )}
+                <div className="flex gap-2">
+                  <button onClick={handleExportReport} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-all shadow-sm">
+                    <Download size={16} /> Xuất báo cáo
+                  </button>
+                  {canManage(selectedTask) && (
+                    <>
+                      <button onClick={() => handleOpenEdit(selectedTask)} className="p-2.5 text-indigo-600 hover:bg-white border border-transparent hover:border-indigo-100 rounded-2xl transition-all shadow-sm"><Edit2 size={20}/></button>
+                      <button onClick={() => { if(confirm("Xóa nhiệm vụ này?")) onDeleteTask(selectedTask.MaNhiemVu).then(() => setSelectedTask(null)); }} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={20}/></button>
+                    </>
+                  )}
+                </div>
               </div>
               
               <div className="p-8 border-b bg-white">
