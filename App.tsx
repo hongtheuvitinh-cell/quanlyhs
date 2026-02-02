@@ -78,7 +78,6 @@ const App: React.FC = () => {
 
       let defaultYear = fetchedYears.length ? fetchedYears[0].MaNienHoc : 0;
       
-      // Khôi phục phiên đăng nhập từ localStorage sau khi đã tải dữ liệu
       const savedSession = localStorage.getItem('edu_session');
       if (savedSession) {
         const { role, id } = JSON.parse(savedSession);
@@ -282,13 +281,13 @@ const App: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC] custom-scrollbar">
           {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} />}
-          {activeTab === 'students' && <StudentList state={state} students={currentClassStudents} violationRules={violationRules} onUpdateStudent={(s) => supabase.from('students').upsert(s).then(fetchData)} onDeleteStudent={(id) => supabase.from('students').delete().eq('MaHS', id).then(fetchData)} />}
+          {activeTab === 'students' && <StudentList state={state} students={currentClassStudents} violationRules={violationRules} onUpdateStudent={async (s) => { await supabase.from('students').upsert(s); await fetchData(); }} onDeleteStudent={async (id) => { await supabase.from('students').delete().eq('MaHS', id); await fetchData(); }} />}
           {activeTab === 'grades' && <GradeBoard state={state} students={currentClassStudents} assignments={assignments} />}
-          {activeTab === 'tasks' && <TaskManager state={state} students={currentClassStudents} tasks={tasks} onUpdateTasks={(t) => supabase.from('tasks').upsert(t).then(fetchData)} onDeleteTask={(id) => supabase.from('tasks').delete().eq('MaNhiemVu', id).then(fetchData)} />}
-          {activeTab === 'discipline' && <DisciplineManager state={state} students={currentClassStudents} violationRules={violationRules} assignments={assignments} onUpdateRules={(r) => supabase.from('violation_rules').upsert(r).then(fetchData)} />}
+          {activeTab === 'tasks' && <TaskManager state={state} students={currentClassStudents} tasks={tasks} onUpdateTasks={async (t) => { await supabase.from('tasks').upsert(t); await fetchData(); }} onDeleteTask={async (id) => { await supabase.from('tasks').delete().eq('MaNhiemVu', id); await fetchData(); }} />}
+          {activeTab === 'discipline' && <DisciplineManager state={state} students={currentClassStudents} allStudents={students} violationRules={violationRules} assignments={assignments} onUpdateRules={async (r) => { await supabase.from('violation_rules').upsert(r); await fetchData(); }} />}
           {activeTab === 'logs' && <LearningLogs state={state} students={currentClassStudents} assignments={assignments} />}
           {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={fetchData} students={students} />}
-          {activeTab === 'plans' && <SchoolPlans state={state} plans={plans} classes={classes} onUpdatePlan={(p) => supabase.from('school_plans').upsert(p).then(fetchData)} onDeletePlan={(id) => supabase.from('school_plans').delete().eq('MaKeHoach', id).then(fetchData)} />}
+          {activeTab === 'plans' && <SchoolPlans state={state} plans={plans} classes={classes} onUpdatePlan={async (p) => { await supabase.from('school_plans').upsert(p); await fetchData(); }} onDeletePlan={async (id) => { await supabase.from('school_plans').delete().eq('MaKeHoach', id); await fetchData(); }} />}
           {activeTab === 'teachers' && <TeacherList teachers={teachers} onUpdate={fetchData} />}
         </div>
       </main>
