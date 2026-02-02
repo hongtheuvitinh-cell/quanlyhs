@@ -14,8 +14,8 @@ interface Props {
   state: AppState;
   students: Student[];
   violationRules: ViolationRule[];
-  onUpdateStudent: (student: Student) => void;
-  onDeleteStudent: (maHS: string) => void;
+  onUpdateStudent: (student: Student) => Promise<void>;
+  onDeleteStudent: (maHS: string) => Promise<void>;
 }
 
 const subjectsList = [
@@ -33,6 +33,9 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [formData, setFormData] = useState<Partial<Student>>({});
   const [isProcessingCSV, setIsProcessingCSV] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [studentGrades, setStudentGrades] = useState<Grade[]>([]);
@@ -44,7 +47,7 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
     if (selectedStudent) {
       loadStudentDetails(selectedStudent.MaHS);
     }
-  }, [selectedStudent]);
+  }, [selectedStudent?.MaHS, state.selectedYear]);
 
   const loadStudentDetails = async (maHS: string) => {
     setIsLoadingDetails(true);
@@ -124,8 +127,8 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
     
     let total = dgtx.reduce((a, b) => a + b, 0); 
     let count = dgtx.length;
-    if (ggk !== undefined && ggk !== null) { total += ggk * 2; count += 2; }
-    if (gck !== undefined && gck !== null) { total += gck * 3; count += 3; }
+    if (ggk !== undefined && ggk !== null) { total += (ggk as number) * 2; count += 2; }
+    if (gck !== undefined && gck !== null) { total += (gck as number) * 3; count += 3; }
     
     return count > 0 ? total / count : null;
   };
@@ -153,6 +156,46 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
       Email: '', GhiChuKhac: ''
     });
     setIsFormOpen(true);
+  };
+
+  const handleSaveStudent = async () => {
+    if (!formData.Hoten?.trim() || !formData.MaHS?.trim()) {
+      alert("Vui lòng nhập Họ tên và Mã học sinh!");
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const updatedStudent = {
+        ...formData,
+        MaLopHienTai: state.selectedClass,
+        MaNienHoc: state.selectedYear
+      } as Student;
+      
+      await onUpdateStudent(updatedStudent);
+      if (selectedStudent && selectedStudent.MaHS === updatedStudent.MaHS) {
+        setSelectedStudent(updatedStudent);
+      }
+      setIsFormOpen(false);
+    } catch (e: any) {
+      alert("Lỗi khi lưu: " + e.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedStudent) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteStudent(selectedStudent.MaHS);
+      setSelectedStudent(null);
+      setShowDeleteConfirm(false);
+    } catch (e: any) {
+      alert("Lỗi khi xóa: " + e.message);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -191,7 +234,6 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
                 </div>
               </div>
             </div>
-            <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-indigo-50 rounded-full opacity-50 group-hover:scale-150 transition-transform"></div>
           </div>
         ))}
       </div>
@@ -213,7 +255,9 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
                </div>
                <div className="flex items-center gap-3">
                   <button onClick={() => handleOpenForm(selectedStudent)} className="p-3 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-2xl shadow-sm"><Edit2 size={20}/></button>
-                  <button onClick={() => { if(confirm("Xóa?")) onDeleteStudent(selectedStudent.MaHS); }} className="p-3 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-2xl shadow-sm"><Trash2 size={20}/></button>
+                  <button onClick={() => setShowDeleteConfirm(true)} className="p-3 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-2xl shadow-sm">
+                    <Trash2 size={20}/>
+                  </button>
                   <button onClick={() => setSelectedStudent(null)} className="p-3 hover:bg-slate-100 rounded-full ml-4"><X size={28} className="text-slate-400" /></button>
                </div>
             </div>
@@ -265,7 +309,7 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
                                const avg2 = calculateSubjectAvg(selectedStudent.MaHS, sub.id, 2);
                                const cn = (avg1 !== null && avg2 !== null) ? (avg1 + avg2 * 2) / 3 : null;
                                return (
-                                 <tr key={sub.id} className="hover:bg-indigo-50/20"><td className="px-8 py-5 text-xs font-black text-slate-700 uppercase">{sub.name}</td><td className="px-8 py-5 text-center text-slate-400 text-sm">{avg1?.toFixed(1) || '--'}</td><td className="px-8 py-5 text-center text-slate-400 text-sm">{avg2?.toFixed(1) || '--'}</td><td className="px-8 py-5 text-right font-black text-indigo-600 text-sm">{cn?.toFixed(1) || '--'}</td></tr>
+                                 <tr key={sub.id} className="hover:bg-indigo-50/20"><td className="px-8 py-5 text-xs font-black text-slate-700 uppercase">{sub.name}</td><td className="px-8 py-5 text-center text-slate-500 text-sm">{avg1?.toFixed(1) || '--'}</td><td className="px-8 py-5 text-center text-slate-500 text-sm">{avg2?.toFixed(1) || '--'}</td><td className="px-8 py-5 text-right font-black text-indigo-600 text-sm">{cn?.toFixed(1) || '--'}</td></tr>
                                );
                              })}
                           </tbody>
@@ -292,6 +336,38 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
                     </div>
                   )}
                </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Delete Confirmation Modal - Tránh bị trình duyệt chặn popup */}
+      {showDeleteConfirm && selectedStudent && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-md rounded-[40px] p-10 shadow-2xl animate-in zoom-in-95 border border-white/20 text-center">
+            <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mx-auto mb-6 shadow-inner">
+              <AlertCircle size={44} />
+            </div>
+            <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-3">Xác nhận xóa hồ sơ</h3>
+            <p className="text-slate-500 text-sm font-medium leading-relaxed mb-10">
+              Bạn có chắc chắn muốn xóa học sinh <span className="font-black text-slate-800 uppercase">{selectedStudent.Hoten}</span>? 
+              Dữ liệu điểm, rèn luyện và lịch sử sẽ bị xóa vĩnh viễn khỏi hệ thống.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => setShowDeleteConfirm(false)} 
+                className="py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+              >
+                Hủy bỏ
+              </button>
+              <button 
+                disabled={isDeleting}
+                onClick={confirmDelete} 
+                className="py-4 bg-rose-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-rose-100 hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                Xác nhận xóa
+              </button>
             </div>
           </div>
         </div>
@@ -343,7 +419,10 @@ const StudentList: React.FC<Props> = ({ state, students, violationRules, onUpdat
               </div>
               <div className="mt-12 flex gap-6 shrink-0">
                  <button onClick={() => setIsFormOpen(false)} className="flex-1 py-5 bg-slate-50 text-slate-500 rounded-[28px] font-black text-[11px] uppercase tracking-widest hover:bg-slate-100 transition-all">Hủy bỏ</button>
-                 <button onClick={() => { onUpdateStudent({...formData as Student, MaLopHienTai: state.selectedClass, MaNienHoc: state.selectedYear}); setIsFormOpen(false); }} className="flex-[2] py-5 bg-indigo-600 text-white rounded-[28px] font-black text-[11px] uppercase shadow-xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all tracking-[2px]"><Save size={20}/> Lưu hồ sơ học sinh</button>
+                 <button disabled={isSaving} onClick={handleSaveStudent} className="flex-[2] py-5 bg-indigo-600 text-white rounded-[28px] font-black text-[11px] uppercase shadow-xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all tracking-[2px]">
+                   {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20}/>} 
+                   Lưu hồ sơ học sinh
+                 </button>
               </div>
            </div>
         </div>
