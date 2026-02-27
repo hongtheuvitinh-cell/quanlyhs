@@ -36,10 +36,23 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
   const [isUpdating, setIsUpdating] = useState(false);
   const [taskLinks, setTaskLinks] = useState<Record<number, string>>({});
   const [processingTaskId, setProcessingTaskId] = useState<number | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
 
   const [myGrades, setMyGrades] = useState<Grade[]>([]);
   const [myDisciplines, setMyDisciplines] = useState<Discipline[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
+
+  useEffect(() => {
+    if (plans.length > 0 && selectedWeek === null) {
+      // Default to the latest week or week 1
+      const maxWeek = Math.max(...plans.map(p => p.Tuan));
+      setSelectedWeek(maxWeek);
+    }
+  }, [plans]);
+
+  const selectedPlan = useMemo(() => {
+    return plans.find(p => p.Tuan === selectedWeek);
+  }, [plans, selectedWeek]);
 
   const studentState: AppState = {
     currentUser: student,
@@ -167,7 +180,40 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
              <header className="flex justify-between items-end gap-4"><div><h2 className="text-2xl font-black text-slate-800 tracking-tight">Chào {student.Hoten.split(' ').pop()}! 👋</h2><p className="text-slate-400 font-medium text-sm mt-1">Hôm nay bạn thế nào? Xem các nhiệm vụ cần hoàn thành nhé.</p></div></header>
              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-8 space-y-8">
-                   <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden"><div className="p-8 border-b border-slate-50 bg-indigo-600 text-white font-black text-sm uppercase tracking-widest">Kế hoạch tuần học</div><div className="p-8 space-y-6">{plans.length > 0 ? plans.slice(0, 2).map((p) => (<div key={p.MaKeHoach} className="flex gap-6 pb-6 border-b border-slate-50 last:border-0"><div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center bg-indigo-50 border-2 border-indigo-100 text-indigo-600 shrink-0"><span className="text-[9px] font-black uppercase mb-1">Tuần</span><span className="text-xl font-black">{p.Tuan}</span></div><div className="flex-1"><h4 className="font-black text-slate-800 text-sm uppercase mb-2">{p.TieuDe}</h4><div className="p-4 bg-slate-50/50 rounded-2xl text-[11px] text-slate-600 font-medium italic">"{p.NoiDung}"</div></div></div>)) : (<p className="text-center text-slate-300 py-10 font-black text-[10px] uppercase">Chưa có thông báo</p>)}</div></div>
+                   <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden">
+                     <div className="p-8 border-b border-slate-50 bg-indigo-600 text-white flex items-center justify-between">
+                       <span className="font-black text-sm uppercase tracking-widest">Kế hoạch tuần học</span>
+                       {plans.length > 0 && (
+                         <select 
+                           value={selectedWeek || ''} 
+                           onChange={(e) => setSelectedWeek(Number(e.target.value))}
+                           className="bg-indigo-700 text-white border-none rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-white/20"
+                         >
+                           {plans.sort((a, b) => b.Tuan - a.Tuan).map(p => (
+                             <option key={p.MaKeHoach} value={p.Tuan}>Tuần {p.Tuan}</option>
+                           ))}
+                         </select>
+                       )}
+                     </div>
+                     <div className="p-8">
+                       {selectedPlan ? (
+                         <div className="flex gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                           <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center bg-indigo-50 border-2 border-indigo-100 text-indigo-600 shrink-0">
+                             <span className="text-[9px] font-black uppercase mb-1">Tuần</span>
+                             <span className="text-xl font-black">{selectedPlan.Tuan}</span>
+                           </div>
+                           <div className="flex-1">
+                             <h4 className="font-black text-slate-800 text-sm uppercase mb-2">{selectedPlan.TieuDe}</h4>
+                             <div className="p-4 bg-slate-50/50 rounded-2xl text-[11px] text-slate-600 font-medium italic whitespace-pre-line">
+                               "{selectedPlan.NoiDung}"
+                             </div>
+                           </div>
+                         </div>
+                       ) : (
+                         <p className="text-center text-slate-300 py-10 font-black text-[10px] uppercase">Chưa có thông báo</p>
+                       )}
+                     </div>
+                   </div>
                    <GroupChat state={{currentUser: student, currentRole: Role.STUDENT, selectedClass: student.MaLopHienTai, selectedYear: student.MaNienHoc, selectedSubject: null}} messages={messages} onSendMessage={onSendMessage} />
                 </div>
                 <div className="lg:col-span-4 space-y-6">
