@@ -131,6 +131,45 @@ export interface LearningLog {
   TrangThai: AttendanceStatus;
 }
 
+// New types for Seating and Timetable
+export interface SeatingPlan {
+  id?: number;
+  MaLop: string;
+  MaNienHoc: number;
+  Rows: number;
+  Cols: number;
+  Config: Record<string, string>; // Position -> StudentID
+  UpdatedAt?: string;
+}
+
+export interface SeatingHistory {
+  id?: number;
+  MaLop: string;
+  MaNienHoc: number;
+  Rows: number;
+  Cols: number;
+  Config: Record<string, string>;
+  VersionName: string;
+  CreatedAt?: string;
+}
+
+export interface TimetableData {
+  id?: number;
+  MaLop: string;
+  MaNienHoc: number;
+  Data: Record<string, any>; // Day-Period -> Subject Info
+  UpdatedAt?: string;
+}
+
+export interface TimetableHistory {
+  id?: number;
+  MaLop: string;
+  MaNienHoc: number;
+  Data: Record<string, any>;
+  VersionName: string;
+  CreatedAt?: string;
+}
+
 export interface AppState {
   currentUser: Teacher | Student | null;
   currentRole: Role;
