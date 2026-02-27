@@ -6,9 +6,10 @@ import {
   Lock, Link as LinkIcon, Check, Shield, Save, X, Loader2, ExternalLink, 
   Info, ClipboardList, Globe, Home, Menu, ChevronRight, Bell, Phone, Mail, MapPin, Briefcase, FileText, AlertTriangle
 } from 'lucide-react';
-import { Student, Grade, Discipline, AssignmentTask, ViolationRule, SchoolPlan, ChatMessage, Role } from '../types';
+import { Student, Grade, Discipline, AssignmentTask, ViolationRule, SchoolPlan, ChatMessage, Role, AppState } from '../types';
 import { supabase } from '../services/supabaseClient';
 import GroupChat from './GroupChat';
+import Timetable from './Timetable';
 
 interface Props {
   student: Student;
@@ -28,7 +29,7 @@ const subjectsList = [
   { id: 'DIA', name: 'Địa Lý' }, { id: 'SU', name: 'Lịch Sử' }, { id: 'GDCD', name: 'GDCD' }
 ];
 
-type ViewState = 'dashboard' | 'study' | 'tasks' | 'discipline' | 'profile';
+type ViewState = 'dashboard' | 'study' | 'tasks' | 'discipline' | 'profile' | 'timetable';
 
 const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans, messages, onSendMessage, onLogout, onToggleTask, onUpdateProfile }) => {
   const [activeView, setActiveView] = useState<ViewState>('dashboard');
@@ -39,6 +40,14 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
   const [myGrades, setMyGrades] = useState<Grade[]>([]);
   const [myDisciplines, setMyDisciplines] = useState<Discipline[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
+
+  const studentState: AppState = {
+    currentUser: student,
+    currentRole: Role.STUDENT,
+    selectedClass: student.MaLopHienTai,
+    selectedYear: student.MaNienHoc,
+    selectedSubject: null
+  };
 
   const fetchMyData = async () => {
     setIsLoadingData(true);
@@ -132,6 +141,7 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
 
   const menuItems = [
     { id: 'dashboard', label: 'Trang chủ', icon: Home },
+    { id: 'timetable', label: 'Thời khóa biểu', icon: Calendar },
     { id: 'study', label: 'Học tập', icon: GraduationCap },
     { id: 'tasks', label: 'Nhiệm vụ', icon: Send },
     { id: 'discipline', label: 'Rèn luyện', icon: ShieldAlert },
@@ -166,6 +176,11 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
                    <div className="p-6 rounded-[32px] bg-rose-50 border border-rose-100"><p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-3">Điểm rèn luyện</p><h4 className="text-2xl font-black text-rose-600">{conductScore}đ</h4></div>
                 </div>
              </div>
+          </div>
+        )}
+        {activeView === 'timetable' && (
+          <div className="max-w-6xl mx-auto animate-in slide-in-from-right-4">
+            <Timetable state={studentState} />
           </div>
         )}
         {activeView === 'study' && (
