@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Users, GraduationCap, ClipboardList, ShieldAlert, LayoutDashboard, LogOut,
-  Send, Plus, Loader2, BookOpen, UserCheck, Settings, Database, ChevronRight, Lock, Shield, X, Save, Calendar, Book
+  Send, Plus, Loader2, BookOpen, UserCheck, Settings, Database, ChevronRight, Lock, Shield, X, Save, Calendar, Book, Monitor, Clock
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './services/supabaseClient';
 import { Role, AppState, Student, Grade, Assignment, LearningLog, Discipline, AcademicYear, Class, ViolationRule, AssignmentTask, Teacher, SchoolPlan, ChatMessage } from './types';
@@ -17,11 +17,13 @@ import Login from './components/Login';
 import SchoolPlans from './components/SchoolPlans';
 import StudentPortal from './components/StudentPortal';
 import TeacherList from './components/TeacherList';
+import ClassSeating from './components/ClassSeating';
+import Timetable from './components/Timetable';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'grades' | 'discipline' | 'logs' | 'tasks' | 'system' | 'plans' | 'teachers'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'grades' | 'discipline' | 'logs' | 'tasks' | 'system' | 'plans' | 'teachers' | 'seating' | 'timetable'>('dashboard');
   
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -236,6 +238,8 @@ const App: React.FC = () => {
           </div>
           {[
             { id: 'dashboard', label: 'Bàn làm việc', icon: LayoutDashboard },
+            { id: 'seating', label: 'Sơ đồ lớp', icon: Monitor },
+            { id: 'timetable', label: 'Thời khóa biểu', icon: Clock },
             { id: 'plans', label: 'Kế hoạch tuần', icon: Calendar },
             { id: 'students', label: 'Học sinh & SYLL', icon: Users },
             { id: 'grades', label: 'Bảng điểm môn', icon: GraduationCap },
@@ -280,7 +284,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC] custom-scrollbar">
-          {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} />}
+          {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} onTabChange={setActiveTab} />}
           {activeTab === 'students' && <StudentList state={state} students={currentClassStudents} violationRules={violationRules} onUpdateStudent={async (s) => { await supabase.from('students').upsert(s); await fetchData(); }} onDeleteStudent={async (id) => { await supabase.from('students').delete().eq('MaHS', id); await fetchData(); }} />}
           {activeTab === 'grades' && <GradeBoard state={state} students={currentClassStudents} assignments={assignments} />}
           {activeTab === 'tasks' && <TaskManager state={state} students={currentClassStudents} tasks={tasks} onUpdateTasks={async (t) => { await supabase.from('tasks').upsert(t); await fetchData(); }} onDeleteTask={async (id) => { await supabase.from('tasks').delete().eq('MaNhiemVu', id); await fetchData(); }} />}
@@ -289,6 +293,8 @@ const App: React.FC = () => {
           {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={fetchData} students={students} />}
           {activeTab === 'plans' && <SchoolPlans state={state} plans={plans} classes={classes} onUpdatePlan={async (p) => { await supabase.from('school_plans').upsert(p); await fetchData(); }} onDeletePlan={async (id) => { await supabase.from('school_plans').delete().eq('MaKeHoach', id); await fetchData(); }} />}
           {activeTab === 'teachers' && <TeacherList teachers={teachers} onUpdate={fetchData} />}
+          {activeTab === 'seating' && <ClassSeating state={state} students={currentClassStudents} className={classes.find(c => c.MaLop === state.selectedClass)?.TenLop} />}
+          {activeTab === 'timetable' && <Timetable state={state} />}
         </div>
       </main>
     </div>
