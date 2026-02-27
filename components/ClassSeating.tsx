@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Users, Monitor, User, Save, History, rotateCcw, Trash2, Check } from 'lucide-react';
+import { Users, Monitor, User, Save, History, RotateCcw, Trash2, Check } from 'lucide-react';
 import { Student, SeatingPlan, SeatingHistory, AppState } from '../types';
 import { supabase } from '../services/supabaseClient';
 
@@ -180,7 +180,7 @@ const ClassSeating: React.FC<Props> = ({ state, students, className }) => {
                   <p className="text-[9px] text-slate-400">{h.Rows} hàng x {h.Cols} cột • {new Date(h.CreatedAt!).toLocaleString('vi-VN')}</p>
                 </div>
                 <button onClick={() => restoreVersion(h)} className="p-2 bg-white text-indigo-600 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-indigo-600 hover:text-white">
-                  <rotateCcw size={14} />
+                  <RotateCcw size={14} />
                 </button>
               </div>
             )) : <p className="text-[11px] text-slate-400 italic">Chưa có lịch sử lưu trữ</p>}
