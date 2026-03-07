@@ -188,6 +188,17 @@ const App: React.FC = () => {
     fetchData();
   };
 
+  const handleUpdateMessage = async (id: number, content: string) => {
+    await supabase.from('messages').update({ content }).eq('id', id);
+    fetchData();
+  };
+
+  const handleDeleteMessage = async (id: number) => {
+    if (!confirm("Bạn có chắc chắn muốn xóa thông báo này?")) return;
+    await supabase.from('messages').delete().eq('id', id);
+    fetchData();
+  };
+
   const handleToggleTask = async (taskId: number, link?: string) => {
     if (state.currentRole !== Role.STUDENT || !state.currentUser) return;
     const studentId = (state.currentUser as Student).MaHS;
@@ -214,6 +225,8 @@ const App: React.FC = () => {
         plans={plans} 
         messages={(messages || []).filter(m => m.MaLop === studentUser.MaLopHienTai)} 
         onSendMessage={handleSendMessage} 
+        onUpdateMessage={handleUpdateMessage}
+        onDeleteMessage={handleDeleteMessage}
         onLogout={handleLogout} 
         onToggleTask={handleToggleTask} 
         onUpdateProfile={fetchData} 
@@ -284,7 +297,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC] custom-scrollbar">
-          {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} onTabChange={setActiveTab} />}
+          {activeTab === 'dashboard' && <Dashboard state={state} students={currentClassStudents} plans={plans} messages={messages.filter(m => m.MaLop === state.selectedClass)} onSendMessage={handleSendMessage} onUpdateMessage={handleUpdateMessage} onDeleteMessage={handleDeleteMessage} onTabChange={setActiveTab} />}
           {activeTab === 'students' && <StudentList state={state} students={currentClassStudents} violationRules={violationRules} onUpdateStudent={async (s) => { await supabase.from('students').upsert(s); await fetchData(); }} onDeleteStudent={async (id) => { await supabase.from('students').delete().eq('MaHS', id); await fetchData(); }} />}
           {activeTab === 'grades' && <GradeBoard state={state} students={currentClassStudents} assignments={assignments} />}
           {activeTab === 'tasks' && <TaskManager state={state} students={currentClassStudents} tasks={tasks} onUpdateTasks={async (t) => { await supabase.from('tasks').upsert(t); await fetchData(); }} onDeleteTask={async (id) => { await supabase.from('tasks').delete().eq('MaNhiemVu', id); await fetchData(); }} />}
