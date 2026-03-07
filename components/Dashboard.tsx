@@ -14,10 +14,12 @@ interface Props {
   plans: SchoolPlan[];
   messages: ChatMessage[];
   onSendMessage: (content: string) => Promise<void>;
+  onUpdateMessage: (id: number, content: string) => Promise<void>;
+  onDeleteMessage: (id: number) => Promise<void>;
   onTabChange: (tab: any) => void;
 }
 
-const Dashboard: React.FC<Props> = ({ state, students, plans, messages, onSendMessage, onTabChange }) => {
+const Dashboard: React.FC<Props> = ({ state, students, plans, messages, onSendMessage, onUpdateMessage, onDeleteMessage, onTabChange }) => {
   const [stats, setStats] = useState({ avg: '0.0', violations: 0, attendance: '98%' });
   const [isLoading, setIsLoading] = useState(false);
   const currentUser = state.currentUser as Teacher;
@@ -158,7 +160,7 @@ const Dashboard: React.FC<Props> = ({ state, students, plans, messages, onSendMe
         </div>
 
         <div className="lg:col-span-4 h-full">
-            <GroupChat state={state} messages={messages} onSendMessage={onSendMessage} />
+            <GroupChat state={state} messages={messages} onSendMessage={onSendMessage} onUpdateMessage={onUpdateMessage} onDeleteMessage={onDeleteMessage} />
         </div>
       </div>
     </div>
