@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Send, MessageSquare, User, ShieldCheck, Clock, Bell, Link as LinkIcon, ExternalLink, Image as ImageIcon, X, Loader2, Paperclip, CheckCircle, AlertTriangle, Sparkles } from 'lucide-react';
+import { Send, MessageSquare, User, ShieldCheck, Clock, Bell, Link as LinkIcon, ExternalLink, Image as ImageIcon, X, Loader2, Paperclip, CheckCircle, AlertTriangle, Sparkles, Edit2, Trash2, Check } from 'lucide-react';
 import { AppState, ChatMessage, Role, Teacher, Student } from '../types';
 import { supabase } from '../services/supabaseClient';
 
@@ -8,13 +8,17 @@ interface Props {
   state: AppState;
   messages: ChatMessage[];
   onSendMessage: (content: string, attachment?: string) => Promise<void>;
+  onUpdateMessage: (id: number, content: string) => Promise<void>;
+  onDeleteMessage: (id: number) => Promise<void>;
 }
 
-const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
+const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage, onUpdateMessage, onDeleteMessage }) => {
   const [inputValue, setInputValue] = useState('');
   const [attachmentUrl, setAttachmentUrl] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isTeacher = state.currentRole !== Role.STUDENT;
@@ -78,6 +82,21 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
     }
   };
 
+  const handleStartEdit = (msg: ChatMessage) => {
+    setEditingId(msg.id);
+    setEditValue(msg.content);
+  };
+
+  const handleSaveEdit = async (id: number) => {
+    if (!editValue.trim()) return;
+    try {
+      await onUpdateMessage(id, editValue.trim());
+      setEditingId(null);
+    } catch (err: any) {
+      alert("Lỗi cập nhật: " + err.message);
+    }
+  };
+
   const getInitials = (name: string) => (name || 'U').charAt(0).toUpperCase();
 
   const isImage = (url: string) => {
@@ -131,8 +150,54 @@ const GroupChat: React.FC<Props> = ({ state, messages, onSendMessage }) => {
                     )}
                   </div>
                   
-                  <div className={`p-4 rounded-2xl rounded-tl-none border shadow-sm space-y-3 ${isLatest ? 'bg-white border-indigo-200 ring-2 ring-indigo-50' : 'bg-white border-slate-100'}`}>
-                    <p className="text-[12px] text-slate-700 font-medium leading-relaxed whitespace-pre-line">{msg.content}</p>
+                  <div className={`p-4 rounded-2xl rounded-tl-none border shadow-sm space-y-3 relative group/card ${isLatest ? 'bg-white border-indigo-200 ring-2 ring-indigo-50' : 'bg-white border-slate-100'}`}>
+                    {editingId === msg.id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="w-full p-3 bg-slate-50 border border-indigo-200 rounded-xl text-[12px] font-bold outline-none focus:bg-white focus:border-indigo-400 transition-all shadow-inner resize-none min-h-[80px]"
+                          autoFocus
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={() => setEditingId(null)}
+                            className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition-all"
+                          >
+                            <X size={14} />
+                          </button>
+                          <button 
+                            onClick={() => handleSaveEdit(msg.id)}
+                            className="p-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg transition-all shadow-sm"
+                          >
+                            <Check size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-[12px] text-slate-700 font-medium leading-relaxed whitespace-pre-line">{msg.content}</p>
+                        
+                        {isTeacher && (msg.senderId === (state.currentUser as any)?.MaGV || msg.senderId === (state.currentUser as any)?.MaHS) && (
+                          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => handleStartEdit(msg)}
+                              className="p-1.5 bg-white/80 backdrop-blur-sm text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg border border-slate-100 shadow-sm transition-all"
+                              title="Sửa thông báo"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button 
+                              onClick={() => onDeleteMessage(msg.id)}
+                              className="p-1.5 bg-white/80 backdrop-blur-sm text-slate-400 hover:text-rose-600 hover:bg-white rounded-lg border border-slate-100 shadow-sm transition-all"
+                              title="Xóa thông báo"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
                     
                     {msg.attachment && (
                       <div className="pt-2 border-t border-slate-50">
