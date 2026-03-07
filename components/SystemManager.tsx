@@ -3,10 +3,11 @@ import React, { useState, useMemo } from 'react';
 import { 
   Calendar, Layers, UserPlus, Plus, Edit2, Trash2, Save, X, Database, Users, BookOpen, GraduationCap, Briefcase, Check, AlertCircle, Loader2, Search, ArrowRightLeft, UserCheck, ChevronRight
 } from 'lucide-react';
-import { AcademicYear, Class, Teacher, Assignment, Role, Student } from '../types';
+import { AcademicYear, Class, Teacher, Assignment, Role, Student, AppState } from '../types';
 import { supabase } from '../services/supabaseClient';
 
 interface Props {
+  state: AppState;
   years: AcademicYear[];
   classes: Class[];
   teachers: Teacher[];
@@ -23,7 +24,7 @@ const subjectList = [
   { id: 'TIN', name: 'Tin Học' }, { id: 'CONGNGHE', name: 'Công Nghệ' }, { id: 'GDTC', name: 'Thể Dục' }
 ];
 
-const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments, onUpdate, students }) => {
+const SystemManager: React.FC<Props> = ({ state, years, classes, teachers, assignments, onUpdate, students }) => {
   const [activeSubTab, setActiveSubTab] = useState<'YEARS' | 'CLASSES' | 'ASSIGN'>('YEARS');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -35,8 +36,8 @@ const SystemManager: React.FC<Props> = ({ years, classes, teachers, assignments,
   const [editingClassId, setEditingClassId] = useState<string | null>(null);
 
   // State cho Phân công
-  const [assignYear, setAssignYear] = useState<number>(years[0]?.MaNienHoc || 0);
-  const [assignClass, setAssignClass] = useState<string>(classes[0]?.MaLop || '');
+  const [assignYear, setAssignYear] = useState<number>(state.selectedYear || years[0]?.MaNienHoc || 0);
+  const [assignClass, setAssignClass] = useState<string>(state.selectedClass || classes[0]?.MaLop || '');
   const [assignTeacher, setAssignTeacher] = useState<string>(teachers[0]?.MaGV || '');
   const [assignSubject, setAssignSubject] = useState<string>('GVCN');
 
