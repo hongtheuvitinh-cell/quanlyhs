@@ -121,9 +121,15 @@ const SchoolPlans: React.FC<Props> = ({ state, plans, classes, onUpdatePlan, onD
                     <Clock size={12} /> {plan.TuNgay} → {plan.DenNgay}
                   </div>
                   {canManage && (
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                       <button onClick={() => openEdit(plan)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit2 size={16}/></button>
-                       <button onClick={() => { if(confirm("Xóa kế hoạch này?")) onDeletePlan(plan.MaKeHoach); }} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={16}/></button>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                       <button onClick={() => openEdit(plan)} className="flex items-center gap-1 px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100">
+                         <Edit2 size={14}/>
+                         <span className="text-[9px] font-black uppercase tracking-widest">Sửa</span>
+                       </button>
+                       <button onClick={() => { if(confirm("Xóa kế hoạch này?")) onDeletePlan(plan.MaKeHoach); }} className="flex items-center gap-1 px-3 py-1.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-100">
+                         <Trash2 size={14}/>
+                         <span className="text-[9px] font-black uppercase tracking-widest">Xóa</span>
+                       </button>
                     </div>
                   )}
                </div>
