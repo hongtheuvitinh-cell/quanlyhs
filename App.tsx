@@ -38,10 +38,16 @@ const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
     currentUser: null,
     currentRole: Role.CHU_NHIEM,
-    selectedClass: '',
-    selectedYear: 0,
+    selectedClass: localStorage.getItem('last_class') || '',
+    selectedYear: Number(localStorage.getItem('last_year')) || 0,
     selectedSubject: null
   });
+
+  // Persist selection
+  useEffect(() => {
+    if (state.selectedClass) localStorage.setItem('last_class', state.selectedClass);
+    if (state.selectedYear) localStorage.setItem('last_year', state.selectedYear.toString());
+  }, [state.selectedClass, state.selectedYear]);
 
   const fetchData = async () => {
     if (!isSupabaseConfigured) { setIsLoading(false); return; }
@@ -81,18 +87,19 @@ const App: React.FC = () => {
       let defaultYear = fetchedYears.length ? fetchedYears[0].MaNienHoc : 0;
       
       const savedSession = localStorage.getItem('edu_session');
-      if (savedSession) {
+      if (savedSession && !state.currentUser) {
         const { role, id } = JSON.parse(savedSession);
         if (role === Role.STUDENT) {
           const s = fetchedStudents.find(x => x.MaHS === id);
           if (s) {
-            setState({
+            setState(p => ({
+              ...p,
               currentUser: s,
               currentRole: Role.STUDENT,
-              selectedClass: s.MaLopHienTai,
-              selectedYear: s.MaNienHoc,
+              selectedClass: p.selectedClass || s.MaLopHienTai,
+              selectedYear: p.selectedYear || s.MaNienHoc,
               selectedSubject: null
-            });
+            }));
             setIsLoggedIn(true);
           }
         } else {
@@ -103,13 +110,14 @@ const App: React.FC = () => {
             const initialClass = t.quanly ? (fetchedClasses[0]?.MaLop || '') : (myAs.find(a => a.LoaiPhanCong === initialRole)?.MaLop || myAs[0]?.MaLop || '');
             const initialYear = myAs[0]?.MaNienHoc || defaultYear;
 
-            setState({
+            setState(p => ({
+              ...p,
               currentUser: t,
-              currentRole: initialRole,
-              selectedClass: initialClass,
-              selectedYear: initialYear,
-              selectedSubject: t.MaMonChinh || null
-            });
+              currentRole: p.currentRole || initialRole,
+              selectedClass: p.selectedClass || initialClass,
+              selectedYear: p.selectedYear || initialYear,
+              selectedSubject: p.selectedSubject || t.MaMonChinh || null
+            }));
             setIsLoggedIn(true);
           }
         }
@@ -303,7 +311,7 @@ const App: React.FC = () => {
           {activeTab === 'tasks' && <TaskManager state={state} students={currentClassStudents} tasks={tasks} onUpdateTasks={async (t) => { await supabase.from('tasks').upsert(t); await fetchData(); }} onDeleteTask={async (id) => { await supabase.from('tasks').delete().eq('MaNhiemVu', id); await fetchData(); }} />}
           {activeTab === 'discipline' && <DisciplineManager state={state} students={currentClassStudents} allStudents={students} violationRules={violationRules} assignments={assignments} onUpdateRules={async (r) => { await supabase.from('violation_rules').upsert(r); await fetchData(); }} />}
           {activeTab === 'logs' && <LearningLogs state={state} students={currentClassStudents} assignments={assignments} />}
-          {activeTab === 'system' && <SystemManager years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={fetchData} students={students} />}
+          {activeTab === 'system' && <SystemManager state={state} years={years} classes={classes} teachers={teachers} assignments={assignments} onUpdate={fetchData} students={students} />}
           {activeTab === 'plans' && <SchoolPlans state={state} plans={plans} classes={classes} onUpdatePlan={async (p) => { await supabase.from('school_plans').upsert(p); await fetchData(); }} onDeletePlan={async (id) => { await supabase.from('school_plans').delete().eq('MaKeHoach', id); await fetchData(); }} />}
           {activeTab === 'teachers' && <TeacherList teachers={teachers} onUpdate={fetchData} />}
           {activeTab === 'seating' && <ClassSeating state={state} students={currentClassStudents} className={classes.find(c => c.MaLop === state.selectedClass)?.TenLop} />}
