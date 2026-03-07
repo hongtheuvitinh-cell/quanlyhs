@@ -18,6 +18,8 @@ interface Props {
   plans: SchoolPlan[];
   messages: ChatMessage[];
   onSendMessage: (content: string, attachment?: string) => Promise<void>;
+  onUpdateMessage: (id: number, content: string) => Promise<void>;
+  onDeleteMessage: (id: number) => Promise<void>;
   onLogout: () => void;
   onToggleTask: (taskId: number, link?: string) => Promise<void>;
   onUpdateProfile: () => Promise<void>;
@@ -31,7 +33,19 @@ const subjectsList = [
 
 type ViewState = 'dashboard' | 'study' | 'tasks' | 'discipline' | 'profile' | 'timetable';
 
-const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans, messages, onSendMessage, onLogout, onToggleTask, onUpdateProfile }) => {
+const StudentPortal: React.FC<Props> = ({ 
+  student, 
+  violationRules, 
+  tasks, 
+  plans, 
+  messages, 
+  onSendMessage, 
+  onUpdateMessage,
+  onDeleteMessage,
+  onLogout, 
+  onToggleTask, 
+  onUpdateProfile 
+}) => {
   const [activeView, setActiveView] = useState<ViewState>('dashboard');
   const [isUpdating, setIsUpdating] = useState(false);
   const [taskLinks, setTaskLinks] = useState<Record<number, string>>({});
@@ -214,7 +228,13 @@ const StudentPortal: React.FC<Props> = ({ student, violationRules, tasks, plans,
                        )}
                      </div>
                    </div>
-                   <GroupChat state={{currentUser: student, currentRole: Role.STUDENT, selectedClass: student.MaLopHienTai, selectedYear: student.MaNienHoc, selectedSubject: null}} messages={messages} onSendMessage={onSendMessage} />
+                   <GroupChat 
+                     state={{currentUser: student, currentRole: Role.STUDENT, selectedClass: student.MaLopHienTai, selectedYear: student.MaNienHoc, selectedSubject: null}} 
+                     messages={messages} 
+                     onSendMessage={onSendMessage} 
+                     onUpdateMessage={onUpdateMessage}
+                     onDeleteMessage={onDeleteMessage}
+                   />
                 </div>
                 <div className="lg:col-span-4 space-y-6">
                    <div className="p-6 rounded-[32px] bg-indigo-600 text-white shadow-xl shadow-indigo-100"><p className="text-[9px] font-black uppercase opacity-60 mb-2">Điểm trung bình (TB)</p><h4 className="text-4xl font-black">{finalAvg}</h4></div>
