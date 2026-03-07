@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
-  Users, TrendingUp, AlertCircle, Calendar, CheckCircle2, FileText, ChevronRight, Link as LinkIcon, Lock, Loader2, Bell
+  Users, TrendingUp, AlertCircle, Calendar, CheckCircle2, FileText, ChevronRight, Link as LinkIcon, Lock, Loader2, Bell, Monitor, Clock, Edit2
 } from 'lucide-react';
 import { AppState, Student, Teacher, SchoolPlan, ChatMessage, Role } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -14,9 +14,10 @@ interface Props {
   plans: SchoolPlan[];
   messages: ChatMessage[];
   onSendMessage: (content: string) => Promise<void>;
+  onTabChange: (tab: any) => void;
 }
 
-const Dashboard: React.FC<Props> = ({ state, students, plans, messages, onSendMessage }) => {
+const Dashboard: React.FC<Props> = ({ state, students, plans, messages, onSendMessage, onTabChange }) => {
   const [stats, setStats] = useState({ avg: '0.0', violations: 0, attendance: '98%' });
   const [isLoading, setIsLoading] = useState(false);
   const currentUser = state.currentUser as Teacher;
@@ -82,14 +83,51 @@ const Dashboard: React.FC<Props> = ({ state, students, plans, messages, onSendMe
         <StatCard icon={<CheckCircle2 size={20} />} label="Hiện diện" value={stats.attendance} subValue="Hôm nay" color="sky" />
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button 
+          onClick={() => onTabChange('seating')}
+          className="flex items-center gap-4 p-4 bg-white rounded-[28px] border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group text-left"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
+            <Monitor size={20} />
+          </div>
+          <div>
+            <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">Sơ đồ lớp học</h4>
+            <p className="text-[10px] text-slate-400 font-medium">Xem và quản lý vị trí ngồi của học sinh</p>
+          </div>
+          <ChevronRight size={16} className="ml-auto text-slate-300 group-hover:text-indigo-600 transition-all" />
+        </button>
+
+        <button 
+          onClick={() => onTabChange('timetable')}
+          className="flex items-center gap-4 p-4 bg-white rounded-[28px] border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all group text-left"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all">
+            <Clock size={20} />
+          </div>
+          <div>
+            <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">Thời khóa biểu</h4>
+            <p className="text-[10px] text-slate-400 font-medium">Lịch học và giảng dạy chi tiết hàng tuần</p>
+          </div>
+          <ChevronRight size={16} className="ml-auto text-slate-300 group-hover:text-amber-600 transition-all" />
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8 space-y-6">
            {latestPlan ? (
-             <div className="bg-white p-8 rounded-[40px] border border-indigo-100 shadow-sm relative overflow-hidden group">
-                <div className="flex items-center gap-2 mb-4">
-                   <div className="px-3 py-1 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest">Kế hoạch Tuần {latestPlan.Tuan}</div>
-                </div>
-                <h3 className="text-base font-black text-slate-800 uppercase mb-3 leading-tight">{latestPlan.TieuDe}</h3>
+              <div className="bg-white p-8 rounded-[40px] border border-indigo-100 shadow-sm relative overflow-hidden group">
+                 <div className="flex items-center justify-between mb-4">
+                    <div className="px-3 py-1 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest">Kế hoạch Tuần {latestPlan.Tuan}</div>
+                    <button 
+                      onClick={() => onTabChange('plans')}
+                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 flex items-center gap-1"
+                    >
+                      <Edit2 size={14} />
+                      <span className="text-[9px] font-black uppercase">Sửa nhanh</span>
+                    </button>
+                 </div>
+                 <h3 className="text-base font-black text-slate-800 uppercase mb-3 leading-tight">{latestPlan.TieuDe}</h3>
                 <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-50 mb-4 shadow-inner">
                    <p className="text-[11px] text-slate-500 font-medium italic whitespace-pre-line leading-relaxed">"{latestPlan.NoiDung}"</p>
                 </div>
