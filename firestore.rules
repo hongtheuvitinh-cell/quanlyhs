@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Public read access to all collections for students/parents to view on Public Portal
+    match /{document=**} {
+      allow read: if true;
+    }
+
+    // Allow write and delete operations for app collections
+
+    match /users/{userId} {
+      allow create, update: if request.resource.data.ten != null && 
+                            request.resource.data.ten != "" && 
+                            request.resource.data.matkhau != null && 
+                            request.resource.data.matkhau != "";
+      allow delete: if true;
+    }
+
+    match /settings/{settingId} {
+      allow create, update, delete: if true;
+    }
+
+    match /globalSettings/{settingId} {
+      allow create, update, delete: if true;
+    }
+
+    match /teachers/{teacherId} {
+      allow create, update, delete: if true;
+    }
+
+    match /schoolYears/{yearId} {
+      allow create, update, delete: if true;
+    }
+
+    match /classes/{classId} {
+      allow create, update, delete: if true;
+    }
+
+    match /students/{studentId} {
+      allow create, update: if request.resource.data.name != null && 
+                            request.resource.data.classId != null;
+      allow delete: if true;
+    }
+
+    match /violations/{violationId} {
+      allow create, update: if request.resource.data.studentId != null && 
+                            request.resource.data.typeId != null;
+      allow delete: if true;
+    }
+
+    match /plans/{planId} {
+      allow create, update, delete: if true;
+    }
+
+    match /weeklyPlans/{planId} {
+      allow create, update, delete: if true;
+    }
+
+    match /tasks/{taskId} {
+      allow create, update: if request.resource.data.title != null;
+      allow delete: if true;
+    }
+
+    match /violationTypes/{typeId} {
+      allow create, update: if request.resource.data.name != null;
+      allow delete: if true;
+    }
+
+    match /academicUpdates/{updateId} {
+      allow create, update: if request.resource.data.title != null;
+      allow delete: if true;
+    }
+
+    match /announcements/{annId} {
+      allow create, update: if request.resource.data.title != null && 
+                            request.resource.data.content != null;
+      allow delete: if true;
+    }
+
+    match /duties/{dutyId} {
+      allow create, update, delete: if true;
+    }
+
+    match /timetables/{timetableId} {
+      allow create, update, delete: if true;
+    }
+
+    match /reminders/{reminderId} {
+      allow create, update, delete: if true;
+    }
+
+    match /participations/{participationId} {
+      allow create, update, delete: if true;
+    }
+  }
+}
